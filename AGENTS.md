@@ -6,12 +6,20 @@ It reflects only what is currently true in this repository.
 ## 1) Current Repository Context
 
 - The repository contains active Bun/TypeScript code under `dark_core/` and Prisma schema/config under `prisma/`.
+- Prisma models currently include `Product` and `Variant` with these core assumptions:
+  - Creating a local product (`@local://`) should also create a default variant at the same locator path.
+  - Variant locator values are not globally unique; multiple variants can share a locator and are differentiated by `(productId, name)`.
+- Rust workspace code now includes:
+  - `frontends/dark_cli/` for the CLI binary.
+  - `lib/dark_rust/` for shared dark_core API client/types used by Rust frontends.
 - Moon workspace/project config is present at:
   - `.moon/workspace.yml`
   - `.moon/toolchains.yml`
   - `dark_core/moon.yml`
   - `prisma/moon.yml`
   - `generated/moon.yml`
+  - `lib/dark_rust/moon.yml`
+  - `frontends/dark_cli/moon.yml`
 - Prisma generated outputs are written under `generated/` (for example `generated/prisma/` and `generated/prismabox/`).
 
 ## 2) Reflection Lessons (Read Early)
@@ -51,8 +59,10 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - Keep naming consistent (`PascalCase` types, `camelCase` values/functions, `UPPER_SNAKE_CASE` constants).
 - Handle errors with context; do not swallow exceptions silently.
 - Never log secrets or credentials.
-- Log messages should follow: `System // Optional Sub system // Message (Metadata)`.
-  - Example: `Core // HTTP // Listening (env=development,host=127.0.0.1,port=4150)`.
+- Log messages should follow: `System // Optional Sub system // Message (meta={...})`.
+  - Prefer structured JSON metadata over comma-delimited `key=value` text so long IDs/paths remain readable.
+  - In `dark_core`, use `formatLogMetadata` from `dark_core/src/utils/logging.ts` when adding metadata.
+  - Example: `Core // HTTP // Listening (meta={"env":"development","host":"127.0.0.1","port":4150})`.
 
 ## 6) Git Workflow
 
@@ -98,6 +108,7 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - Keep route handlers thin: parse input, call controllers, map errors to API JSON shape.
 - Keep controllers modular and promise-based so routes and other controllers can reuse them.
 - Prefer minimal, early-stage pragmatism over heavy abstractions while keeping code DRY and readable.
+- Current REST coverage includes CRUD handlers for both `/products` and `/variants`.
 
 ## 9) Script Conventions
 
@@ -107,6 +118,7 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - `scripts/install.sh.ts` runs ordered bootstrap/install steps: `proto install`, Bun install (root-invoked), then `moon :install`.
 - `scripts/dev.sh.ts` runs `moon run dark_core:dev`.
 - `scripts/test.sh.ts` runs `moon run dark_core:test`.
+- `scripts/dcli.sh.ts` runs `dark_cli` via Cargo from repo root and forwards all CLI args.
 - `scripts/reflect_constant.sh.ts` manages periodic reflector loops (`start`, `status`, `stop`, or foreground `run`).
 - `scripts/reflect_constant.sh.ts` writes timestamped reflector outputs to `docs/reflections/`.
 - `dark_core:check` now includes `dark_core:typecheck` plus `format:check` for full checks.
@@ -133,3 +145,4 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - Update this file when real code, tooling, or CI is added.
 - Keep instructions tied to verified repository behavior.
 - Prefer short, accurate guidance over aspirational process docs.
+- When `prisma/schema.prisma` or `dark_core/src/routes/*.ts` changes, update this file with any durable impacts on clients/contracts and agent workflow expectations.

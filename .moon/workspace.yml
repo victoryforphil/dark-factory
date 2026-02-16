@@ -4,6 +4,8 @@ projects:
   dark_core: "dark_core"
   prisma: "prisma"
   generated: "generated"
+  dark_rust: "lib/dark_rust"
+  dark_cli: "frontends/dark_cli"
 
 vcs:
   manager: "git"

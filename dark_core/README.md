@@ -30,6 +30,13 @@ bun run config:export
 bun run config:print
 ```
 
+## Product and Variant API
+
+- Products support CRUD at `/products/` and `/products/:id`.
+- Variants support CRUD at `/variants/` and `/variants/:id`.
+- Creating a local product (`@local://...`) automatically creates a default variant (`name=default`) with the same locator path.
+- Multiple variants can share the same locator path and are distinguished by `name`.
+
 ## Config behavior
 
 - `config export` writes a TOML file from schema defaults.

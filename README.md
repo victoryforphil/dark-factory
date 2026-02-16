@@ -8,13 +8,12 @@
   - Locators are path/url-like identifiers, currently using `@local://{abs_path}`
   - `product` may optionally include a `display_name` for human-friendly rendering
 - A `variant` is a spawned instance of a `product` where work actually runs
-  - In Stage 0 a product immediately gets one default variant on creation
-  - Variant identity follows the same locator pattern with a fragment suffix:
-    - `@local://{abs_path}#default`
-  - Future variants can use other suffixes (example: `#wt-main`) when we support parallel instances
+  - In Stage 0 a local product immediately gets one default variant on creation
+  - The default variant inherits the product locator path directly
+  - Additional variants can be created at the same location path (for example `default`, `wt-main`, `wt-exp`) and are distinguished by `name`
 - Stage 0 topology is intentionally strict and simple:
   - One product locator
-  - One default variant locator
+  - One default variant created automatically
   - One actor bound to that variant
 - `actor` is a spawned agent that operates on a variant
   - Can be various agent backends (currently scoped in OpenCode, Codex and a custom agent), but first iteration is JUST OpenCode
@@ -46,10 +45,11 @@
   - TBD: will either be stateless w/ DB and route all commands just to the agents
     - OR: a background API service (REST even) we can query from frontends
 - Currently looks like it will be Bun + Elysia JS
-- Moon support is configured via `.moon/workspace.yml`, `.moon/toolchains.yml`, `dark_core/moon.yml`, `prisma/moon.yml`, and `generated/moon.yml`.
+- Moon support is configured via `.moon/workspace.yml`, `.moon/toolchains.yml`, `dark_core/moon.yml`, `prisma/moon.yml`, `generated/moon.yml`, `lib/dark_rust/moon.yml`, and `frontends/dark_cli/moon.yml`.
 - `prisma:build` uses `bunx prisma generate --schema schema.prisma` and writes generated outputs to `generated/prisma/` and `generated/prismabox/`.
 - `dark_core` tasks (`install`, `build`, `dev`, `check`, `test`) depend on generated artifacts through `generated:build` -> `prisma:build`.
 - Verified command: `moon run dark_core:test` (passes and runs Prisma generation dependency chain).
+- Product and variant CRUD endpoints are now available (`/products/*` and `/variants/*`).
 
 ## Frontends
 

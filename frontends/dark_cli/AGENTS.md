@@ -11,15 +11,15 @@ This file defines local guidance for agents working in `frontends/dark_cli`.
 ## Package Context (Current Truth)
 
 - Crate name: `dark_cli`.
-- Entrypoint exists at `src/main.rs` and is currently a placeholder binary.
-- `Cargo.toml` already includes baseline dependencies for future CLI expansion.
+- Entrypoint exists at `src/main.rs` and routes commands to a shared Rust API client.
+- Shared dark_core HTTP client/types live in `lib/dark_rust` and should be reused.
 
 ## Modularity Direction (Without Over-claiming)
 
 - Keep command parsing concerns separate from transport concerns.
 - Keep transport logic separate from output rendering logic.
 - Keep configuration loading isolated from command handlers.
-- Add modules only when used; avoid speculative scaffolding.
+- Keep pretty table rendering focused on CLI presentation concerns.
 
 ## Coding Conventions
 

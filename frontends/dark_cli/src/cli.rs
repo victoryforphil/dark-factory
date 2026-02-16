@@ -30,6 +30,7 @@ pub enum Command {
     Service(ServiceCommand),
     System(SystemCommand),
     Products(ProductsCommand),
+    Variants(VariantsCommand),
     Opencode(OpencodeCommand),
 }
 
@@ -76,6 +77,68 @@ pub enum ProductsAction {
         locator: String,
         #[arg(long)]
         display_name: Option<String>,
+    },
+    Get {
+        #[arg(long)]
+        id: String,
+    },
+    Update {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        locator: Option<String>,
+        #[arg(long)]
+        display_name: Option<String>,
+    },
+    Delete {
+        #[arg(long)]
+        id: String,
+    },
+}
+
+#[derive(Debug, Args)]
+pub struct VariantsCommand {
+    #[command(subcommand)]
+    pub action: VariantsAction,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum VariantsAction {
+    List {
+        #[arg(long)]
+        cursor: Option<String>,
+        #[arg(long)]
+        limit: Option<u32>,
+        #[arg(long)]
+        product_id: Option<String>,
+        #[arg(long)]
+        locator: Option<String>,
+        #[arg(long)]
+        name: Option<String>,
+    },
+    Create {
+        #[arg(long)]
+        locator: String,
+        #[arg(long)]
+        product_id: String,
+        #[arg(long)]
+        name: Option<String>,
+    },
+    Get {
+        #[arg(long)]
+        id: String,
+    },
+    Update {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        locator: Option<String>,
+        #[arg(long)]
+        name: Option<String>,
+    },
+    Delete {
+        #[arg(long)]
+        id: String,
     },
 }
 

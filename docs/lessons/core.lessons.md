@@ -8,3 +8,4 @@
 - Prefer generic phrasing that future agents can apply across similar tasks.
 - Read lessons files early in each task before planning implementation details.
 - Prune duplicates and stale bullets so signal stays high as work evolves.
+- When logging metadata in `dark_core`, prefer `meta={...}` JSON via `formatLogMetadata` instead of comma-separated `key=value` strings.
