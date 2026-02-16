@@ -17,6 +17,24 @@ const createDependencies = (): SystemRoutesDependencies => {
     getMetrics: async () => ({
       uptimeSeconds: 42,
     }),
+    getProvidersInfo: async () => ({
+      defaultProvider: 'mock',
+      enabledProviders: ['mock', 'opencode'],
+      providers: [
+        {
+          key: 'mock',
+          configured: true,
+          enabled: true,
+          available: true,
+        },
+        {
+          key: 'opencode',
+          configured: true,
+          enabled: true,
+          available: true,
+        },
+      ],
+    }),
     resetLocalDatabase: async () => ({
       backupPath: '/tmp/darkfactory.dev.2026-02-16T00-00-00-000Z.backup.db',
       databasePath: '/tmp/darkfactory.dev.db',
@@ -74,6 +92,21 @@ describe('system routes unit', () => {
       error: {
         code: 'SYSTEM_RESET_DB_FAILED',
         message: 'reset failed',
+      },
+    });
+  });
+
+  it('returns configured providers', async () => {
+    const app = new Elysia().use(createSystemRoutes(createDependencies()));
+
+    const response = await app.handle(new Request('http://localhost/system/providers'));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      data: {
+        defaultProvider: 'mock',
+        enabledProviders: ['mock', 'opencode'],
       },
     });
   });

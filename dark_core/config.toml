@@ -2,15 +2,21 @@ env = "development"
 
 [server]
 listenHost = "127.0.0.1"
-listenPort = 4150
+listenPort = 4_150
 
 [prisma]
+databaseUrl = "file:../.darkfactory/darkfactory.dev.db"
 logQueries = false
 
 [opencode]
 hostname = "127.0.0.1"
-port = 4096
-startupTimeoutMs = 5000
+port = 4_096
+startupTimeoutMs = 5_000
 autoStartServer = true
 logLevel = "INFO"
 tuiCommand = "opencode"
+
+[providers]
+# Keep mock enabled for deterministic tests and local e2e harnesses.
+defaultProvider = "opencode"
+enabledProviders = [ "mock", "opencode" ]

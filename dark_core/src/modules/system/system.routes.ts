@@ -1,12 +1,19 @@
 import { Elysia, t } from 'elysia';
 
-import { getApiInfo, getHealth, getMetrics, resetLocalDatabase } from './system.controller';
+import {
+  getApiInfo,
+  getHealth,
+  getMetrics,
+  getProvidersInfo,
+  resetLocalDatabase,
+} from './system.controller';
 import { failure, success, toErrorMessage } from '../../utils/api-response';
 
 export interface SystemRoutesDependencies {
   getApiInfo: typeof getApiInfo;
   getHealth: typeof getHealth;
   getMetrics: typeof getMetrics;
+  getProvidersInfo: typeof getProvidersInfo;
   resetLocalDatabase: typeof resetLocalDatabase;
 }
 
@@ -31,11 +38,28 @@ const resetDatabaseResponse = t.Object({
   }),
 });
 
+const providersInfoResponse = t.Object({
+  ok: t.Literal(true),
+  data: t.Object({
+    defaultProvider: t.String(),
+    enabledProviders: t.Array(t.String()),
+    providers: t.Array(
+      t.Object({
+        key: t.String(),
+        configured: t.Boolean(),
+        enabled: t.Boolean(),
+        available: t.Boolean(),
+      }),
+    ),
+  }),
+});
+
 export const createSystemRoutes = (
   dependencies: SystemRoutesDependencies = {
     getApiInfo,
     getHealth,
     getMetrics,
+    getProvidersInfo,
     resetLocalDatabase,
   },
 ): Elysia => {
@@ -64,6 +88,23 @@ export const createSystemRoutes = (
         return failure('SYSTEM_METRICS_FAILED', toErrorMessage(error));
       }
     })
+    .get(
+      '/providers',
+      async ({ set }) => {
+        try {
+          return success(await dependencies.getProvidersInfo());
+        } catch (error) {
+          set.status = 500;
+          return failure('SYSTEM_PROVIDERS_FAILED', toErrorMessage(error));
+        }
+      },
+      {
+        response: {
+          200: providersInfoResponse,
+          500: apiFailureResponse,
+        },
+      },
+    )
     .post(
       '/reset-db',
       async ({ set }) => {

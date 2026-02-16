@@ -37,6 +37,7 @@ model Variant {
   gitInfoUpdatedAt    DateTime? @map("git_info_updated_at")
   gitInfoLastPolledAt DateTime? @map("git_info_last_polled_at")
   product             Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  actors              Actor[]
   createdAt           DateTime  @default(now()) @map("created_at")
   updatedAt           DateTime  @updatedAt @map("updated_at")
 
@@ -44,4 +45,30 @@ model Variant {
   @@index([productId])
   @@index([locator])
   @@map("variants")
+}
+
+model Actor {
+  id                String   @id
+  variantId         String   @map("variant_id")
+  provider          String
+  actorLocator      String   @map("actor_locator")
+  workingLocator    String   @map("working_locator")
+  providerSessionId String?  @map("provider_session_id")
+  status            String   @default("unknown")
+  title             String?
+  description       String?
+  connectionInfo    Json?    @map("connection_info")
+  attachCommand     String?  @map("attach_command")
+  metadata          Json?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  variant Variant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([variantId])
+  @@index([provider])
+  @@index([status])
+  @@index([providerSessionId])
+  @@unique([variantId, provider, providerSessionId])
+  @@map("actors")
 }

@@ -1,9 +1,10 @@
-import { stat } from 'node:fs/promises';
-import { basename, resolve } from 'node:path';
+import { basename } from 'node:path';
 
 import type { Message, Part, Session } from '@opencode-ai/sdk';
 
-import { getConfig } from '../../config';
+import { getConfig } from '../../../config';
+import { normalizeProviderDirectory } from '../common/providers.directory';
+import { toShellArgument } from '../common/providers.shell';
 import { getOpencodeClient } from './opencode.client';
 
 export interface OpencodeDirectoryInput {
@@ -17,6 +18,11 @@ export interface CreateOpencodeSessionInput extends OpencodeDirectoryInput {
 export interface GetOpencodeSessionInput extends OpencodeDirectoryInput {
   id: string;
   includeMessages?: boolean;
+}
+
+export interface ListOpencodeSessionMessagesInput extends OpencodeDirectoryInput {
+  id: string;
+  limit?: number;
 }
 
 export interface SendOpencodeSessionCommandInput extends OpencodeDirectoryInput {
@@ -52,25 +58,10 @@ export interface OpencodeSessionState {
   }>;
 }
 
-const toShellArgument = (value: string): string => {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
-};
-
-const normalizeDirectory = async (directory: string): Promise<string> => {
-  const resolvedDirectory = resolve(directory);
-  const directoryInfo = await stat(resolvedDirectory).catch(() => undefined);
-
-  if (!directoryInfo || !directoryInfo.isDirectory()) {
-    throw new Error(
-      `OpenCode // Directory // Expected existing directory (directory=${resolvedDirectory})`,
-    );
-  }
-
-  return resolvedDirectory;
-};
+type OpencodeSessionStatusMap = Record<string, { type: 'idle' | 'busy' | 'retry' }>;
 
 const getDirectoryClient = async (directory: string) => {
-  const normalizedDirectory = await normalizeDirectory(directory);
+  const normalizedDirectory = await normalizeProviderDirectory(directory, 'OpenCode');
   const client = await getOpencodeClient(normalizedDirectory);
 
   return {
@@ -112,6 +103,28 @@ export const getOpencodeSessionState = async (
     session,
     messages,
   };
+};
+
+export const listOpencodeSessionMessages = async (
+  input: ListOpencodeSessionMessagesInput,
+): Promise<Array<{ info: Message; parts: Part[] }>> => {
+  const { client } = await getDirectoryClient(input.directory);
+
+  return client.session.messages({
+    path: {
+      id: input.id,
+    },
+    query: {
+      ...(input.limit !== undefined ? { limit: input.limit } : {}),
+    },
+  });
+};
+
+export const getOpencodeSessionStatuses = async (
+  input: OpencodeDirectoryInput,
+): Promise<OpencodeSessionStatusMap> => {
+  const { client } = await getDirectoryClient(input.directory);
+  return client.session.status();
 };
 
 export const getOpencodeDirectoryState = async (input: OpencodeDirectoryInput) => {

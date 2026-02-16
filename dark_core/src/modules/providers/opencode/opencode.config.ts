@@ -1,10 +1,10 @@
 import { z } from 'zod';
 
-import type { ConfigSubsystemDefinition } from '../../config/lib/types';
+import type { ConfigSubsystemDefinition } from '../../../config/lib/types';
 
 const opencodeLogLevelSchema = z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']);
 
-/** OpenCode SDK/runtime config owned by the client domain. */
+/** OpenCode SDK/runtime config owned by the provider domain. */
 export const opencodeConfigSection = {
   shape: {
     hostname: z.string().min(1).default('127.0.0.1'),

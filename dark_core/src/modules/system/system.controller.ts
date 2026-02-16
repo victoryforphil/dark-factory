@@ -3,6 +3,7 @@ import { basename, dirname, isAbsolute, resolve } from 'node:path';
 
 import { getConfig } from '../../config';
 import { getPrismaClient } from '../prisma/prisma.client';
+import { listConfiguredProviders, getProvidersRuntimeConfig } from '../providers/providers.registry';
 import Log, { formatLogMetadata } from '../../utils/logging';
 
 export interface ServiceInfo {
@@ -19,6 +20,17 @@ export interface ResetLocalDatabaseResult {
     variants: number;
   };
   resetAt: string;
+}
+
+export interface ProvidersInfo {
+  defaultProvider: string;
+  enabledProviders: string[];
+  providers: Array<{
+    key: string;
+    configured: boolean;
+    enabled: boolean;
+    available: boolean;
+  }>;
 }
 
 const resolveFileDatabasePath = async (databaseUrl: string): Promise<string> => {
@@ -75,6 +87,16 @@ export const getApiInfo = async (): Promise<ServiceInfo> => {
 export const getMetrics = async (): Promise<Record<string, number>> => {
   return {
     uptimeSeconds: Math.floor(process.uptime()),
+  };
+};
+
+export const getProvidersInfo = async (): Promise<ProvidersInfo> => {
+  const runtime = getProvidersRuntimeConfig();
+
+  return {
+    defaultProvider: runtime.defaultProvider,
+    enabledProviders: runtime.enabledProviders,
+    providers: listConfiguredProviders(),
   };
 };
 

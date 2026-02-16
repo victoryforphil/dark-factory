@@ -1,6 +1,6 @@
 import { createOpencode, createOpencodeClient, type OpencodeClient } from '@opencode-ai/sdk';
 
-import { getConfig } from '../../config';
+import { getConfig } from '../../../config';
 
 interface OpencodeServerRuntime {
   url: string;

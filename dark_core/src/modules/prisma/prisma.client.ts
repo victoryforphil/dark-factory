@@ -1,5 +1,6 @@
 import { PrismaClient } from '../../../../generated/prisma/client';
 import { PrismaLibSql } from '@prisma/adapter-libsql';
+import { resolve } from 'node:path';
 
 import { getConfig } from '../../config';
 import Log, { formatLogMetadata } from '../../utils/logging';
@@ -7,9 +8,8 @@ import Log, { formatLogMetadata } from '../../utils/logging';
 let prismaClient: PrismaClient | undefined;
 let prismaSchemaEnsurePromise: Promise<void> | undefined;
 
-interface SqliteTableInfoRow {
-  name?: string;
-}
+const REPO_ROOT = resolve(import.meta.dir, '../../../../');
+const PRISMA_SCHEMA_PATH = 'prisma/schema.prisma';
 
 const createPrismaClient = (): PrismaClient => {
   const prismaDatabaseUrl = getConfig().prisma.databaseUrl;
@@ -40,30 +40,35 @@ export const getPrismaClient = (): PrismaClient => {
   return prismaClient;
 };
 
-const getTableColumnNames = async (tableName: string): Promise<Set<string>> => {
-  const prisma = getPrismaClient();
-  const rows = await prisma.$queryRawUnsafe<Array<SqliteTableInfoRow>>(`PRAGMA table_info("${tableName}")`);
-
-  return new Set(rows.map((row) => row.name).filter((name): name is string => Boolean(name)));
-};
-
-const addColumnIfMissing = async (
-  tableName: string,
-  columnName: string,
-  sqlDefinition: string,
-): Promise<boolean> => {
-  const prisma = getPrismaClient();
-  const columns = await getTableColumnNames(tableName);
-
-  if (columns.has(columnName)) {
-    return false;
-  }
-
-  await prisma.$executeRawUnsafe(
-    `ALTER TABLE "${tableName}" ADD COLUMN "${columnName}" ${sqlDefinition}`,
+const runPrismaDbPush = async (databaseUrl: string): Promise<void> => {
+  const command = Bun.spawn(
+    ['bunx', 'prisma', 'db', 'push', '--schema', PRISMA_SCHEMA_PATH, '--url', databaseUrl],
+    {
+      cwd: REPO_ROOT,
+      env: {
+        ...process.env,
+        RUST_LOG: 'info',
+      },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
   );
 
-  return true;
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(command.stdout).text(),
+    new Response(command.stderr).text(),
+    command.exited,
+  ]);
+
+  if (exitCode !== 0) {
+    throw new Error(
+      `Core // Client Prisma // db push failed ${formatLogMetadata({
+        exitCode,
+        stderr: stderr.trim() || null,
+        stdout: stdout.trim() || null,
+      })}`,
+    );
+  }
 };
 
 export const ensurePrismaSchema = async (): Promise<void> => {
@@ -72,29 +77,9 @@ export const ensurePrismaSchema = async (): Promise<void> => {
   }
 
   prismaSchemaEnsurePromise = (async () => {
-    const applied: string[] = [];
-
-    if (await addColumnIfMissing('products', 'git_info', 'JSON')) {
-      applied.push('products.git_info');
-    }
-
-    if (await addColumnIfMissing('variants', 'git_info', 'JSON')) {
-      applied.push('variants.git_info');
-    }
-
-    if (await addColumnIfMissing('variants', 'git_info_updated_at', 'DATETIME')) {
-      applied.push('variants.git_info_updated_at');
-    }
-
-    if (await addColumnIfMissing('variants', 'git_info_last_polled_at', 'DATETIME')) {
-      applied.push('variants.git_info_last_polled_at');
-    }
-
-    if (applied.length > 0) {
-      Log.info(
-        `Core // Client Prisma // Applied schema compatibility updates ${formatLogMetadata({ applied })}`,
-      );
-    }
+    const databaseUrl = getConfig().prisma.databaseUrl;
+    await runPrismaDbPush(databaseUrl);
+    Log.info('Core // Client Prisma // Ensured schema with Prisma db push');
   })();
 
   return prismaSchemaEnsurePromise;
