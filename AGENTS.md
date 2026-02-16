@@ -9,6 +9,7 @@ It reflects only what is currently true in this repository.
 - Prisma models currently include `Product` and `Variant` with these core assumptions:
   - Creating a local product (`@local://`) should also create a default variant at the same locator path.
   - Variant locator values are not globally unique; multiple variants can share a locator and are differentiated by `(productId, name)`.
+  - Product IDs are deterministic `prd_{sha256(locator)}` hashes based on normalized locator text; repeated creates for the same canonical locator are idempotent.
 - Rust workspace code now includes:
   - `frontends/dark_cli/` for the CLI binary.
   - `lib/dark_rust/` for shared dark_core API client/types used by Rust frontends.
