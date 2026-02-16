@@ -10,6 +10,8 @@ It reflects only what is currently true in this repository.
   - Creating a local product (`@local://`) should also create a default variant at the same locator path.
   - Variant locator values are not globally unique; multiple variants can share a locator and are differentiated by `(productId, name)`.
   - Product IDs are deterministic `prd_{sha256(locator)}` hashes based on normalized locator text; repeated creates for the same canonical locator are idempotent.
+  - `Product.gitInfo` and `Variant.gitInfo` are optional JSON snapshots populated from local git metadata when available.
+  - Variant git polling timestamps are tracked via `gitInfoUpdatedAt` and `gitInfoLastPolledAt`.
 - Rust workspace code now includes:
   - `frontends/dark_cli/` for the CLI binary.
   - `lib/dark_rust/` for shared dark_core API client/types used by Rust frontends.
@@ -99,17 +101,20 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - Use `@tsc-fixer` when the user asks for iterative TypeScript compiler error cleanup.
 - Use `@reflector` when you want transcript/session-aware reflection (including one-agent-reviewing-another-agent workflows).
 
-## 8) Dark Core MVC Skeleton Style
+## 8) Dark Core Module-First Style
 
-- `dark_core/src` follows a lightweight MVC REST skeleton:
-  - `clients/` for external system clients and their config types.
-  - `controllers/` for async, library-style business functions (routes call these).
-  - `routes/` for minimal Elysia route modules (`{type}.routes.ts`).
-  - `utils/` for shared generic helpers.
+- `dark_core/src` now uses a domain-first module layout under `modules/`.
+- Each domain module keeps related files colocated with `{domain}.{kind}.ts` naming, for example:
+  - `modules/products/products.routes.ts`
+  - `modules/products/products.controller.ts`
+  - `modules/system/system.config.ts`
+  - `modules/opencode/opencode.client.ts`
+  - colocated tests like `modules/products/products.unit.test.ts` and `modules/products/products.int.test.ts`
+- Prefer one unit test file and one integration test file per domain module instead of split route/controller test files.
 - Keep route handlers thin: parse input, call controllers, map errors to API JSON shape.
 - Keep controllers modular and promise-based so routes and other controllers can reuse them.
-- Prefer minimal, early-stage pragmatism over heavy abstractions while keeping code DRY and readable.
-- Current REST coverage includes CRUD handlers for both `/products` and `/variants`.
+- Keep shared cross-domain helpers in `dark_core/src/utils/` and config internals in `dark_core/src/config/lib/`.
+- Current REST coverage includes CRUD handlers for both `/products` and `/variants`, plus `POST /variants/:id/poll` for on-demand variant git metadata refresh.
 
 ## 9) Script Conventions
 
@@ -146,4 +151,4 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - Update this file when real code, tooling, or CI is added.
 - Keep instructions tied to verified repository behavior.
 - Prefer short, accurate guidance over aspirational process docs.
-- When `prisma/schema.prisma` or `dark_core/src/routes/*.ts` changes, update this file with any durable impacts on clients/contracts and agent workflow expectations.
+- When `prisma/schema.prisma` or `dark_core/src/modules/*/*.routes.ts` changes, update this file with any durable impacts on clients/contracts and agent workflow expectations.

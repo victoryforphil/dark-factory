@@ -24,8 +24,9 @@
 - Root env semantics:
   - `dark_core/src/config/env.config.ts`
 - Section definitions (owned by domain files):
-  - Server section: `dark_core/src/controllers/system.config.ts`
-  - Prisma section: `dark_core/src/clients/prisma.config.ts`
+  - Server section: `dark_core/src/modules/system/system.config.ts`
+  - Prisma section: `dark_core/src/modules/prisma/prisma.config.ts`
+  - OpenCode section: `dark_core/src/modules/opencode/opencode.config.ts`
 
 This keeps defaults and shape rules local to the subsystem that owns them.
 

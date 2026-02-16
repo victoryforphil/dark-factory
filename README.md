@@ -50,6 +50,7 @@
 - `dark_core` tasks (`install`, `build`, `dev`, `check`, `test`) depend on generated artifacts through `generated:build` -> `prisma:build`.
 - Verified command: `moon run dark_core:test` (passes and runs Prisma generation dependency chain).
 - Product and variant CRUD endpoints are now available (`/products/*` and `/variants/*`).
+- `dark_core/src` is organized around `modules/<domain>/` with colocated routes/controllers/config/clients/tests.
 
 ## Frontends
 
