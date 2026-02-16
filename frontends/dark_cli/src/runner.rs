@@ -1,5 +1,5 @@
-use std::env;
 use std::collections::BTreeSet;
+use std::env;
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -7,7 +7,8 @@ use dark_rust::types::{
     ActorAttachQuery, ActorCommandInput, ActorCreateInput, ActorDeleteQuery, ActorListQuery,
     ActorMessageInput, ActorMessagesQuery, ActorUpdateInput, ProductCreateInput,
     ProductIncludeQuery, ProductListQuery, ProductUpdateInput, VariantCreateInput,
-    VariantListQuery, VariantProductConnectInput, VariantProductRelationInput, VariantUpdateInput,
+    VariantImportActorsInput, VariantListQuery, VariantProductConnectInput,
+    VariantProductRelationInput, VariantUpdateInput,
 };
 use dark_rust::{DarkCoreClient, DarkRustError, LocatorId, LocatorKind, RawApiResponse};
 use serde_json::{Value, json};
@@ -161,6 +162,15 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
             VariantsAction::Poll { id, poll } => {
                 api.variants_poll(id, Some(*poll)).await.map_err(Into::into)
             }
+            VariantsAction::ImportActors { id, provider } => api
+                .variants_import_actors(
+                    id,
+                    &VariantImportActorsInput {
+                        provider: provider.clone(),
+                    },
+                )
+                .await
+                .map_err(Into::into),
             VariantsAction::Update { id, locator, name } => api
                 .variants_update(
                     id,
@@ -201,7 +211,8 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
                 title,
                 description,
             } => {
-                let resolved_provider = resolve_provider_for_spawn(api, provider.as_deref()).await?;
+                let resolved_provider =
+                    resolve_provider_for_spawn(api, provider.as_deref()).await?;
 
                 api.actors_create(&ActorCreateInput {
                     variant_id: variant_id.clone(),
@@ -495,14 +506,12 @@ async fn resolve_provider_for_spawn(
 
     let response = api.system_providers().await?;
     if !(200..300).contains(&response.status) {
-        return Err(
-            DarkRustError::ApiStatus {
-                status: response.status,
-                path: response.path,
-                body: response.body,
-            }
-            .into(),
-        );
+        return Err(DarkRustError::ApiStatus {
+            status: response.status,
+            path: response.path,
+            body: response.body,
+        }
+        .into());
     }
 
     let default_provider = response
@@ -525,6 +534,5 @@ async fn resolve_provider_for_spawn(
         .and_then(Value::as_str)
         .map(ToString::to_string);
 
-    first_enabled
-        .context("Dark CLI // Actors // No configured providers available for spawn")
+    first_enabled.context("Dark CLI // Actors // No configured providers available for spawn")
 }

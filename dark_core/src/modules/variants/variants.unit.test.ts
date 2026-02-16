@@ -14,6 +14,9 @@ const dependenciesBase = {
   getVariantById: async () => {
     throw new Error('not used in this test');
   },
+  importVariantActors: async () => {
+    throw new Error('not used in this test');
+  },
   listVariants: async () => {
     throw new Error('not used in this test');
   },
@@ -139,6 +142,55 @@ describe('variants module unit', () => {
       ok: true,
       data: {
         id: 'v_1',
+      },
+    });
+  });
+
+  it('imports active provider actors for a variant', async () => {
+    let received: { variantId: string; provider?: string } | undefined;
+
+    const app = new Elysia().use(
+      createVariantsRoutes({
+        ...dependenciesBase,
+        importVariantActors: async (input) => {
+          received = input;
+          return {
+            variantId: input.variantId,
+            provider: input.provider ?? 'opencode',
+            discovered: 2,
+            created: 1,
+            updated: 1,
+            actors: [],
+          };
+        },
+      }),
+    );
+
+    const response = await app.handle(
+      new Request('http://localhost/variants/v_1/actors/import', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          provider: 'opencode',
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(received).toEqual({
+      variantId: 'v_1',
+      provider: 'opencode',
+    });
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      data: {
+        variantId: 'v_1',
+        provider: 'opencode',
+        discovered: 2,
+        created: 1,
+        updated: 1,
       },
     });
   });

@@ -84,4 +84,24 @@ describe('actors routes unit', () => {
       nLastMessages: 4,
     });
   });
+
+  it('ignores invalid nLastMessages query values', async () => {
+    let received: { id: string; nLastMessages?: number } | undefined;
+    const dependencies = createDependencies();
+    dependencies.listActorMessagesById = async (id, input) => {
+      received = { id, nLastMessages: input.nLastMessages };
+      return [];
+    };
+
+    const app = new Elysia().use(createActorsRoutes(dependencies));
+    const response = await app.handle(
+      new Request('http://localhost/actors/act_1/messages?nLastMessages=invalid'),
+    );
+
+    expect(response.status).toBe(200);
+    expect(received).toEqual({
+      id: 'act_1',
+      nLastMessages: undefined,
+    });
+  });
 });

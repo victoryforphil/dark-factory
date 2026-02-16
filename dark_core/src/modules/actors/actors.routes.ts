@@ -66,6 +66,24 @@ const parseBooleanQuery = (value?: string): boolean => {
   return value !== 'false' && value !== '0';
 };
 
+const parseOptionalPositiveInt = (value?: string): number | undefined => {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return undefined;
+  }
+
+  const normalized = Math.floor(parsed);
+  if (normalized <= 0) {
+    return undefined;
+  }
+
+  return normalized;
+};
+
 const logActorRouteError = (event: string, metadata: Record<string, string | number | boolean>) => {
   Log.error(`Core // Actors Route // ${event} ${formatLogMetadata(metadata)}`);
 };
@@ -437,7 +455,7 @@ export const createActorsRoutes = (
         try {
           return success(
             await dependencies.listActorMessagesById(params.id, {
-              nLastMessages: query.nLastMessages ? Number(query.nLastMessages) : undefined,
+              nLastMessages: parseOptionalPositiveInt(query.nLastMessages),
             }),
           );
         } catch (error) {

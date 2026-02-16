@@ -31,10 +31,14 @@ enum LoopAction {
     Quit,
     Refresh,
     PollVariant,
+    ImportVariantActors,
     InitProduct,
     OpenSpawnForm,
     SpawnSession,
     BuildAttach,
+    ToggleChat,
+    OpenChatCompose,
+    SendChatMessage,
 }
 
 pub async fn run(cli: Cli) -> Result<()> {
@@ -102,6 +106,15 @@ async fn run_loop(
 
             next_refresh_at = Instant::now() + refresh_interval;
             force_refresh = false;
+        }
+
+        if let Some(actor_id) = app.take_chat_refresh_request() {
+            match service.fetch_actor_messages(&actor_id, Some(80)).await {
+                Ok(messages) => {
+                    app.apply_chat_messages(&actor_id, messages);
+                }
+                Err(_) => {}
+            }
         }
 
         terminal.draw(|frame| render::render_dashboard(frame, app))?;
@@ -177,6 +190,22 @@ async fn run_loop(
                     }
                 }
             }
+            LoopAction::ImportVariantActors => {
+                let Some(variant_id) = app.selected_variant_id().map(ToString::to_string) else {
+                    app.set_status("Import skipped: no variant selected.");
+                    continue;
+                };
+
+                match service.import_variant_actors(&variant_id, None).await {
+                    Ok(message) => {
+                        app.set_status(message);
+                        force_refresh = true;
+                    }
+                    Err(error) => {
+                        app.set_status(format!("Import failed: {error}"));
+                    }
+                }
+            }
             LoopAction::InitProduct => match service.init_product().await {
                 Ok(message) => {
                     app.set_status(message);
@@ -237,6 +266,44 @@ async fn run_loop(
                     }
                     Err(error) => {
                         app.set_status(format!("Attach command failed: {error}"));
+                    }
+                }
+            }
+            LoopAction::ToggleChat => {
+                app.toggle_chat_visibility();
+                let status = if app.is_chat_visible() {
+                    app.request_chat_refresh();
+                    "Chat panel shown."
+                } else {
+                    "Chat panel hidden."
+                };
+                app.set_status(status);
+            }
+            LoopAction::OpenChatCompose => {
+                if app.open_chat_composer() {
+                    app.set_status("Chat compose mode enabled.");
+                } else {
+                    app.set_status("Chat compose skipped: select an actor first.");
+                }
+            }
+            LoopAction::SendChatMessage => {
+                let Some(actor_id) = app.chat_actor_id().map(ToString::to_string) else {
+                    app.set_status("Chat send skipped: no actor selected.");
+                    continue;
+                };
+                let Some(prompt) = app.current_chat_prompt() else {
+                    app.set_status("Chat send skipped: prompt is empty.");
+                    continue;
+                };
+
+                match service.send_actor_prompt(&actor_id, &prompt).await {
+                    Ok(()) => {
+                        app.commit_sent_chat_prompt();
+                        app.request_chat_refresh();
+                        app.set_status(format!("Message sent to {actor_id}."));
+                    }
+                    Err(error) => {
+                        app.set_status(format!("Chat send failed: {error}"));
                     }
                 }
             }
@@ -314,6 +381,10 @@ fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
         return LoopAction::Quit;
     }
 
+    if app.is_chat_composing() {
+        return handle_chat_compose_key(app, key);
+    }
+
     match key.code {
         KeyCode::Char('q') | KeyCode::Esc => LoopAction::Quit,
         KeyCode::Tab => {
@@ -346,9 +417,12 @@ fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
             LoopAction::None
         }
         KeyCode::Char('p') => LoopAction::PollVariant,
+        KeyCode::Char('m') => LoopAction::ImportVariantActors,
         KeyCode::Char('i') => LoopAction::InitProduct,
         KeyCode::Char('n') => LoopAction::OpenSpawnForm,
         KeyCode::Char('a') => LoopAction::BuildAttach,
+        KeyCode::Char('t') => LoopAction::ToggleChat,
+        KeyCode::Char('c') => LoopAction::OpenChatCompose,
         KeyCode::Char('0') => {
             app.reset_viz_offset();
             app.set_status("Pan reset to origin");
@@ -383,6 +457,29 @@ fn handle_spawn_form_key(app: &mut App, key: KeyEvent) -> LoopAction {
                 && !key.modifiers.contains(KeyModifiers::ALT) =>
         {
             app.spawn_form_insert_char(value);
+            LoopAction::None
+        }
+        _ => LoopAction::None,
+    }
+}
+
+fn handle_chat_compose_key(app: &mut App, key: KeyEvent) -> LoopAction {
+    match key.code {
+        KeyCode::Esc => {
+            app.cancel_chat_composer();
+            app.set_status("Chat compose cancelled.");
+            LoopAction::None
+        }
+        KeyCode::Enter => LoopAction::SendChatMessage,
+        KeyCode::Backspace => {
+            app.chat_backspace();
+            LoopAction::None
+        }
+        KeyCode::Char(value)
+            if !key.modifiers.contains(KeyModifiers::CONTROL)
+                && !key.modifiers.contains(KeyModifiers::ALT) =>
+        {
+            app.chat_insert_char(value);
             LoopAction::None
         }
         _ => LoopAction::None,

@@ -26,6 +26,13 @@ pub struct VariantUpdateInput {
     pub name: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct VariantImportActorsInput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct VariantListQuery {
     pub cursor: Option<String>,

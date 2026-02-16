@@ -1,9 +1,13 @@
 import { Elysia, t } from 'elysia';
 import {
+  ActorPlain,
+} from '../../../../generated/prismabox/Actor';
+import {
   VariantInputCreate,
   VariantPlain,
   VariantPlainInputUpdate,
 } from '../../../../generated/prismabox/Variant';
+import { importVariantActors } from '../actors/actors.controller';
 
 import {
   createVariant,
@@ -21,6 +25,7 @@ export interface VariantsRoutesDependencies {
   createVariant: typeof createVariant;
   deleteVariantById: typeof deleteVariantById;
   getVariantById: typeof getVariantById;
+  importVariantActors: typeof importVariantActors;
   listVariants: typeof listVariants;
   syncVariantGitInfo: typeof syncVariantGitInfo;
   updateVariantById: typeof updateVariantById;
@@ -56,6 +61,18 @@ const variantPollResponse = t.Object({
   data: VariantPlain,
 });
 
+const variantImportActorsResponse = t.Object({
+  ok: t.Literal(true),
+  data: t.Object({
+    variantId: t.String(),
+    provider: t.String(),
+    discovered: t.Number(),
+    created: t.Number(),
+    updated: t.Number(),
+    actors: t.Array(ActorPlain),
+  }),
+});
+
 const apiFailureResponse = t.Object({
   ok: t.Literal(false),
   error: t.Object({
@@ -72,6 +89,18 @@ const notFoundResponse = t.Object({
   }),
 });
 
+const isUnsupportedProviderError = (message: string): boolean => {
+  return message.startsWith('Providers // Registry // Unsupported provider');
+};
+
+const isDisabledProviderError = (message: string): boolean => {
+  return message.startsWith('Providers // Registry // Provider disabled');
+};
+
+const isProviderImportUnsupportedError = (message: string): boolean => {
+  return message.startsWith('Providers // Registry // Provider import unsupported');
+};
+
 const parsePollQuery = (poll?: string): boolean => {
   if (!poll) {
     return true;
@@ -85,6 +114,7 @@ export const createVariantsRoutes = (
     createVariant,
     deleteVariantById,
     getVariantById,
+    importVariantActors,
     listVariants,
     syncVariantGitInfo,
     updateVariantById,
@@ -226,6 +256,87 @@ export const createVariantsRoutes = (
         }),
         response: {
           200: variantPollResponse,
+          404: notFoundResponse,
+          500: apiFailureResponse,
+        },
+      },
+    )
+    .post(
+      '/:id/actors/import',
+      async ({ params, body, set }) => {
+        try {
+          return success(
+            await dependencies.importVariantActors({
+              variantId: params.id,
+              provider: body.provider,
+            }),
+          );
+        } catch (error) {
+          if (isNotFoundError(error)) {
+            set.status = 404;
+            Log.warn(
+              `Core // Variants Route // Import actors variant not found ${formatLogMetadata({ id: params.id })}`,
+            );
+            return failure('VARIANTS_NOT_FOUND', error.message);
+          }
+
+          const message = toErrorMessage(error);
+
+          if (isUnsupportedProviderError(message)) {
+            set.status = 400;
+            Log.warn(
+              `Core // Variants Route // Import actors provider unsupported ${formatLogMetadata({
+                error: message,
+                id: params.id,
+                provider: body.provider ?? '-',
+              })}`,
+            );
+            return failure('VARIANTS_PROVIDER_UNSUPPORTED', message);
+          }
+
+          if (isDisabledProviderError(message)) {
+            set.status = 400;
+            Log.warn(
+              `Core // Variants Route // Import actors provider disabled ${formatLogMetadata({
+                error: message,
+                id: params.id,
+                provider: body.provider ?? '-',
+              })}`,
+            );
+            return failure('VARIANTS_PROVIDER_DISABLED', message);
+          }
+
+          if (isProviderImportUnsupportedError(message)) {
+            set.status = 400;
+            Log.warn(
+              `Core // Variants Route // Import actors provider unsupported for import ${formatLogMetadata({
+                error: message,
+                id: params.id,
+                provider: body.provider ?? '-',
+              })}`,
+            );
+            return failure('VARIANTS_PROVIDER_IMPORT_UNSUPPORTED', message);
+          }
+
+          Log.error(
+            `Core // Variants Route // Import actors failed ${formatLogMetadata({
+              error: message,
+              id: params.id,
+              provider: body.provider ?? '-',
+            })}`,
+          );
+          set.status = 500;
+          return failure('VARIANTS_IMPORT_ACTORS_FAILED', message);
+        }
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        body: t.Object({
+          provider: t.Optional(t.String()),
+        }),
+        response: {
+          200: variantImportActorsResponse,
+          400: apiFailureResponse,
           404: notFoundResponse,
           500: apiFailureResponse,
         },

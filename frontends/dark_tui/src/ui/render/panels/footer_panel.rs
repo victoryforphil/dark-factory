@@ -1,8 +1,8 @@
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
-use ratatui::Frame;
 
 use crate::app::App;
 
@@ -21,6 +21,16 @@ impl FooterPanel {
             StatusPill::warn("filtered", theme)
         } else {
             StatusPill::muted("all", theme)
+        };
+
+        let chat_pill = if app.is_chat_visible() {
+            if app.is_chat_composing() {
+                StatusPill::accent("chat:compose", theme)
+            } else {
+                StatusPill::info("chat:on", theme)
+            }
+        } else {
+            StatusPill::muted("chat:off", theme)
         };
 
         // --- Entity count pills (moved from header overview) ---
@@ -54,6 +64,8 @@ impl FooterPanel {
             focus_pill.span(),
             Span::raw(" "),
             filter_pill.span(),
+            Span::raw(" "),
+            chat_pill.span(),
             Span::raw("  "),
             products_pill.span(),
             Span::raw(" "),

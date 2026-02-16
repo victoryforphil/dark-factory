@@ -1,11 +1,16 @@
 import { locatorIdToHostPath } from '../../../utils/locator';
-import type { ActorProviderAdapter, ActorStatusLabel } from '../providers.common';
+import type {
+  ActorProviderAdapter,
+  ActorStatusLabel,
+  ProviderSessionSnapshot,
+} from '../providers.common';
 import { buildActorLocator } from '../providers.common';
 import {
   buildOpencodeTuiAttachCommand,
   createOpencodeSession,
   deleteOpencodeSession,
   getOpencodeSessionStatuses,
+  listOpencodeSessions,
   listOpencodeSessionMessages,
   sendOpencodeSessionCommand,
   sendOpencodeSessionPrompt,
@@ -13,12 +18,23 @@ import {
 import { mapOpenCodeMessages, mapOpenCodeSessionStatus } from './opencode.mapper';
 import type { OpenCodeStatusLike } from './opencode.types';
 
+const DEFAULT_OPENCODE_MODEL = 'openai/gpt-5.3-codex';
+
 const requireSessionId = (providerSessionId: string | undefined): string => {
   if (!providerSessionId) {
     throw new Error('Providers // OpenCode // Missing provider session id');
   }
 
   return providerSessionId;
+};
+
+const resolveOpencodeModel = (model?: string): string => {
+  const normalized = model?.trim();
+  if (normalized) {
+    return normalized;
+  }
+
+  return DEFAULT_OPENCODE_MODEL;
 };
 
 export const opencodeActorProviderAdapter: ActorProviderAdapter = {
@@ -29,6 +45,7 @@ export const opencodeActorProviderAdapter: ActorProviderAdapter = {
     const attach = await buildOpencodeTuiAttachCommand({
       directory,
       sessionId: session.id,
+      model: resolveOpencodeModel(),
     });
 
     return {
@@ -69,6 +86,7 @@ export const opencodeActorProviderAdapter: ActorProviderAdapter = {
     const attach = await buildOpencodeTuiAttachCommand({
       directory,
       sessionId: providerSessionId,
+      model: resolveOpencodeModel(),
     });
 
     return {
@@ -87,7 +105,7 @@ export const opencodeActorProviderAdapter: ActorProviderAdapter = {
     const attach = await buildOpencodeTuiAttachCommand({
       directory,
       sessionId: providerSessionId,
-      model: input.model,
+      model: resolveOpencodeModel(input.model),
       agent: input.agent,
     });
 
@@ -132,6 +150,33 @@ export const opencodeActorProviderAdapter: ActorProviderAdapter = {
       id: providerSessionId,
       command,
     })) as Record<string, unknown>;
+  },
+  async listSessions(input) {
+    const directory = locatorIdToHostPath(input.workingLocator);
+    const [sessions, statuses] = await Promise.all([
+      listOpencodeSessions({ directory }),
+      getOpencodeSessionStatuses({ directory }),
+    ]);
+    const activeSessionIds = new Set(Object.keys(statuses));
+
+    return sessions
+      .filter((session) => activeSessionIds.has(session.id))
+      .map((session): ProviderSessionSnapshot => {
+        return {
+          actorLocator: buildActorLocator({
+            provider: 'opencode',
+            workingLocator: input.workingLocator,
+            providerRef: session.id,
+          }),
+          providerSessionId: session.id,
+          status: mapOpenCodeSessionStatus(statuses[session.id] as OpenCodeStatusLike | undefined),
+          title: session.title,
+          connectionInfo: {
+            provider: 'opencode',
+            directory,
+          },
+        };
+      });
   },
   async terminate(input) {
     const providerSessionId = input.providerSessionId;

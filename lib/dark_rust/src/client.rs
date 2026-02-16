@@ -4,9 +4,9 @@ use serde_json::Value;
 use crate::error::DarkRustError;
 use crate::types::{
     ActorAttachQuery, ActorCommandInput, ActorCreateInput, ActorDeleteQuery, ActorListQuery,
-    ActorMessageInput, ActorMessagesQuery, ActorUpdateInput,
-    ProductCreateInput, ProductIncludeQuery, ProductListQuery, ProductUpdateInput,
-    VariantCreateInput, VariantListQuery, VariantUpdateInput,
+    ActorMessageInput, ActorMessagesQuery, ActorUpdateInput, ProductCreateInput,
+    ProductIncludeQuery, ProductListQuery, ProductUpdateInput, VariantCreateInput,
+    VariantImportActorsInput, VariantListQuery, VariantUpdateInput,
 };
 
 #[derive(Debug, Clone)]
@@ -204,6 +204,18 @@ impl DarkCoreClient {
         self.post(&path, Value::Null).await
     }
 
+    pub async fn variants_import_actors(
+        &self,
+        variant_id: &str,
+        input: &VariantImportActorsInput,
+    ) -> Result<RawApiResponse, DarkRustError> {
+        self.post(
+            &format!("/variants/{variant_id}/actors/import"),
+            serde_json::to_value(input)?,
+        )
+        .await
+    }
+
     pub async fn variants_update(
         &self,
         variant_id: &str,
@@ -220,7 +232,10 @@ impl DarkCoreClient {
         self.delete(&format!("/variants/{variant_id}"), None).await
     }
 
-    pub async fn actors_list(&self, query: &ActorListQuery) -> Result<RawApiResponse, DarkRustError> {
+    pub async fn actors_list(
+        &self,
+        query: &ActorListQuery,
+    ) -> Result<RawApiResponse, DarkRustError> {
         let mut query_parts = Vec::new();
 
         if let Some(cursor) = &query.cursor {
@@ -297,7 +312,8 @@ impl DarkCoreClient {
     }
 
     pub async fn actors_poll(&self, actor_id: &str) -> Result<RawApiResponse, DarkRustError> {
-        self.post(&format!("/actors/{actor_id}/poll"), Value::Null).await
+        self.post(&format!("/actors/{actor_id}/poll"), Value::Null)
+            .await
     }
 
     pub async fn actors_attach(
@@ -344,10 +360,7 @@ impl DarkCoreClient {
         let mut query_parts = Vec::new();
 
         if let Some(n_last_messages) = query.n_last_messages {
-            query_parts.push((
-                "nLastMessages".to_string(),
-                n_last_messages.to_string(),
-            ));
+            query_parts.push(("nLastMessages".to_string(), n_last_messages.to_string()));
         }
 
         let query = if query_parts.is_empty() {
@@ -356,7 +369,8 @@ impl DarkCoreClient {
             Some(query_parts.as_slice())
         };
 
-        self.get(&format!("/actors/{actor_id}/messages"), query).await
+        self.get(&format!("/actors/{actor_id}/messages"), query)
+            .await
     }
 
     pub async fn actors_run_command(

@@ -20,13 +20,20 @@ const CORE_KEYS: &[KeyBind] = &[
 /// Action keys (always visible).
 const ACTION_KEYS: &[KeyBind] = &[
     KeyBind::new("p", "Poll"),
+    KeyBind::new("m", "Import"),
     KeyBind::new("i", "Init"),
     KeyBind::new("n", "Spawn"),
     KeyBind::new("a", "Attach"),
+    KeyBind::new("t", "Chat"),
+    KeyBind::new("c", "Compose"),
 ];
 
 /// Extra key hints for viz mode.
 const VIZ_KEYS: &[KeyBind] = &[KeyBind::new("0", "Reset pan")];
+
+/// Extra key hints while composing a chat message.
+const CHAT_COMPOSE_KEYS: &[KeyBind] =
+    &[KeyBind::new("Enter", "Send"), KeyBind::new("Esc", "Cancel")];
 
 /// Horizontal key-hint bar rendered between header and body.
 ///
@@ -46,6 +53,10 @@ impl KeyBarPanel {
 
         if app.results_view_mode() == ResultsViewMode::Viz {
             all_keys.extend(VIZ_KEYS.iter());
+        }
+
+        if app.is_chat_composing() {
+            all_keys.extend(CHAT_COMPOSE_KEYS.iter());
         }
 
         // Build owned KeyBind vec for the bar (KeyHintBar expects a slice).

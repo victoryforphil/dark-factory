@@ -3,6 +3,7 @@ import type {
   ActorProviderAdapter,
   ActorStatusLabel,
   ProviderMessage,
+  ProviderSessionSnapshot,
 } from '../providers.common';
 import { buildActorLocator } from '../providers.common';
 import {
@@ -10,6 +11,7 @@ import {
   createMockAgentSession,
   deleteMockAgentSession,
   getMockAgentSessionStatuses,
+  listMockAgentSessions,
   listMockAgentSessionMessages,
   sendMockAgentSessionCommand,
   sendMockAgentSessionPrompt,
@@ -67,6 +69,31 @@ const mapMockMessages = (
       },
     };
   });
+};
+
+const toSessionSnapshot = (
+  session: { id: string; title: string; projectID: string },
+  status: { type: string } | undefined,
+  workingLocator: string,
+): ProviderSessionSnapshot => {
+  const mappedStatus = mapMockStatus(status);
+  const actorLocator = buildActorLocator({
+    provider: 'mock',
+    workingLocator,
+    providerRef: session.id,
+  });
+
+  return {
+    actorLocator,
+    providerSessionId: session.id,
+    status: mappedStatus,
+    title: session.title,
+    connectionInfo: {
+      provider: 'mock',
+      directory: locatorIdToHostPath(workingLocator),
+      projectId: session.projectID,
+    },
+  };
 };
 
 export const mockActorProviderAdapter: ActorProviderAdapter = {
@@ -179,6 +206,17 @@ export const mockActorProviderAdapter: ActorProviderAdapter = {
       id: providerSessionId,
       command,
     })) as Record<string, unknown>;
+  },
+  async listSessions(input) {
+    const directory = locatorIdToHostPath(input.workingLocator);
+    const [sessions, statuses] = await Promise.all([
+      listMockAgentSessions({ directory }),
+      getMockAgentSessionStatuses({ directory }),
+    ]);
+
+    return sessions.map((session) =>
+      toSessionSnapshot(session, statuses[session.id], input.workingLocator),
+    );
   },
   async terminate(input) {
     const providerSessionId = input.providerSessionId;

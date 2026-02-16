@@ -5,13 +5,14 @@ pub mod variants;
 
 pub use actors::{
     ActorAttachQuery, ActorCommandInput, ActorCreateInput, ActorDeleteQuery, ActorListQuery,
-    ActorMessageInput, ActorMessagesQuery, ActorUpdateInput,
+    ActorMessage, ActorMessageInput, ActorMessagesQuery, ActorUpdateInput,
 };
 pub use products::{
     ProductCreateInput, ProductGitInfo, ProductIncludeQuery, ProductListQuery, ProductUpdateInput,
 };
 pub use system::{SystemResetDatabaseData, SystemResetDatabaseDeletedRows};
 pub use variants::{
-    VariantCreateInput, VariantGitInfo, VariantGitStatus, VariantGitWorktree, VariantListQuery,
-    VariantProductConnectInput, VariantProductRelationInput, VariantUpdateInput,
+    VariantCreateInput, VariantGitInfo, VariantGitStatus, VariantGitWorktree,
+    VariantImportActorsInput, VariantListQuery, VariantProductConnectInput,
+    VariantProductRelationInput, VariantUpdateInput,
 };

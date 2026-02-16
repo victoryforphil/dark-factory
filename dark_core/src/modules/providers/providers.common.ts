@@ -17,6 +17,7 @@ export interface ActorConnectionInfo {
   projectId?: string;
   serverUrl?: string;
   raw?: Record<string, unknown>;
+  [key: string]: unknown;
 }
 
 export interface ProviderMessage {
@@ -25,6 +26,16 @@ export interface ProviderMessage {
   createdAt: string;
   text?: string;
   raw?: Record<string, unknown>;
+}
+
+export interface ProviderSessionSnapshot {
+  actorLocator: string;
+  providerSessionId: string;
+  status: ActorStatusLabel;
+  title?: string;
+  description?: string;
+  connectionInfo?: ActorConnectionInfo;
+  attachCommand?: string;
 }
 
 export interface ActorProviderAdapter {
@@ -84,6 +95,9 @@ export interface ActorProviderAdapter {
     model?: string;
     agent?: string;
   }): Promise<Record<string, unknown>>;
+  listSessions?(input: {
+    workingLocator: string;
+  }): Promise<ProviderSessionSnapshot[]>;
   terminate?(input: {
     actorLocator: string;
     providerSessionId?: string;

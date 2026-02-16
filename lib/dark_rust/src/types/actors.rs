@@ -58,6 +58,18 @@ pub struct ActorMessageInput {
     pub agent: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActorMessage {
+    pub id: String,
+    pub role: String,
+    pub created_at: String,
+    #[serde(default)]
+    pub text: Option<String>,
+    #[serde(default)]
+    pub raw: Option<Value>,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct ActorMessagesQuery {
     pub n_last_messages: Option<u32>,

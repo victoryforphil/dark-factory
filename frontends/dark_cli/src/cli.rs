@@ -151,6 +151,12 @@ pub enum VariantsAction {
         #[arg(long, default_value_t = true)]
         poll: bool,
     },
+    ImportActors {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        provider: Option<String>,
+    },
     Update {
         #[arg(long)]
         id: String,

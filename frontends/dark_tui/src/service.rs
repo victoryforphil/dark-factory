@@ -4,14 +4,17 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use dark_rust::types::{
-    ActorAttachQuery, ActorCreateInput, ActorListQuery, ActorMessageInput, ProductCreateInput,
-    ProductListQuery, VariantListQuery,
+    ActorAttachQuery, ActorCreateInput, ActorListQuery, ActorMessage, ActorMessageInput,
+    ActorMessagesQuery, ProductCreateInput, ProductListQuery, VariantImportActorsInput,
+    VariantListQuery,
 };
 use dark_rust::{DarkCoreClient, DarkRustError, LocatorId, LocatorKind, RawApiResponse};
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::models::{ActorRow, DashboardSnapshot, ProductRow, VariantRow, compact_timestamp};
+use crate::models::{
+    ActorChatMessageRow, ActorRow, DashboardSnapshot, ProductRow, VariantRow, compact_timestamp,
+};
 
 const PAGE_LIMIT: u32 = 100;
 
@@ -97,6 +100,47 @@ impl DashboardService {
         ensure_success(response)?;
 
         Ok(format!("Variant polled: {variant_id}"))
+    }
+
+    pub async fn import_variant_actors(
+        &self,
+        variant_id: &str,
+        provider: Option<&str>,
+    ) -> Result<String> {
+        let response = self
+            .api
+            .variants_import_actors(
+                variant_id,
+                &VariantImportActorsInput {
+                    provider: provider.map(ToString::to_string),
+                },
+            )
+            .await?;
+        let body = ensure_success(response)?;
+
+        let import_data = body
+            .get("data")
+            .context("Dark TUI // Actors // Missing import result data")?;
+        let provider_label = import_data
+            .get("provider")
+            .and_then(Value::as_str)
+            .unwrap_or("unknown");
+        let discovered = import_data
+            .get("discovered")
+            .and_then(Value::as_u64)
+            .unwrap_or_default();
+        let created = import_data
+            .get("created")
+            .and_then(Value::as_u64)
+            .unwrap_or_default();
+        let updated = import_data
+            .get("updated")
+            .and_then(Value::as_u64)
+            .unwrap_or_default();
+
+        Ok(format!(
+            "Imported actors for {variant_id}: provider={provider_label}, discovered={discovered}, created={created}, updated={updated}"
+        ))
     }
 
     pub async fn init_product(&self) -> Result<String> {
@@ -217,6 +261,51 @@ impl DashboardService {
         Ok(actor_id.to_string())
     }
 
+    pub async fn fetch_actor_messages(
+        &self,
+        actor_id: &str,
+        n_last_messages: Option<u32>,
+    ) -> Result<Vec<ActorChatMessageRow>> {
+        let response = self
+            .api
+            .actors_list_messages(actor_id, &ActorMessagesQuery { n_last_messages })
+            .await?;
+        let body = ensure_success(response)?;
+
+        let records: Vec<ActorMessage> = serde_json::from_value(
+            body.get("data")
+                .cloned()
+                .unwrap_or(Value::Array(Vec::new())),
+        )
+        .context("Dark TUI // Actors // Unable to decode actor message list")?;
+
+        Ok(records.into_iter().map(to_actor_chat_message_row).collect())
+    }
+
+    pub async fn send_actor_prompt(&self, actor_id: &str, prompt: &str) -> Result<()> {
+        let trimmed = prompt.trim();
+        if trimmed.is_empty() {
+            return Err(anyhow::anyhow!(
+                "Dark TUI // Actors // Prompt cannot be empty"
+            ));
+        }
+
+        let response = self
+            .api
+            .actors_send_message(
+                actor_id,
+                &ActorMessageInput {
+                    prompt: trimmed.to_string(),
+                    no_reply: Some(false),
+                    model: None,
+                    agent: None,
+                },
+            )
+            .await?;
+        let _ = ensure_success(response)?;
+        Ok(())
+    }
+
     pub async fn build_attach_command(&self, session_id: &str) -> Result<String> {
         let response = self
             .api
@@ -229,9 +318,9 @@ impl DashboardService {
             )
             .await?;
         let body = ensure_success(response)?;
-        let attach_data = body.get("data").context(
-            "Dark TUI // Actors // Missing data envelope in attach response",
-        )?;
+        let attach_data = body
+            .get("data")
+            .context("Dark TUI // Actors // Missing data envelope in attach response")?;
 
         let command = attach_data
             .get("command")
@@ -492,6 +581,20 @@ fn to_actor_row(record: ActorRecord) -> ActorRow {
             .unwrap_or(record.working_locator),
         created_at: compact_timestamp(&record.created_at),
         updated_at: compact_timestamp(&record.updated_at),
+    }
+}
+
+fn to_actor_chat_message_row(record: ActorMessage) -> ActorChatMessageRow {
+    let text = record
+        .text
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "(no text content)".to_string());
+
+    ActorChatMessageRow {
+        role: record.role,
+        text,
+        created_at: compact_timestamp(&record.created_at),
     }
 }
 

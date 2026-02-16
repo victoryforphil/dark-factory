@@ -1,6 +1,6 @@
 use crate::models::{
-    compact_id, compact_locator, compact_timestamp, ActorRow, DashboardSnapshot, ProductRow,
-    VariantRow,
+    compact_id, compact_locator, compact_timestamp, ActorChatMessageRow, ActorRow,
+    DashboardSnapshot, ProductRow, VariantRow,
 };
 use crate::theme::Theme;
 
@@ -119,6 +119,12 @@ pub struct App {
     /// Color theme — loaded once at startup.
     theme: Theme,
     spawn_form: Option<SpawnFormState>,
+    chat_visible: bool,
+    chat_actor_id: Option<String>,
+    chat_messages: Vec<ActorChatMessageRow>,
+    chat_draft: String,
+    chat_composing: bool,
+    chat_needs_refresh: bool,
 }
 
 impl App {
@@ -145,6 +151,12 @@ impl App {
             drag_anchor: None,
             theme,
             spawn_form: None,
+            chat_visible: false,
+            chat_actor_id: None,
+            chat_messages: Vec::new(),
+            chat_draft: String::new(),
+            chat_composing: false,
+            chat_needs_refresh: false,
         }
     }
 
@@ -311,6 +323,118 @@ impl App {
         })
     }
 
+    pub fn is_chat_visible(&self) -> bool {
+        self.chat_visible
+    }
+
+    pub fn toggle_chat_visibility(&mut self) {
+        self.chat_visible = !self.chat_visible;
+
+        if !self.chat_visible {
+            self.chat_composing = false;
+            return;
+        }
+
+        if self.chat_actor_id.is_some() {
+            self.chat_needs_refresh = true;
+        }
+    }
+
+    pub fn chat_actor_id(&self) -> Option<&str> {
+        self.chat_actor_id.as_deref()
+    }
+
+    pub fn chat_actor(&self) -> Option<&ActorRow> {
+        let actor_id = self.chat_actor_id.as_deref()?;
+        self.actors.iter().find(|actor| actor.id == actor_id)
+    }
+
+    pub fn chat_messages(&self) -> &[ActorChatMessageRow] {
+        &self.chat_messages
+    }
+
+    pub fn is_chat_composing(&self) -> bool {
+        self.chat_composing
+    }
+
+    pub fn chat_draft(&self) -> &str {
+        &self.chat_draft
+    }
+
+    pub fn open_chat_composer(&mut self) -> bool {
+        if self.chat_actor_id.is_none() {
+            return false;
+        }
+
+        self.chat_visible = true;
+        self.chat_needs_refresh = true;
+        self.chat_composing = true;
+        true
+    }
+
+    pub fn cancel_chat_composer(&mut self) {
+        self.chat_composing = false;
+    }
+
+    pub fn commit_sent_chat_prompt(&mut self) {
+        self.chat_draft.clear();
+        self.chat_composing = false;
+    }
+
+    pub fn current_chat_prompt(&self) -> Option<String> {
+        if !self.chat_composing {
+            return None;
+        }
+
+        let trimmed = self.chat_draft.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+
+        Some(trimmed.to_string())
+    }
+
+    pub fn chat_insert_char(&mut self, value: char) {
+        if !self.chat_composing {
+            return;
+        }
+
+        self.chat_draft.push(value);
+    }
+
+    pub fn chat_backspace(&mut self) {
+        if !self.chat_composing {
+            return;
+        }
+
+        self.chat_draft.pop();
+    }
+
+    pub fn request_chat_refresh(&mut self) {
+        if self.chat_actor_id.is_some() {
+            self.chat_needs_refresh = true;
+        }
+    }
+
+    pub fn take_chat_refresh_request(&mut self) -> Option<String> {
+        if !self.chat_visible || !self.chat_needs_refresh {
+            return None;
+        }
+
+        let actor_id = self.chat_actor_id.clone()?;
+        self.chat_needs_refresh = false;
+        Some(actor_id)
+    }
+
+    pub fn apply_chat_messages(&mut self, actor_id: &str, mut messages: Vec<ActorChatMessageRow>) {
+        if self.chat_actor_id.as_deref() != Some(actor_id) {
+            return;
+        }
+
+        messages.sort_by(|left, right| left.created_at.cmp(&right.created_at));
+        self.chat_messages = messages;
+    }
+
     pub fn apply_snapshot(&mut self, snapshot: DashboardSnapshot) {
         let previous_product_id = self
             .products
@@ -345,6 +469,11 @@ impl App {
             previous_variant_id.as_deref(),
             previous_actor_id.as_deref(),
         );
+
+        self.prune_chat_actor();
+        if self.chat_visible && self.chat_actor_id.is_some() {
+            self.chat_needs_refresh = true;
+        }
     }
 
     pub fn set_status(&mut self, status: impl Into<String>) {
@@ -406,6 +535,7 @@ impl App {
         if let Some(idx) = self.actors.iter().position(|a| a.id == actor_id) {
             self.selected_actor = idx;
         }
+        self.set_chat_actor(actor_id);
         self.focus = FocusPane::Variants;
         self.viz_selection = Some(VizSelection::Actor {
             product_index,
@@ -445,6 +575,7 @@ impl App {
                 self.selected_product = *product_index;
                 self.ensure_variant_selection(None);
                 self.focus = FocusPane::Products;
+                self.chat_composing = false;
             }
             VizSelection::Variant {
                 product_index,
@@ -453,6 +584,7 @@ impl App {
                 self.selected_product = *product_index;
                 self.ensure_variant_selection(Some(variant_id));
                 self.focus = FocusPane::Variants;
+                self.chat_composing = false;
             }
             VizSelection::Actor {
                 actor_id,
@@ -465,6 +597,7 @@ impl App {
                 if let Some(idx) = self.actors.iter().position(|a| a.id == *actor_id) {
                     self.selected_actor = idx;
                 }
+                self.set_chat_actor(actor_id);
                 self.focus = FocusPane::Variants;
             }
         }
@@ -674,9 +807,12 @@ impl App {
             "  f             Toggle variant filter".to_string(),
             "  space or v    Toggle table/viz mode".to_string(),
             "  p             Poll selected variant".to_string(),
+            "  m             Import active actors".to_string(),
             "  i             Init product from directory".to_string(),
-            "  n             Spawn mock actor".to_string(),
+            "  n             Spawn actor".to_string(),
             "  a             Build attach command".to_string(),
+            "  t             Toggle chat panel".to_string(),
+            "  c             Compose chat prompt".to_string(),
             "".to_string(),
             "CLI Parity:".to_string(),
         ];
@@ -763,6 +899,10 @@ impl App {
 
         if let Some(variant) = self.selected_variant() {
             commands.push(format!("  dark_cli variants poll --id {}", variant.id));
+            commands.push(format!(
+                "  dark_cli variants import-actors --id {} --provider opencode",
+                variant.id
+            ));
         }
 
         if let Some(actor) = self.selected_actor() {
@@ -814,6 +954,35 @@ impl App {
 
         let max_index = visible.len().saturating_sub(1);
         self.selected_variant = self.selected_variant.min(max_index);
+    }
+
+    fn set_chat_actor(&mut self, actor_id: &str) {
+        let changed = self.chat_actor_id.as_deref() != Some(actor_id);
+        self.chat_actor_id = Some(actor_id.to_string());
+        self.chat_visible = true;
+        self.chat_needs_refresh = true;
+
+        if changed {
+            self.chat_messages.clear();
+            self.chat_draft.clear();
+            self.chat_composing = false;
+        }
+    }
+
+    fn prune_chat_actor(&mut self) {
+        let Some(chat_actor_id) = self.chat_actor_id.as_deref() else {
+            return;
+        };
+
+        if self.actors.iter().any(|actor| actor.id == chat_actor_id) {
+            return;
+        }
+
+        self.chat_actor_id = None;
+        self.chat_messages.clear();
+        self.chat_draft.clear();
+        self.chat_composing = false;
+        self.chat_needs_refresh = false;
     }
 
     fn sync_catalog_selection(

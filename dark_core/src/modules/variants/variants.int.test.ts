@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../../app';
 import { createSqliteTestDatabase, type SqliteTestDatabase } from '../../test/helpers/sqlite-test-db';
+import { locatorIdToHostPath } from '../../utils/locator';
 import { createProduct } from '../products/products.controller';
+import {
+  createMockAgentSession,
+  resetMockAgentEngineForTests,
+} from '../providers/mockagent/mockagent.controller';
 import {
   createVariant,
   deleteVariantById,
@@ -18,6 +23,10 @@ describe('variants module integration', () => {
   beforeEach(async () => {
     testDatabase = createSqliteTestDatabase('variants-module');
     await testDatabase.setup();
+    resetMockAgentEngineForTests({
+      startTimeMs: 1_700_100_000_000,
+      timeStepMs: 1,
+    });
   });
 
   afterEach(async () => {
@@ -202,5 +211,91 @@ describe('variants module integration', () => {
       data: { gitInfoLastPolledAt: string | null };
     };
     expect(polledPayload.data.gitInfoLastPolledAt).toBeTruthy();
+  });
+
+  it('imports active provider sessions into actors for a variant route', async () => {
+    const app = buildApp();
+    const product = await createProduct({ locator: '@local:///tmp/variants-import-actors-product' });
+    const defaultVariant = (await listVariants({ productId: product.id, poll: false })).find(
+      (variant) => variant.name === 'default',
+    );
+
+    expect(defaultVariant).toBeTruthy();
+
+    const directory = locatorIdToHostPath(defaultVariant!.locator);
+    await createMockAgentSession({
+      directory,
+      title: 'Imported actor one',
+    });
+    await createMockAgentSession({
+      directory,
+      title: 'Imported actor two',
+    });
+
+    const firstImportResponse = await app.handle(
+      new Request(`http://localhost/variants/${defaultVariant!.id}/actors/import`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          provider: 'mock',
+        }),
+      }),
+    );
+
+    expect(firstImportResponse.status).toBe(200);
+    const firstImportPayload = (await firstImportResponse.json()) as {
+      ok: true;
+      data: {
+        discovered: number;
+        created: number;
+        updated: number;
+        actors: Array<{ id: string }>;
+      };
+    };
+
+    expect(firstImportPayload.data.discovered).toBe(2);
+    expect(firstImportPayload.data.created).toBe(2);
+    expect(firstImportPayload.data.updated).toBe(0);
+    expect(firstImportPayload.data.actors.length).toBe(2);
+
+    const secondImportResponse = await app.handle(
+      new Request(`http://localhost/variants/${defaultVariant!.id}/actors/import`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          provider: 'mock',
+        }),
+      }),
+    );
+
+    expect(secondImportResponse.status).toBe(200);
+    const secondImportPayload = (await secondImportResponse.json()) as {
+      ok: true;
+      data: {
+        discovered: number;
+        created: number;
+        updated: number;
+      };
+    };
+
+    expect(secondImportPayload.data.discovered).toBe(2);
+    expect(secondImportPayload.data.created).toBe(0);
+    expect(secondImportPayload.data.updated).toBe(2);
+
+    const listActorsResponse = await app.handle(
+      new Request(`http://localhost/actors/?variantId=${defaultVariant!.id}&provider=mock`),
+    );
+
+    expect(listActorsResponse.status).toBe(200);
+    const listActorsPayload = (await listActorsResponse.json()) as {
+      ok: true;
+      data: Array<{ id: string }>;
+    };
+
+    expect(listActorsPayload.data.length).toBe(2);
   });
 });

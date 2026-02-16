@@ -50,6 +50,13 @@ pub struct ActorRow {
     pub updated_at: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct ActorChatMessageRow {
+    pub role: String,
+    pub text: String,
+    pub created_at: String,
+}
+
 pub fn compact_id(value: &str) -> String {
     let trimmed = value.trim();
     if trimmed.len() <= 12 {

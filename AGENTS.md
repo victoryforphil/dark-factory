@@ -108,6 +108,7 @@ It reflects only what is currently true in this repository.
 
 - Current REST coverage includes CRUD handlers for `/products`, `/variants`, and `/actors`, plus:
   - `POST /variants/:id/poll` for on-demand variant git metadata refresh.
+  - `POST /variants/:id/actors/import` for opt-in import of provider-managed active sessions into actor rows.
   - actor lifecycle/interaction endpoints: `POST /actors/:id/poll`, `GET /actors/:id/attach`, `POST /actors/:id/messages`, `GET /actors/:id/messages`, `POST /actors/:id/commands`.
   - provider config discovery endpoint: `GET /system/providers`.
 

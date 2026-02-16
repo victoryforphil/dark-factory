@@ -1,4 +1,4 @@
-import { Prisma, type Actor } from '../../../../generated/prisma/client';
+import { Prisma, type Actor, type Variant } from '../../../../generated/prisma/client';
 
 import type { CursorListQuery } from '../common/controller.types';
 import { NotFoundError } from '../common/controller.errors';
@@ -36,12 +36,39 @@ export interface PollActorOptions {
   agent?: string;
 }
 
+export interface ImportVariantActorsInput {
+  variantId: string;
+  provider?: string;
+}
+
+export interface ImportVariantActorsResult {
+  variantId: string;
+  provider: string;
+  discovered: number;
+  created: number;
+  updated: number;
+  actors: Actor[];
+}
+
 const normalizeLimit = (value?: number): number => {
   if (typeof value !== 'number' || Number.isNaN(value)) {
     return DEFAULT_LIST_LIMIT;
   }
 
   return Math.max(1, Math.min(MAX_LIST_LIMIT, Math.floor(value)));
+};
+
+const normalizeMessageLimit = (value?: number): number | undefined => {
+  if (typeof value !== 'number' || Number.isNaN(value) || !Number.isFinite(value)) {
+    return undefined;
+  }
+
+  const normalized = Math.floor(value);
+  if (normalized <= 0) {
+    return undefined;
+  }
+
+  return normalized;
 };
 
 const toJsonObject = (
@@ -65,20 +92,27 @@ const getActorOrThrow = async (id: string): Promise<Actor> => {
   return actor;
 };
 
-export const createActor = async (input: CreateActorInput): Promise<Actor> => {
+const getVariantOrThrow = async (id: string): Promise<Variant> => {
   const prisma = getPrismaClient();
-  const variant = await prisma.variant.findUnique({
-    where: {
-      id: input.variantId,
-    },
-  });
+  const variant = await prisma.variant.findUnique({ where: { id } });
 
   if (!variant) {
-    throw new NotFoundError(`Variant ${input.variantId} was not found`);
+    throw new NotFoundError(`Variant ${id} was not found`);
   }
 
+  return variant;
+};
+
+const resolveProvider = (provider?: string): string => {
   const runtimeProviders = getProvidersRuntimeConfig();
-  const provider = input.provider?.trim().toLowerCase() || runtimeProviders.defaultProvider;
+  return provider?.trim().toLowerCase() || runtimeProviders.defaultProvider;
+};
+
+export const createActor = async (input: CreateActorInput): Promise<Actor> => {
+  const prisma = getPrismaClient();
+  const variant = await getVariantOrThrow(input.variantId);
+
+  const provider = resolveProvider(input.provider);
   const adapter = getProviderAdapter(provider);
   const actorId = buildRandomActorId();
   const spawned = await adapter.spawn({
@@ -117,6 +151,140 @@ export const createActor = async (input: CreateActorInput): Promise<Actor> => {
   );
 
   return actor;
+};
+
+export const importVariantActors = async (
+  input: ImportVariantActorsInput,
+): Promise<ImportVariantActorsResult> => {
+  const prisma = getPrismaClient();
+  const variant = await getVariantOrThrow(input.variantId);
+  const provider = resolveProvider(input.provider);
+  const adapter = getProviderAdapter(provider);
+
+  if (!adapter.listSessions) {
+    throw new Error(
+      `Providers // Registry // Provider import unsupported ${JSON.stringify({ provider })}`,
+    );
+  }
+
+  const discoveredSessions = await adapter.listSessions({
+    workingLocator: variant.locator,
+  });
+
+  const dedupedSessions = new Map<string, (typeof discoveredSessions)[number]>();
+  for (const session of discoveredSessions) {
+    if (!session.providerSessionId) {
+      continue;
+    }
+
+    dedupedSessions.set(session.providerSessionId, session);
+  }
+
+  const sessionList = Array.from(dedupedSessions.values());
+  if (sessionList.length === 0) {
+    return {
+      variantId: variant.id,
+      provider,
+      discovered: 0,
+      created: 0,
+      updated: 0,
+      actors: [],
+    };
+  }
+
+  const existingActors = await prisma.actor.findMany({
+    where: {
+      variantId: variant.id,
+      provider,
+      providerSessionId: {
+        in: sessionList.map((session) => session.providerSessionId),
+      },
+    },
+  });
+
+  const existingActorBySessionId = new Map<string, Actor>();
+  for (const actor of existingActors) {
+    if (!actor.providerSessionId) {
+      continue;
+    }
+
+    existingActorBySessionId.set(actor.providerSessionId, actor);
+  }
+
+  const importedActors: Actor[] = [];
+  let created = 0;
+  let updated = 0;
+
+  for (const session of sessionList) {
+    const existing = existingActorBySessionId.get(session.providerSessionId);
+
+    if (existing) {
+      const updatedActor = await prisma.actor.update({
+        where: {
+          id: existing.id,
+        },
+        data: {
+          actorLocator: session.actorLocator,
+          workingLocator: variant.locator,
+          status: session.status,
+          ...(session.title !== undefined ? { title: session.title } : {}),
+          ...(session.description !== undefined ? { description: session.description } : {}),
+          ...(session.connectionInfo !== undefined
+            ? {
+                connectionInfo: session.connectionInfo
+                  ? (session.connectionInfo as Prisma.InputJsonObject)
+                  : Prisma.DbNull,
+              }
+            : {}),
+          ...(session.attachCommand !== undefined ? { attachCommand: session.attachCommand } : {}),
+        },
+      });
+
+      importedActors.push(updatedActor);
+      updated += 1;
+      continue;
+    }
+
+    const createdActor = await prisma.actor.create({
+      data: {
+        id: buildRandomActorId(),
+        variantId: variant.id,
+        provider,
+        actorLocator: session.actorLocator,
+        workingLocator: variant.locator,
+        providerSessionId: session.providerSessionId,
+        status: session.status,
+        title: session.title,
+        description: session.description,
+        connectionInfo: session.connectionInfo
+          ? (session.connectionInfo as Prisma.InputJsonObject)
+          : Prisma.DbNull,
+        attachCommand: session.attachCommand,
+      },
+    });
+
+    importedActors.push(createdActor);
+    created += 1;
+  }
+
+  Log.info(
+    `Core // Actors Controller // Variant actors imported ${formatLogMetadata({
+      created,
+      discovered: sessionList.length,
+      provider,
+      updated,
+      variantId: variant.id,
+    })}`,
+  );
+
+  return {
+    variantId: variant.id,
+    provider,
+    discovered: sessionList.length,
+    created,
+    updated,
+    actors: importedActors,
+  };
 };
 
 export const listActors = async (query: ListActorsQuery = {}): Promise<Actor[]> => {
@@ -256,13 +424,16 @@ export const listActorMessagesById = async (
 ) => {
   const actor = await getActorOrThrow(id);
   const adapter = getProviderAdapter(actor.provider);
+  const nLastMessages = normalizeMessageLimit(input.nLastMessages);
 
-  return adapter.listMessages({
+  const messages = await adapter.listMessages({
     actorLocator: actor.actorLocator,
     providerSessionId: actor.providerSessionId ?? undefined,
     workingLocator: actor.workingLocator,
-    nLastMessages: input.nLastMessages,
+    nLastMessages,
   });
+
+  return [...messages].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
 };
 
 export const runActorCommandById = async (
