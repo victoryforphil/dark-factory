@@ -26,9 +26,5 @@
       "enabled": true,
       "oauth": false,
     },
-    "prefect": {
-      "type": "local",
-      "command": ["uvx", "--from", "prefect-mcp", "prefect-mcp-server"],
-    },
   },
 }
