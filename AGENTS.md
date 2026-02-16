@@ -9,7 +9,7 @@ It reflects only what is currently true in this repository.
 - Prisma models currently include `Product` and `Variant` with these core assumptions:
   - Creating a local product (`@local://`) should also create a default variant at the same locator path.
   - Variant locator values are not globally unique; multiple variants can share a locator and are differentiated by `(productId, name)`.
-  - Product IDs are deterministic `prd_{sha256(locator)}` hashes based on normalized locator text; repeated creates for the same canonical locator are idempotent.
+  - Product IDs are deterministic `prd_{token}` values derived from normalized locator text (SHA-256 first 64 bits encoded as fixed-width base36); repeated creates for the same canonical locator are idempotent.
   - `Product.gitInfo` and `Variant.gitInfo` are optional JSON snapshots populated from local git metadata when available.
   - Variant git polling timestamps are tracked via `gitInfoUpdatedAt` and `gitInfoLastPolledAt`.
 - Rust workspace code now includes:

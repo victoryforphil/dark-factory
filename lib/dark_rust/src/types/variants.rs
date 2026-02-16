@@ -33,6 +33,7 @@ pub struct VariantListQuery {
     pub product_id: Option<String>,
     pub locator: Option<String>,
     pub name: Option<String>,
+    pub poll: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

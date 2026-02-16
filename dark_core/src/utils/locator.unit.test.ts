@@ -28,12 +28,10 @@ describe('locator utilities', () => {
     expect(locator).toBe('repo://dark-factory/product-a');
   });
 
-  it('builds deterministic SHA-256 product IDs', () => {
+  it('builds deterministic short product IDs', () => {
     const productId = buildDeterministicIdFromLocator('@local:///tmp/project');
 
-    expect(productId).toBe(
-      'prd_81036082e52d34e8648e2fe87d1ce252ad2679c89be825aa93faa6dc2133c670',
-    );
+    expect(productId).toBe('prd_1ymnvqkybkq94');
   });
 
   it('parses locator ids by type', () => {

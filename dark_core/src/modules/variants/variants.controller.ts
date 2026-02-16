@@ -5,14 +5,21 @@ import Log, { formatLogMetadata } from '../../utils/logging';
 import { NotFoundError } from '../common/controller.errors';
 import type { CursorListQuery } from '../common/controller.types';
 import { scanVariantGitInfo } from '../git/git.scan';
+import { buildRandomVariantId } from '../../utils/id';
 
 const DEFAULT_LIST_LIMIT = 25;
 const MAX_LIST_LIMIT = 100;
+const DEFAULT_POLL_BEFORE_READ = true;
 
 export interface ListVariantsQuery extends CursorListQuery {
   productId?: string;
   locator?: string;
   name?: string;
+  poll?: boolean;
+}
+
+export interface GetVariantOptions {
+  poll?: boolean;
 }
 
 export interface CreateVariantInput {
@@ -41,6 +48,7 @@ const normalizeLimit = (value?: number): number => {
 export const listVariants = async (query: ListVariantsQuery = {}): Promise<Variant[]> => {
   const prisma = getPrismaClient();
   const limit = normalizeLimit(query.limit);
+  const poll = query.poll ?? DEFAULT_POLL_BEFORE_READ;
 
   Log.debug(
     `Core // Variants Controller // Listing variants ${formatLogMetadata({
@@ -48,11 +56,12 @@ export const listVariants = async (query: ListVariantsQuery = {}): Promise<Varia
       limit,
       locator: query.locator ?? null,
       name: query.name ?? null,
+      poll,
       productId: query.productId ?? null,
     })}`,
   );
 
-  return prisma.variant.findMany({
+  const variants = await prisma.variant.findMany({
     where: {
       ...(query.productId ? { productId: query.productId } : {}),
       ...(query.locator ? { locator: query.locator } : {}),
@@ -62,9 +71,32 @@ export const listVariants = async (query: ListVariantsQuery = {}): Promise<Varia
     orderBy: { createdAt: 'desc' },
     ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
   });
+
+  if (!poll || variants.length === 0) {
+    return variants;
+  }
+
+  Log.info(
+    `Core // Variants Controller // Polling before list response ${formatLogMetadata({
+      count: variants.length,
+      locator: query.locator ?? null,
+      productId: query.productId ?? null,
+    })}`,
+  );
+
+  return Promise.all(variants.map((variant) => syncVariantGitInfo(variant.id)));
 };
 
-export const getVariantById = async (id: string): Promise<Variant> => {
+export const getVariantById = async (id: string, options: GetVariantOptions = {}): Promise<Variant> => {
+  const poll = options.poll ?? DEFAULT_POLL_BEFORE_READ;
+
+  if (poll) {
+    Log.info(
+      `Core // Variants Controller // Polling before get response ${formatLogMetadata({ id })}`,
+    );
+    return syncVariantGitInfo(id);
+  }
+
   const prisma = getPrismaClient();
 
   Log.debug(`Core // Variants Controller // Getting variant ${formatLogMetadata({ id })}`);
@@ -84,7 +116,7 @@ export const createVariant = async (input: CreateVariantInput): Promise<Variant>
 
   const createdVariant = await prisma.variant.create({
     data: {
-      id: crypto.randomUUID(),
+      id: buildRandomVariantId(),
       name: input.name,
       locator: input.locator,
       product: {

@@ -72,6 +72,14 @@ const notFoundResponse = t.Object({
   }),
 });
 
+const parsePollQuery = (poll?: string): boolean => {
+  if (!poll) {
+    return true;
+  }
+
+  return poll !== 'false' && poll !== '0';
+};
+
 export const createVariantsRoutes = (
   dependencies: VariantsRoutesDependencies = {
     createVariant,
@@ -87,12 +95,14 @@ export const createVariantsRoutes = (
       '/',
       async ({ query, set }) => {
         try {
+          const poll = parsePollQuery(query.poll);
           const variants = await dependencies.listVariants({
             cursor: query.cursor,
             limit: query.limit ? Number(query.limit) : undefined,
             productId: query.productId,
             locator: query.locator,
             name: query.name,
+            poll,
           });
 
           return success(variants);
@@ -111,6 +121,7 @@ export const createVariantsRoutes = (
           productId: t.Optional(t.String()),
           locator: t.Optional(t.String()),
           name: t.Optional(t.String()),
+          poll: t.Optional(t.String()),
         }),
         response: {
           200: variantsListResponse,
@@ -143,9 +154,11 @@ export const createVariantsRoutes = (
     )
     .get(
       '/:id',
-      async ({ params, set }) => {
+      async ({ params, query, set }) => {
         try {
-          const variant = await dependencies.getVariantById(params.id);
+          const variant = await dependencies.getVariantById(params.id, {
+            poll: parsePollQuery(query.poll),
+          });
           return success(variant);
         } catch (error) {
           if (isNotFoundError(error)) {
@@ -168,6 +181,9 @@ export const createVariantsRoutes = (
       },
       {
         params: t.Object({ id: t.String() }),
+        query: t.Object({
+          poll: t.Optional(t.String()),
+        }),
         response: {
           200: variantGetResponse,
           404: notFoundResponse,
@@ -177,9 +193,12 @@ export const createVariantsRoutes = (
     )
     .post(
       '/:id/poll',
-      async ({ params, set }) => {
+      async ({ params, query, set }) => {
         try {
-          const variant = await dependencies.syncVariantGitInfo(params.id);
+          const poll = parsePollQuery(query.poll);
+          const variant = poll
+            ? await dependencies.syncVariantGitInfo(params.id)
+            : await dependencies.getVariantById(params.id, { poll: false });
           return success(variant);
         } catch (error) {
           if (isNotFoundError(error)) {
@@ -202,6 +221,9 @@ export const createVariantsRoutes = (
       },
       {
         params: t.Object({ id: t.String() }),
+        query: t.Object({
+          poll: t.Optional(t.String()),
+        }),
         response: {
           200: variantPollResponse,
           404: notFoundResponse,

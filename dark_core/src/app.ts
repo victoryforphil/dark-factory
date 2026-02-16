@@ -4,6 +4,7 @@ import { logger } from '@grotto/logysia';
 import { llms } from '@opuu/elysia-llms-txt';
 
 import { opencodeRoutes, productsRoutes, systemRoutes, variantsRoutes } from './modules';
+import { ensurePrismaSchema } from './modules/prisma/prisma.client';
 import Log from './utils/logging';
 
 export const buildApp = (): Elysia => {
@@ -27,6 +28,9 @@ export const buildApp = (): Elysia => {
         },
       }),
     )
+    .onStart(async () => {
+      await ensurePrismaSchema();
+    })
     .get('/', () => ({ service: 'dark_core', status: 'ok' }))
     .use(systemRoutes)
     .use(opencodeRoutes)

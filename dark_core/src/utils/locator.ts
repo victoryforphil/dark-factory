@@ -2,6 +2,7 @@ import { normalize, posix } from 'node:path';
 
 const LOCAL_LOCATOR_PREFIX = '@local://';
 const PRODUCT_ID_PREFIX = 'prd_';
+const PRODUCT_ID_WIDTH = 13;
 const WINDOWS_ABSOLUTE_PATH_PATTERN = /^[A-Za-z]:[\\/]/;
 const WINDOWS_ROOT_PATH_PATTERN = /^[A-Za-z]:\/$/;
 
@@ -66,8 +67,14 @@ const hostAbsolutePathToLocalPath = (absolutePath: string): string => {
   return normalizeLocalPath(absolutePath);
 };
 
-const sha256Hex = (value: string): string => {
-  return new Bun.CryptoHasher('sha256').update(value).digest('hex');
+const toFixedBase36 = (value: bigint, width: number): string => {
+  return value.toString(36).padStart(width, '0');
+};
+
+const sha256ToFirst64Bits = (value: string): bigint => {
+  const digestHex = new Bun.CryptoHasher('sha256').update(value).digest('hex');
+  const first64BitsHex = digestHex.slice(0, 16);
+  return BigInt(`0x${first64BitsHex}`);
 };
 
 export const isLocalLocator = (locator: string): boolean => {
@@ -151,5 +158,6 @@ export const hostAbsolutePathToLocatorId = (absolutePath: string): string => {
 };
 
 export const buildDeterministicIdFromLocator = (canonicalLocator: string): string => {
-  return `${PRODUCT_ID_PREFIX}${sha256Hex(canonicalLocator)}`;
+  const token = toFixedBase36(sha256ToFirst64Bits(canonicalLocator), PRODUCT_ID_WIDTH);
+  return `${PRODUCT_ID_PREFIX}${token}`;
 };

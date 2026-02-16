@@ -1,4 +1,5 @@
 use std::env;
+use std::collections::BTreeSet;
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -51,6 +52,7 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
             .await
             .map_err(Into::into)
         }
+        Command::Info { path } => info_for_directory(path.as_deref(), api, &cli.base_url).await,
         Command::Service(command) => match command.action {
             ServiceAction::Status => api.service_status().await.map_err(Into::into),
         },
@@ -348,4 +350,99 @@ fn directory_name(path: &Path) -> Result<String> {
     path.file_name()
         .map(|name| name.to_string_lossy().to_string())
         .context("Dark CLI // Init // Unable to derive directory name")
+}
+
+async fn info_for_directory(
+    path: Option<&str>,
+    api: &DarkCoreClient,
+    base_url: &str,
+) -> Result<RawApiResponse> {
+    let directory = resolve_directory(path)?;
+    let locator = LocatorId::from_host_path(directory.as_path(), LocatorKind::Local)
+        .map(|parsed| parsed.to_locator_id())?;
+
+    let variants_response = api
+        .variants_list(&VariantListQuery {
+            locator: Some(locator.clone()),
+            limit: Some(500),
+            ..VariantListQuery::default()
+        })
+        .await
+        .with_context(|| {
+            format!(
+                "Dark CLI // Info // Failed to reach dark_core (base_url={base_url}). Start dark_core and retry"
+            )
+        })?;
+
+    if !(200..300).contains(&variants_response.status) {
+        return Ok(variants_response);
+    }
+
+    let variants = extract_data_rows(&variants_response.body);
+
+    for variant in &variants {
+        let Some(id) = variant.get("id").and_then(Value::as_str) else {
+            continue;
+        };
+
+        let poll_response = api.variants_poll(id).await?;
+
+        if !(200..300).contains(&poll_response.status) {
+            return Ok(poll_response);
+        }
+    }
+
+    let polled_variants_response = api
+        .variants_list(&VariantListQuery {
+            locator: Some(locator.clone()),
+            limit: Some(500),
+            ..VariantListQuery::default()
+        })
+        .await?;
+
+    if !(200..300).contains(&polled_variants_response.status) {
+        return Ok(polled_variants_response);
+    }
+
+    let polled_variants = extract_data_rows(&polled_variants_response.body);
+    let product_ids: BTreeSet<String> = polled_variants
+        .iter()
+        .filter_map(|variant| variant.get("productId").and_then(Value::as_str))
+        .map(ToString::to_string)
+        .collect();
+
+    let mut products: Vec<Value> = Vec::new();
+
+    for product_id in product_ids {
+        let product_response = api.products_get(&product_id).await?;
+
+        if !(200..300).contains(&product_response.status) {
+            return Ok(product_response);
+        }
+
+        if let Some(product) = product_response.body.get("data") {
+            products.push(product.clone());
+        }
+    }
+
+    Ok(RawApiResponse {
+        status: 200,
+        path: "/info".to_string(),
+        body: json!({
+            "ok": true,
+            "data": {
+                "directory": directory.to_string_lossy().to_string(),
+                "locator": locator,
+                "products": products,
+                "variants": polled_variants,
+            }
+        }),
+    })
+}
+
+fn extract_data_rows(body: &Value) -> Vec<Value> {
+    body.get("data")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
 }

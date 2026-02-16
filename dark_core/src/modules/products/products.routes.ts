@@ -1,5 +1,6 @@
 import { Elysia, t } from 'elysia';
 import {
+  Product,
   ProductPlain,
   ProductPlainInputCreate,
   ProductPlainInputUpdate,
@@ -26,7 +27,7 @@ export interface ProductsRoutesDependencies {
 
 const productsListResponse = t.Object({
   ok: t.Literal(true),
-  data: t.Array(ProductPlain),
+  data: t.Array(t.Union([ProductPlain, Product])),
 });
 
 const productCreateResponse = t.Object({
@@ -36,7 +37,7 @@ const productCreateResponse = t.Object({
 
 const productGetResponse = t.Object({
   ok: t.Literal(true),
-  data: ProductPlain,
+  data: t.Union([ProductPlain, Product]),
 });
 
 const productUpdateResponse = t.Object({
@@ -48,6 +49,8 @@ const productDeleteResponse = t.Object({
   ok: t.Literal(true),
   data: ProductPlain,
 });
+
+const productIncludeQuerySchema = t.Optional(t.Union([t.Literal('minimal'), t.Literal('full')]));
 
 const apiFailureResponse = t.Object({
   ok: t.Literal(false),
@@ -89,6 +92,7 @@ export const createProductsRoutes = (
         try {
           const products = await dependencies.listProducts({
             cursor: query.cursor,
+            include: query.include,
             limit: query.limit ? Number(query.limit) : undefined,
           });
 
@@ -104,6 +108,7 @@ export const createProductsRoutes = (
       {
         query: t.Object({
           cursor: t.Optional(t.String()),
+          include: productIncludeQuerySchema,
           limit: t.Optional(t.String()),
         }),
         response: {
@@ -148,9 +153,11 @@ export const createProductsRoutes = (
     )
     .get(
       '/:id',
-      async ({ params, set }) => {
+      async ({ params, query, set }) => {
         try {
-          const product = await dependencies.getProductById(params.id);
+          const product = await dependencies.getProductById(params.id, {
+            include: query.include,
+          });
           return success(product);
         } catch (error) {
           if (isNotFoundError(error)) {
@@ -173,6 +180,9 @@ export const createProductsRoutes = (
       },
       {
         params: t.Object({ id: t.String() }),
+        query: t.Object({
+          include: productIncludeQuerySchema,
+        }),
         response: {
           200: productGetResponse,
           404: notFoundResponse,

@@ -1,4 +1,4 @@
-import { Prisma, type Product } from '../../../../generated/prisma/client';
+import { Prisma, type Product, type Variant } from '../../../../generated/prisma/client';
 
 import { getPrismaClient } from '../prisma/prisma.client';
 import {
@@ -6,12 +6,27 @@ import {
   isLocalLocator,
   normalizeLocator,
 } from '../../utils/locator';
+import { buildRandomVariantId } from '../../utils/id';
 import { scanProductGitInfo } from '../git/git.scan';
 import Log, { formatLogMetadata } from '../../utils/logging';
 import { IdCollisionDetectedError, NotFoundError } from '../common/controller.errors';
 import type { CursorListQuery } from '../common/controller.types';
 
-export type ListProductsQuery = CursorListQuery;
+export type ProductIncludeOption = 'minimal' | 'full';
+
+export interface ListProductsQuery extends CursorListQuery {
+  include?: ProductIncludeOption;
+}
+
+export interface GetProductOptions {
+  include?: ProductIncludeOption;
+}
+
+export type ProductWithVariants = Product & {
+  variants: Variant[];
+};
+
+export type ProductRecord = Product | ProductWithVariants;
 
 export interface CreateProductInput {
   locator: string;
@@ -21,6 +36,7 @@ export interface CreateProductInput {
 const DEFAULT_LIST_LIMIT = 25;
 const MAX_LIST_LIMIT = 100;
 const DEFAULT_VARIANT_NAME = 'default';
+const DEFAULT_PRODUCT_INCLUDE: ProductIncludeOption = 'minimal';
 
 const normalizeLimit = (value?: number): number => {
   const fallback = DEFAULT_LIST_LIMIT;
@@ -32,33 +48,97 @@ const normalizeLimit = (value?: number): number => {
   return Math.max(1, Math.min(MAX_LIST_LIMIT, Math.floor(value)));
 };
 
+const resolveIncludeOption = (include?: ProductIncludeOption): ProductIncludeOption => {
+  if (include === 'full') {
+    return 'full';
+  }
+
+  return DEFAULT_PRODUCT_INCLUDE;
+};
+
+const buildProductInclude = (include: ProductIncludeOption): Prisma.ProductInclude | undefined => {
+  if (include !== 'full') {
+    return undefined;
+  }
+
+  return {
+    variants: true,
+  };
+};
+
+const ensureLocalDefaultVariant = async (
+  tx: Prisma.TransactionClient,
+  product: Product,
+): Promise<boolean> => {
+  if (!isLocalLocator(product.locator)) {
+    return false;
+  }
+
+  const existingDefaultVariant = await tx.variant.findUnique({
+    where: {
+      productId_name: {
+        productId: product.id,
+        name: DEFAULT_VARIANT_NAME,
+      },
+    },
+  });
+
+  if (existingDefaultVariant) {
+    return false;
+  }
+
+  await tx.variant.create({
+    data: {
+      id: buildRandomVariantId(),
+      productId: product.id,
+      name: DEFAULT_VARIANT_NAME,
+      locator: product.locator,
+    },
+  });
+
+  return true;
+};
+
 export interface UpdateProductInput {
   locator?: string;
   displayName?: string | null;
 }
 
-export const listProducts = async (query: ListProductsQuery = {}): Promise<Product[]> => {
+export const listProducts = async (query: ListProductsQuery = {}): Promise<ProductRecord[]> => {
   const prisma = getPrismaClient();
   const limit = normalizeLimit(query.limit);
+  const include = resolveIncludeOption(query.include);
+  const productInclude = buildProductInclude(include);
 
   Log.debug(
-    `Core // Products Controller // Listing products ${formatLogMetadata({ cursor: query.cursor ?? null, limit })}`,
+    `Core // Products Controller // Listing products ${formatLogMetadata({
+      cursor: query.cursor ?? null,
+      include,
+      limit,
+    })}`,
   );
 
   return prisma.product.findMany({
     take: limit,
     orderBy: { createdAt: 'desc' },
+    ...(productInclude ? { include: productInclude } : {}),
     ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
   });
 };
 
-export const getProductById = async (id: string): Promise<Product> => {
+export const getProductById = async (
+  id: string,
+  options: GetProductOptions = {},
+): Promise<ProductRecord> => {
   const prisma = getPrismaClient();
+  const include = resolveIncludeOption(options.include);
+  const productInclude = buildProductInclude(include);
 
-  Log.debug(`Core // Products Controller // Getting product ${formatLogMetadata({ id })}`);
+  Log.debug(`Core // Products Controller // Getting product ${formatLogMetadata({ id, include })}`);
 
   const product = await prisma.product.findUnique({
     where: { id },
+    ...(productInclude ? { include: productInclude } : {}),
   });
 
   if (!product) {
@@ -74,6 +154,7 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
   const canonicalLocator = normalizeLocator(input.locator);
   const productId = buildDeterministicIdFromLocator(canonicalLocator);
   const gitInfo = await scanProductGitInfo(canonicalLocator);
+  let defaultVariantCreated = false;
 
   const product = await prisma.$transaction(async (tx) => {
     const existingProductById = await tx.product.findUnique({
@@ -91,6 +172,8 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
         );
       }
 
+      defaultVariantCreated = await ensureLocalDefaultVariant(tx, existingProductById);
+
       return existingProductById;
     }
 
@@ -99,6 +182,7 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
     });
 
     if (existingProductByLocator) {
+      defaultVariantCreated = await ensureLocalDefaultVariant(tx, existingProductByLocator);
       return existingProductByLocator;
     }
 
@@ -111,16 +195,7 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
       },
     });
 
-    if (isLocalLocator(createdProduct.locator)) {
-      await tx.variant.create({
-        data: {
-          id: crypto.randomUUID(),
-          productId: createdProduct.id,
-          name: DEFAULT_VARIANT_NAME,
-          locator: createdProduct.locator,
-        },
-      });
-    }
+    defaultVariantCreated = await ensureLocalDefaultVariant(tx, createdProduct);
 
     return createdProduct;
   });
@@ -132,9 +207,9 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
     })}`,
   );
 
-  if (isLocalLocator(product.locator)) {
-    Log.debug(
-      `Core // Products Controller // Default variant created ${formatLogMetadata({
+  if (defaultVariantCreated) {
+    Log.info(
+      `Core // Products Controller // Local default variant ensured ${formatLogMetadata({
         locator: product.locator,
         name: DEFAULT_VARIANT_NAME,
         productId: product.id,

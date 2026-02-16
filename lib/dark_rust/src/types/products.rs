@@ -1,5 +1,22 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ProductIncludeQuery {
+    #[default]
+    Minimal,
+    Full,
+}
+
+impl ProductIncludeQuery {
+    pub fn as_query_value(self) -> &'static str {
+        match self {
+            Self::Minimal => "minimal",
+            Self::Full => "full",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProductCreateInput {
     pub locator: String,
@@ -19,6 +36,7 @@ pub struct ProductUpdateInput {
 pub struct ProductListQuery {
     pub cursor: Option<String>,
     pub limit: Option<u32>,
+    pub include: Option<ProductIncludeQuery>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

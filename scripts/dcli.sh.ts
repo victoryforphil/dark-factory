@@ -5,7 +5,7 @@ import { findRepoRoot } from "./helpers/run_root.sh.ts";
 const repoRoot = findRepoRoot(import.meta.dir);
 const args = Bun.argv.slice(2);
 
-const process = Bun.spawn(
+const childProcess = Bun.spawn(
   ["cargo", "run", "--quiet", "--manifest-path", "frontends/dark_cli/Cargo.toml", "--", ...args],
   {
     cwd: repoRoot,
@@ -15,7 +15,7 @@ const process = Bun.spawn(
   },
 );
 
-const exitCode = await process.exited;
+const exitCode = await childProcess.exited;
 if (exitCode !== 0) {
-  throw new Error(`CLI // Script // Failed (exit=${exitCode})`);
+  process.exit(exitCode);
 }

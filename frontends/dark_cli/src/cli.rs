@@ -27,6 +27,7 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum Command {
     Init { path: Option<String> },
+    Info { path: Option<String> },
     Service(ServiceCommand),
     System(SystemCommand),
     Products(ProductsCommand),

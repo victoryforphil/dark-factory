@@ -17,8 +17,209 @@ pub fn render(
     }
 }
 
-fn render_pretty(_command: &Command, body: &Value) -> Result<String, anyhow::Error> {
-    render_pretty_value(body)
+fn render_pretty(command: &Command, body: &Value) -> Result<String, anyhow::Error> {
+    match command {
+        Command::Info { .. } => render_info_summary(body),
+        _ => render_pretty_value(body),
+    }
+}
+
+fn render_info_summary(body: &Value) -> Result<String, anyhow::Error> {
+    let Some(data) = body.get("data").and_then(Value::as_object) else {
+        return render_pretty_value(body);
+    };
+
+    let mut context = BTreeMap::new();
+    context.insert(
+        "Directory".to_string(),
+        data.get("directory")
+            .map(to_cell)
+            .unwrap_or_else(|| "-".to_string()),
+    );
+    context.insert(
+        "Locator".to_string(),
+        data.get("locator")
+            .map(to_cell)
+            .unwrap_or_else(|| "-".to_string()),
+    );
+
+    let products = data
+        .get("products")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let variants = data
+        .get("variants")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+
+    context.insert("Products".to_string(), products.len().to_string());
+    context.insert("Variants".to_string(), variants.len().to_string());
+
+    let mut sections = vec![
+        "Directory Context".to_string(),
+        render_key_value_table(&context),
+        "Products".to_string(),
+        render_info_products_table(&products),
+        "Variants".to_string(),
+        render_info_variants_table(&variants),
+    ];
+
+    if products.is_empty() {
+        sections.push("Hint: run `dark_cli init` in this directory first.".to_string());
+    }
+
+    Ok(sections.join("\n\n"))
+}
+
+fn render_info_products_table(rows: &[Value]) -> String {
+    if rows.is_empty() {
+        return "No products for this locator.".to_string();
+    }
+
+    let mut table = Table::new();
+    table.add_row(Row::new(vec![
+        Cell::new("Product ID"),
+        Cell::new("Display Name"),
+        Cell::new("Locator"),
+        Cell::new("Git Repo"),
+        Cell::new("Branch"),
+        Cell::new("Worktrees"),
+        Cell::new("Updated"),
+    ]));
+
+    for row in rows {
+        table.add_row(Row::new(vec![
+            Cell::new(&id_field(row, "id")),
+            Cell::new(&field(row, "displayName")),
+            Cell::new(&field(row, "locator")),
+            Cell::new(&deep_field(row, &["gitInfo", "repoName"])),
+            Cell::new(&deep_field(row, &["gitInfo", "branch"])),
+            Cell::new(&deep_field(row, &["gitInfo", "worktreeCount"])),
+            Cell::new(&field(row, "updatedAt")),
+        ]));
+    }
+
+    table.to_string()
+}
+
+fn render_info_variants_table(rows: &[Value]) -> String {
+    if rows.is_empty() {
+        return "No variants for this locator.".to_string();
+    }
+
+    let mut table = Table::new();
+    table.add_row(Row::new(vec![
+        Cell::new("Variant ID"),
+        Cell::new("Product ID"),
+        Cell::new("Name"),
+        Cell::new("Branch"),
+        Cell::new("Dirty"),
+        Cell::new("Ahead/Behind"),
+        Cell::new("Worktree"),
+        Cell::new("Last Polled"),
+    ]));
+
+    for row in rows {
+        table.add_row(Row::new(vec![
+            Cell::new(&id_field(row, "id")),
+            Cell::new(&id_field(row, "productId")),
+            Cell::new(&field(row, "name")),
+            Cell::new(&deep_field(row, &["gitInfo", "branch"])),
+            Cell::new(&dirty_cell(row)),
+            Cell::new(&ahead_behind_cell(row)),
+            Cell::new(&worktree_cell(row)),
+            Cell::new(&field(row, "gitInfoLastPolledAt")),
+        ]));
+    }
+
+    table.to_string()
+}
+
+fn ahead_behind_cell(row: &Value) -> String {
+    let ahead = row
+        .get("gitInfo")
+        .and_then(|value| value.get("status"))
+        .and_then(|value| value.get("ahead"))
+        .map(to_cell);
+    let behind = row
+        .get("gitInfo")
+        .and_then(|value| value.get("status"))
+        .and_then(|value| value.get("behind"))
+        .map(to_cell);
+
+    match (ahead, behind) {
+        (Some(ahead), Some(behind)) => format!("{ahead}/{behind}"),
+        _ => "-".to_string(),
+    }
+}
+
+fn field(row: &Value, key: &str) -> String {
+    row.get(key).map(to_cell).unwrap_or_else(|| "-".to_string())
+}
+
+fn id_field(row: &Value, key: &str) -> String {
+    row.get(key)
+        .and_then(Value::as_str)
+        .map(compact_id)
+        .unwrap_or_else(|| field(row, key))
+}
+
+fn compact_id(value: &str) -> String {
+    if let Some(hash) = value.strip_prefix("prd_") {
+        return format!("prd_{}", shorten(hash, 12));
+    }
+
+    shorten(value, 12)
+}
+
+fn shorten(value: &str, take: usize) -> String {
+    if value.len() <= take {
+        return value.to_string();
+    }
+
+    format!("{}...", &value[..take])
+}
+
+fn deep_field(row: &Value, path: &[&str]) -> String {
+    let mut current = row;
+
+    for key in path {
+        let Some(next) = current.get(*key) else {
+            return "-".to_string();
+        };
+
+        current = next;
+    }
+
+    to_cell(current)
+}
+
+fn dirty_cell(row: &Value) -> String {
+    let clean = row
+        .get("gitInfo")
+        .and_then(|value| value.get("status"))
+        .and_then(|value| value.get("clean"));
+
+    match clean {
+        Some(Value::Bool(true)) => "no".to_string(),
+        Some(Value::Bool(false)) => "yes".to_string(),
+        _ => "-".to_string(),
+    }
+}
+
+fn worktree_cell(row: &Value) -> String {
+    let is_linked = row
+        .get("gitInfo")
+        .and_then(|value| value.get("isLinkedWorktree"))
+        .and_then(Value::as_bool);
+
+    match is_linked {
+        Some(true) => "linked".to_string(),
+        Some(false) => "main".to_string(),
+        None => "-".to_string(),
+    }
 }
 
 fn render_pretty_value(value: &Value) -> Result<String, anyhow::Error> {

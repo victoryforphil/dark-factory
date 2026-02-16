@@ -6,6 +6,7 @@ Rust CLI frontend for interacting with `dark_core`.
 
 - Command routing is active and calls `dark_core` over HTTP.
 - `init` creates a product using the current directory (or a provided path).
+- `info` summarizes the current directory's product/variant state and polls variants before rendering.
 - `products list` defaults to listing all products (paged client-side).
 - Pretty output now renders table-style output for all responses by default.
 
@@ -51,6 +52,7 @@ Commands:
 | CLI Command | HTTP Route | Description |
 | --- | --- | --- |
 | `init [path]` | `POST /products/` | Create a product using current dir or provided path; `displayName` is directory name |
+| `info [path]` | `GET /variants/` + `POST /variants/:id/poll` + `GET /products/:id` | Resolve directory locator, poll active variants, and print a world-state summary |
 | `service status` | `GET /` | Service root status |
 | `system health` | `GET /system/health` | System health payload |
 | `system info` | `GET /system/info` | Service info payload |
@@ -103,6 +105,9 @@ Product lifecycle:
 ```bash
 # Create from current directory
 dcli init
+
+# Summarize current directory world state
+dcli info
 
 # List all products (pretty table)
 dcli products list
