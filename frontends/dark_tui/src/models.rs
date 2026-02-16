@@ -41,6 +41,7 @@ pub struct VariantRow {
 #[derive(Debug, Clone)]
 pub struct ActorRow {
     pub id: String,
+    pub variant_id: String,
     pub title: String,
     pub provider: String,
     pub status: String,

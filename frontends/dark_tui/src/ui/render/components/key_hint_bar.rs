@@ -66,6 +66,7 @@ impl<'a> KeyHintBar<'a> {
     }
 
     /// Produce a `Line` of styled spans: ` key  action │  key  action │ ...`
+    #[allow(dead_code)]
     pub fn line(&self, theme: &Theme) -> Line<'static> {
         let mut spans: Vec<Span<'static>> = Vec::new();
 

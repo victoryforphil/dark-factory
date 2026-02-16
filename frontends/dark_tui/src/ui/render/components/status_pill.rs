@@ -74,6 +74,7 @@ impl StatusPill {
     }
 
     /// Produce a styled `Span` without padding (compact): `label`.
+    #[allow(dead_code)]
     pub fn span_compact(&self) -> Span<'static> {
         Span::styled(self.label.clone(), Style::default().fg(self.fg).bg(self.bg))
     }

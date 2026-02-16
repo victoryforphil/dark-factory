@@ -1,7 +1,7 @@
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Cell, Row, Table, TableState};
-use ratatui::Frame;
 
 use crate::app::{App, FocusPane, ResultsViewMode};
 use crate::models::{compact_id, compact_timestamp};

@@ -4,8 +4,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use dark_rust::types::{
-    ActorAttachQuery, ActorCreateInput, ActorListQuery, ProductCreateInput, ProductListQuery,
-    VariantListQuery,
+    ActorAttachQuery, ActorCreateInput, ActorListQuery, ActorMessageInput, ProductCreateInput,
+    ProductListQuery, VariantListQuery,
 };
 use dark_rust::{DarkCoreClient, DarkRustError, LocatorId, LocatorKind, RawApiResponse};
 use serde::Deserialize;
@@ -20,6 +20,12 @@ pub struct DashboardService {
     api: DarkCoreClient,
     directory: String,
     poll_variants: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct SpawnOptions {
+    pub providers: Vec<String>,
+    pub default_provider: Option<String>,
 }
 
 impl DashboardService {
@@ -65,10 +71,7 @@ impl DashboardService {
 
         let (actors, runtime_status) = match actors_result {
             Ok(records) => {
-                let mut rows = records
-                    .into_iter()
-                    .map(to_actor_row)
-                    .collect::<Vec<_>>();
+                let mut rows = records.into_iter().map(to_actor_row).collect::<Vec<_>>();
                 rows.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
 
                 let status = format!("actors online ({})", rows.len());
@@ -119,19 +122,66 @@ impl DashboardService {
         Ok(format!("Product initialized: {product_id}"))
     }
 
-    pub async fn create_session(&self) -> Result<String> {
+    pub async fn fetch_spawn_options(&self) -> Result<SpawnOptions> {
+        let response = self.api.system_providers().await?;
+        let body = ensure_success(response)?;
+
+        let default_provider = body
+            .get("data")
+            .and_then(|value| value.get("defaultProvider"))
+            .and_then(Value::as_str)
+            .map(ToString::to_string);
+
+        let mut providers = body
+            .get("data")
+            .and_then(|value| value.get("enabledProviders"))
+            .and_then(Value::as_array)
+            .map(|values| {
+                values
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+
+        if let Some(default) = default_provider.clone() {
+            if !providers.iter().any(|provider| provider == &default) {
+                providers.push(default);
+            }
+        }
+
+        if providers.is_empty() {
+            return Err(anyhow::anyhow!(
+                "Dark TUI // Actors // No enabled providers configured"
+            ));
+        }
+
+        Ok(SpawnOptions {
+            providers,
+            default_provider,
+        })
+    }
+
+    pub async fn create_session(
+        &self,
+        provider: &str,
+        initial_prompt: Option<&str>,
+    ) -> Result<String> {
         let variants = self.fetch_all_variants().await?;
-        let provider = self.resolve_spawn_provider().await?;
         let default_variant = variants
             .into_iter()
-            .find(|variant| variant.locator.ends_with(&self.directory) || variant.name.as_deref() == Some("default"))
+            .find(|variant| {
+                variant.locator.ends_with(&self.directory)
+                    || variant.name.as_deref() == Some("default")
+            })
             .context("Dark TUI // Actors // No variant available to spawn actor")?;
 
         let response = self
             .api
             .actors_create(&ActorCreateInput {
                 variant_id: default_variant.id,
-                provider,
+                provider: provider.to_string(),
                 title: Some(format!("Dark TUI // {}", directory_name(&self.directory))),
                 description: Some("Spawned from dark_tui".to_string()),
                 metadata: None,
@@ -144,6 +194,25 @@ impl DashboardService {
             .and_then(|value| value.get("id"))
             .and_then(Value::as_str)
             .context("Dark TUI // Actors // Missing actor id in response")?;
+
+        if let Some(prompt) = initial_prompt
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+        {
+            let response = self
+                .api
+                .actors_send_message(
+                    actor_id,
+                    &ActorMessageInput {
+                        prompt: prompt.to_string(),
+                        no_reply: Some(false),
+                        model: None,
+                        agent: None,
+                    },
+                )
+                .await?;
+            let _ = ensure_success(response)?;
+        }
 
         Ok(actor_id.to_string())
     }
@@ -160,37 +229,21 @@ impl DashboardService {
             )
             .await?;
         let body = ensure_success(response)?;
+        let attach_data = body.get("data").context(
+            "Dark TUI // Actors // Missing data envelope in attach response",
+        )?;
 
-        let command = body
-            .get("data")
-            .and_then(|value| value.get("command"))
+        let command = attach_data
+            .get("command")
+            .or_else(|| attach_data.get("attachCommand"))
             .and_then(Value::as_str)
-            .context("Dark TUI // Actors // Missing attach command in response")?;
+            .with_context(|| {
+                format!(
+                    "Dark TUI // Actors // Missing attach command in response (data={attach_data})"
+                )
+            })?;
 
         Ok(command.to_string())
-    }
-
-    async fn resolve_spawn_provider(&self) -> Result<String> {
-        let response = self.api.system_providers().await?;
-        let body = ensure_success(response)?;
-
-        let default_provider = body
-            .get("data")
-            .and_then(|value| value.get("defaultProvider"))
-            .and_then(Value::as_str)
-            .map(ToString::to_string);
-
-        if let Some(default_provider) = default_provider {
-            return Ok(default_provider);
-        }
-
-        body.get("data")
-            .and_then(|value| value.get("enabledProviders"))
-            .and_then(Value::as_array)
-            .and_then(|providers| providers.first())
-            .and_then(Value::as_str)
-            .map(ToString::to_string)
-            .context("Dark TUI // Actors // No enabled providers configured")
     }
 
     async fn fetch_all_products(&self) -> Result<Vec<ProductRecord>> {
@@ -425,6 +478,7 @@ fn to_variant_row(record: VariantRecord) -> VariantRow {
 fn to_actor_row(record: ActorRecord) -> ActorRow {
     ActorRow {
         id: record.id,
+        variant_id: record.variant_id,
         title: record
             .title
             .filter(|value| !value.trim().is_empty())
@@ -561,6 +615,7 @@ struct VariantGitStatusRecord {
 #[serde(rename_all = "camelCase")]
 struct ActorRecord {
     id: String,
+    variant_id: String,
     provider: String,
     status: String,
     working_locator: String,

@@ -14,8 +14,8 @@ impl FooterPanel {
     pub(crate) fn render(frame: &mut Frame, area: Rect, app: &App) {
         let theme = app.theme();
 
+        // --- State pills ---
         let focus_pill = StatusPill::accent(app.focus().label(), theme);
-        let view_pill = StatusPill::info(app.results_view_mode().label(), theme);
 
         let filter_pill = if app.filter_variants_to_product() {
             StatusPill::warn("filtered", theme)
@@ -23,6 +23,20 @@ impl FooterPanel {
             StatusPill::muted("all", theme)
         };
 
+        // --- Entity count pills (moved from header overview) ---
+        let products_pill = StatusPill::info(format!("{}P", app.products().len()), theme);
+        let variants_pill = StatusPill::info(format!("{}V", app.variants().len()), theme);
+        let actors_pill = StatusPill::info(format!("{}A", app.actors().len()), theme);
+
+        // --- Runtime pill ---
+        let runtime = app.runtime_status();
+        let runtime_pill = match runtime {
+            "ok" | "healthy" | "connected" => StatusPill::ok(runtime, theme),
+            "unknown" => StatusPill::muted(runtime, theme),
+            _ => StatusPill::warn(runtime, theme),
+        };
+
+        // --- Status message ---
         let status_text = app.status_message();
         let status_span = if status_text.contains("failed") || status_text.contains("error") {
             Span::styled(
@@ -39,9 +53,15 @@ impl FooterPanel {
         let line = Line::from(vec![
             focus_pill.span(),
             Span::raw(" "),
-            view_pill.span(),
-            Span::raw(" "),
             filter_pill.span(),
+            Span::raw("  "),
+            products_pill.span(),
+            Span::raw(" "),
+            variants_pill.span(),
+            Span::raw(" "),
+            actors_pill.span(),
+            Span::raw(" "),
+            runtime_pill.span(),
             Span::raw("  "),
             status_span,
         ]);

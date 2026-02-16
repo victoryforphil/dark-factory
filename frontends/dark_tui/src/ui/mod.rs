@@ -6,9 +6,10 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
+use arboard::Clipboard;
 use crossterm::event::{
     self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind,
-    KeyModifiers, MouseEventKind,
+    KeyModifiers, MouseButton, MouseEventKind,
 };
 use crossterm::execute;
 use crossterm::terminal::{
@@ -16,6 +17,7 @@ use crossterm::terminal::{
 };
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
+use ratatui::layout::Rect;
 
 use crate::app::{App, ResultsViewMode};
 use crate::cli::Cli;
@@ -30,7 +32,8 @@ enum LoopAction {
     Refresh,
     PollVariant,
     InitProduct,
-    CreateSession,
+    OpenSpawnForm,
+    SpawnSession,
     BuildAttach,
 }
 
@@ -113,8 +116,17 @@ async fn run_loop(
         if let Event::Mouse(mouse) = &ev {
             if app.results_view_mode() == ResultsViewMode::Viz {
                 match mouse.kind {
-                    MouseEventKind::Down(_) => {
-                        app.start_drag(mouse.column, mouse.row);
+                    MouseEventKind::Down(MouseButton::Left) => {
+                        let size = terminal.size()?;
+                        let root = Rect {
+                            x: 0,
+                            y: 0,
+                            width: size.width,
+                            height: size.height,
+                        };
+                        if !render::try_select_viz_node(root, app, mouse.column, mouse.row) {
+                            app.start_drag(mouse.column, mouse.row);
+                        }
                     }
                     MouseEventKind::Drag(_) => {
                         app.apply_drag(mouse.column, mouse.row);
@@ -174,15 +186,34 @@ async fn run_loop(
                     app.set_status(format!("Init failed: {error}"));
                 }
             },
-            LoopAction::CreateSession => match service.create_session().await {
-                Ok(actor_id) => {
-                    app.set_status(format!("Actor spawned: {actor_id}"));
-                    force_refresh = true;
+            LoopAction::OpenSpawnForm => match service.fetch_spawn_options().await {
+                Ok(options) => {
+                    app.open_spawn_form(options.providers, options.default_provider.as_deref());
+                    app.set_status("Spawn form open. Choose provider and prompt.");
                 }
                 Err(error) => {
-                    app.set_status(format!("Actor spawn failed: {error}"));
+                    app.set_status(format!("Spawn options failed: {error}"));
                 }
             },
+            LoopAction::SpawnSession => {
+                let Some(request) = app.take_spawn_request() else {
+                    app.set_status("Spawn skipped: form is not open.");
+                    continue;
+                };
+
+                match service
+                    .create_session(&request.provider, request.initial_prompt.as_deref())
+                    .await
+                {
+                    Ok(actor_id) => {
+                        app.set_status(format!("Spawned in TUI: {actor_id}"));
+                        force_refresh = true;
+                    }
+                    Err(error) => {
+                        app.set_status(format!("Spawn failed: {error}"));
+                    }
+                }
+            }
             LoopAction::BuildAttach => {
                 let Some(actor_id) = app.selected_actor_id().map(ToString::to_string) else {
                     app.set_status("Attach skipped: no actor selected.");
@@ -191,8 +222,18 @@ async fn run_loop(
 
                 match service.build_attach_command(&actor_id).await {
                     Ok(command) => {
-                        app.set_status("Attach command ready.");
+                        let status = match copy_to_clipboard(&command) {
+                            Ok(()) => "Attach command copied to clipboard.",
+                            Err(error) => {
+                                app.set_command_message(command.clone());
+                                app.set_status(format!(
+                                    "Attach command ready (clipboard failed: {error})"
+                                ));
+                                continue;
+                            }
+                        };
                         app.set_command_message(command);
+                        app.set_status(status);
                     }
                     Err(error) => {
                         app.set_status(format!("Attach command failed: {error}"));
@@ -256,7 +297,19 @@ fn resolve_directory(path: Option<&str>) -> Result<String> {
     Ok(canonical.to_string_lossy().to_string())
 }
 
+fn copy_to_clipboard(value: &str) -> Result<()> {
+    let mut clipboard = Clipboard::new().context("clipboard init failed")?;
+    clipboard
+        .set_text(value.to_string())
+        .context("clipboard write failed")?;
+    Ok(())
+}
+
 fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
+    if app.is_spawn_form_open() {
+        return handle_spawn_form_key(app, key);
+    }
+
     if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
         return LoopAction::Quit;
     }
@@ -294,8 +347,44 @@ fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
         }
         KeyCode::Char('p') => LoopAction::PollVariant,
         KeyCode::Char('i') => LoopAction::InitProduct,
-        KeyCode::Char('n') => LoopAction::CreateSession,
+        KeyCode::Char('n') => LoopAction::OpenSpawnForm,
         KeyCode::Char('a') => LoopAction::BuildAttach,
+        KeyCode::Char('0') => {
+            app.reset_viz_offset();
+            app.set_status("Pan reset to origin");
+            LoopAction::None
+        }
+        _ => LoopAction::None,
+    }
+}
+
+fn handle_spawn_form_key(app: &mut App, key: KeyEvent) -> LoopAction {
+    match key.code {
+        KeyCode::Esc => {
+            app.close_spawn_form();
+            app.set_status("Spawn form closed.");
+            LoopAction::None
+        }
+        KeyCode::Enter => LoopAction::SpawnSession,
+        KeyCode::Up | KeyCode::Char('k') => {
+            app.spawn_form_move_provider_up();
+            LoopAction::None
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            app.spawn_form_move_provider_down();
+            LoopAction::None
+        }
+        KeyCode::Backspace => {
+            app.spawn_form_backspace();
+            LoopAction::None
+        }
+        KeyCode::Char(value)
+            if !key.modifiers.contains(KeyModifiers::CONTROL)
+                && !key.modifiers.contains(KeyModifiers::ALT) =>
+        {
+            app.spawn_form_insert_char(value);
+            LoopAction::None
+        }
         _ => LoopAction::None,
     }
 }

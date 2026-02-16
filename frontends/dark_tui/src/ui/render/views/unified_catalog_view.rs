@@ -4,8 +4,10 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use ratatui::Frame;
 
-use crate::app::{App, FocusPane};
-use crate::models::{compact_id, compact_locator, compact_timestamp, ProductRow, VariantRow};
+use crate::app::{App, VizSelection};
+use crate::models::{
+    compact_id, compact_locator, compact_timestamp, ActorRow, ProductRow, VariantRow,
+};
 use crate::theme::Theme;
 
 use super::super::components::{PaneBlockComponent, StatusPill};
@@ -14,14 +16,20 @@ use super::super::components::{PaneBlockComponent, StatusPill};
 const PRODUCT_CARD_WIDTH: u16 = 48;
 /// Max width for variant card tiles.
 const VARIANT_CARD_WIDTH: u16 = 44;
+/// Max width for actor card tiles.
+const ACTOR_CARD_WIDTH: u16 = 38;
 /// Height of a product card (border + 2 content lines + border).
 const PRODUCT_CARD_HEIGHT: u16 = 4;
 /// Height of a variant card (border + 2 content lines + border).
 const VARIANT_CARD_HEIGHT: u16 = 4;
+/// Height of an actor card (border + 1 content line + border).
+const ACTOR_CARD_HEIGHT: u16 = 4;
 /// Left margin before the product card.
 const PRODUCT_LEFT_MARGIN: u16 = 2;
 /// Connector column width (the `│` / `├─` / `└─` gutter).
 const CONNECTOR_WIDTH: u16 = 4;
+/// Secondary connector width for actor branches off variants.
+const ACTOR_CONNECTOR_WIDTH: u16 = 3;
 
 pub(crate) struct UnifiedCatalogView;
 
@@ -44,34 +52,15 @@ impl UnifiedCatalogView {
             return;
         }
 
-        let groups: Vec<ProductGroup> = app
-            .products()
-            .iter()
-            .enumerate()
-            .map(|(product_index, product)| {
-                let variants: Vec<&VariantRow> = app
-                    .variants()
-                    .iter()
-                    .filter(|v| v.product_id == product.id)
-                    .collect();
-                ProductGroup {
-                    product,
-                    product_index,
-                    variants,
-                }
-            })
-            .collect();
-
-        let selected_product_index = app.selected_product_index();
-        let product_focused = matches!(app.focus(), FocusPane::Products);
-        let variant_focused = matches!(app.focus(), FocusPane::Variants);
+        let groups = Self::product_groups(app);
+        let viz_sel = app.viz_selection();
 
         // Compute absolute Y positions for each group (world-space, origin=0).
         let mut group_positions: Vec<i32> = Vec::with_capacity(groups.len());
         let mut world_y: i32 = 0;
         for group in &groups {
             group_positions.push(world_y);
-            world_y += Self::group_height(group) as i32 + 1; // +1 gap between groups
+            world_y += Self::group_height(group, app) as i32 + 1; // +1 gap between groups
         }
 
         // Read viz offset (camera position).
@@ -80,7 +69,7 @@ impl UnifiedCatalogView {
         // Render each group translated by the camera offset.
         for (gi, group) in groups.iter().enumerate() {
             let world_group_y = group_positions[gi];
-            let group_h = Self::group_height(group) as i32;
+            let group_h = Self::group_height(group, app) as i32;
 
             // Translate to screen coordinates (relative to inner area).
             let screen_y = world_group_y + offset_y;
@@ -116,26 +105,12 @@ impl UnifiedCatalogView {
                 height: vis_bot.saturating_sub(vis_top),
             };
 
-            // Offset within the group due to top-clipping.
-            let clip_top = (inner.y as i32 - abs_y).max(0) as u16;
-
-            Self::render_product_group(
-                frame,
-                group_area,
-                group,
-                selected_product_index,
-                product_focused,
-                variant_focused,
-                app,
-                clip_top,
-                screen_x,
-                theme,
-            );
+            Self::render_product_group(frame, group_area, group, viz_sel, app, theme);
         }
 
         // Scroll position hint in bottom-right corner.
         if offset_x != 0 || offset_y != 0 {
-            let hint = format!("pan({},{})", offset_x, offset_y);
+            let hint = format!("pan({},{}) [0]=reset", offset_x, offset_y);
             let hint_len = hint.len() as u16;
             if hint_len < inner.width {
                 let hint_area = Rect {
@@ -150,24 +125,196 @@ impl UnifiedCatalogView {
         }
     }
 
-    fn group_height(group: &ProductGroup) -> u16 {
-        let variant_count = group.variants.len() as u16;
-        PRODUCT_CARD_HEIGHT + (variant_count * VARIANT_CARD_HEIGHT)
+    pub(crate) fn click_select(area: Rect, app: &mut App, col: u16, row: u16) -> bool {
+        let inner = Self::panel_inner(area);
+
+        if inner.width < 20
+            || inner.height < 6
+            || app.products().is_empty()
+            || col < inner.x
+            || col >= inner.x + inner.width
+            || row < inner.y
+            || row >= inner.y + inner.height
+        {
+            return false;
+        }
+
+        // Determine hit target using only immutable borrows, then apply
+        // the mutation after releasing all references into `app`.
+        let hit = {
+            let groups = Self::product_groups(app);
+            let (offset_x, offset_y) = app.viz_offset();
+            let world_x = (col - inner.x) as i32 - offset_x;
+            let world_y = (row - inner.y) as i32 - offset_y;
+
+            let product_w = PRODUCT_CARD_WIDTH.min(inner.width.saturating_sub(PRODUCT_LEFT_MARGIN));
+            if product_w == 0 {
+                return false;
+            }
+
+            let connector_x_pos = PRODUCT_LEFT_MARGIN + 3;
+            let variant_x = connector_x_pos + CONNECTOR_WIDTH;
+            let variant_w = VARIANT_CARD_WIDTH.min(inner.width.saturating_sub(variant_x));
+
+            let actor_connector_x = variant_x + 3;
+            let actor_x = actor_connector_x + ACTOR_CONNECTOR_WIDTH;
+            let actor_w = ACTOR_CARD_WIDTH.min(inner.width.saturating_sub(actor_x));
+
+            let mut result: Option<ClickHit> = None;
+            let mut group_y: i32 = 0;
+
+            'outer: for group in &groups {
+                let product_left = PRODUCT_LEFT_MARGIN as i32;
+                let product_right = product_left + product_w as i32;
+                let product_top = group_y;
+                let product_bottom = product_top + PRODUCT_CARD_HEIGHT as i32;
+
+                if world_x >= product_left
+                    && world_x < product_right
+                    && world_y >= product_top
+                    && world_y < product_bottom
+                {
+                    result = Some(ClickHit::Product {
+                        product_index: group.product_index,
+                    });
+                    break;
+                }
+
+                let mut slot_y = group_y + PRODUCT_CARD_HEIGHT as i32;
+                for variant in &group.variants {
+                    let v_top = slot_y;
+                    let v_bottom = v_top + VARIANT_CARD_HEIGHT as i32;
+
+                    if variant_w > 0
+                        && world_x >= variant_x as i32
+                        && world_x < (variant_x + variant_w) as i32
+                        && world_y >= v_top
+                        && world_y < v_bottom
+                    {
+                        result = Some(ClickHit::Variant {
+                            product_index: group.product_index,
+                            variant_id: variant.id.clone(),
+                        });
+                        break 'outer;
+                    }
+                    slot_y += VARIANT_CARD_HEIGHT as i32;
+
+                    let actors = app.actors_for_variant(&variant.id);
+                    for actor in &actors {
+                        let a_top = slot_y;
+                        let a_bottom = a_top + ACTOR_CARD_HEIGHT as i32;
+
+                        if actor_w > 0
+                            && world_x >= actor_x as i32
+                            && world_x < (actor_x + actor_w) as i32
+                            && world_y >= a_top
+                            && world_y < a_bottom
+                        {
+                            result = Some(ClickHit::Actor {
+                                product_index: group.product_index,
+                                variant_id: variant.id.clone(),
+                                actor_id: actor.id.clone(),
+                            });
+                            break 'outer;
+                        }
+                        slot_y += ACTOR_CARD_HEIGHT as i32;
+                    }
+                }
+
+                group_y += Self::group_height(group, app) as i32 + 1;
+            }
+
+            result
+        }; // immutable borrows end here
+
+        // Apply the hit with mutable access.
+        match hit {
+            Some(ClickHit::Product { product_index }) => {
+                app.select_product_by_index(product_index);
+                true
+            }
+            Some(ClickHit::Variant {
+                product_index,
+                variant_id,
+            }) => {
+                app.select_variant_in_product(product_index, &variant_id);
+                true
+            }
+            Some(ClickHit::Actor {
+                product_index,
+                variant_id,
+                actor_id,
+            }) => {
+                app.select_actor_in_viz(product_index, &variant_id, &actor_id);
+                true
+            }
+            None => false,
+        }
+    }
+
+    fn panel_inner(area: Rect) -> Rect {
+        if area.width < 2 || area.height < 2 {
+            return area;
+        }
+
+        Rect {
+            x: area.x + 1,
+            y: area.y + 1,
+            width: area.width.saturating_sub(2),
+            height: area.height.saturating_sub(2),
+        }
+    }
+
+    fn product_groups<'a>(app: &'a App) -> Vec<ProductGroup<'a>> {
+        app.products()
+            .iter()
+            .enumerate()
+            .map(|(product_index, product)| {
+                let variants: Vec<&VariantRow> = app
+                    .variants()
+                    .iter()
+                    .filter(|v| v.product_id == product.id)
+                    .collect();
+                ProductGroup {
+                    product,
+                    product_index,
+                    variants,
+                }
+            })
+            .collect()
+    }
+
+    /// Total height of a product group including all variant and actor cards.
+    fn group_height(group: &ProductGroup, app: &App) -> u16 {
+        let mut h = PRODUCT_CARD_HEIGHT;
+        for variant in &group.variants {
+            h += VARIANT_CARD_HEIGHT;
+            let actor_count = app.actors_for_variant(&variant.id).len() as u16;
+            h += actor_count * ACTOR_CARD_HEIGHT;
+        }
+        h
     }
 
     fn render_product_group(
         frame: &mut Frame,
         area: Rect,
         group: &ProductGroup,
-        selected_product_index: usize,
-        product_focused: bool,
-        variant_focused: bool,
+        viz_sel: Option<&VizSelection>,
         app: &App,
-        _clip_top: u16,
-        _screen_x: i32,
         theme: &Theme,
     ) {
-        let is_selected_product = group.product_index == selected_product_index;
+        // Determine selection state from VizSelection.
+        let is_product_selected = matches!(
+            viz_sel,
+            Some(VizSelection::Product { product_index }) if *product_index == group.product_index
+        );
+        let is_product_tree_active = matches!(
+            viz_sel,
+            Some(VizSelection::Product { product_index }
+                | VizSelection::Variant { product_index, .. }
+                | VizSelection::Actor { product_index, .. })
+            if *product_index == group.product_index
+        );
 
         // --- Product card (fixed width, left margin) ---
         let card_w = PRODUCT_CARD_WIDTH.min(area.width.saturating_sub(PRODUCT_LEFT_MARGIN));
@@ -181,11 +328,11 @@ impl UnifiedCatalogView {
             height: card_h,
         };
 
-        let product_border = if is_selected_product && product_focused {
+        let product_border = if is_product_selected {
             Style::default()
                 .fg(theme.entity_product)
                 .add_modifier(Modifier::BOLD)
-        } else if is_selected_product {
+        } else if is_product_tree_active {
             Style::default().fg(theme.entity_product)
         } else {
             Style::default().fg(theme.pane_unfocused_border)
@@ -193,9 +340,8 @@ impl UnifiedCatalogView {
 
         let product = group.product;
 
-        // Block title carries the name: "Selected: Name" or "Product: Name"
-        let title = if is_selected_product && product_focused {
-            format!("Selected: {}", product.display_name)
+        let title = if is_product_selected {
+            format!("\u{25c6} {}", product.display_name)
         } else {
             format!("Product: {}", product.display_name)
         };
@@ -254,7 +400,7 @@ impl UnifiedCatalogView {
 
         frame.render_widget(card, product_area);
 
-        // --- Connector + variant sub-tiles ---
+        // --- Connector + variant sub-tiles + actor sub-tiles ---
         if group.variants.is_empty() || area.height <= PRODUCT_CARD_HEIGHT {
             return;
         }
@@ -264,69 +410,184 @@ impl UnifiedCatalogView {
         let variant_w = VARIANT_CARD_WIDTH.min(area.width.saturating_sub(variant_x - area.x));
         let remaining_h = area.height.saturating_sub(PRODUCT_CARD_HEIGHT);
 
-        let selected_variant = app.selected_variant();
-        let selected_variant_id = selected_variant.map(|v| v.id.as_str());
+        // Build a layout schedule: for each variant, compute its Y position and
+        // the Y positions of its actor children.
+        struct SlotInfo {
+            variant_y: u16,
+            actor_ys: Vec<u16>,
+        }
+
+        let mut slots: Vec<SlotInfo> = Vec::with_capacity(group.variants.len());
+        let mut cursor_y = area.y + PRODUCT_CARD_HEIGHT;
+        for variant in &group.variants {
+            let vy = cursor_y;
+            cursor_y += VARIANT_CARD_HEIGHT;
+            let actors = app.actors_for_variant(&variant.id);
+            let mut actor_ys = Vec::with_capacity(actors.len());
+            for _ in &actors {
+                actor_ys.push(cursor_y);
+                cursor_y += ACTOR_CARD_HEIGHT;
+            }
+            slots.push(SlotInfo {
+                variant_y: vy,
+                actor_ys,
+            });
+        }
+
         let variant_count = group.variants.len();
         let buf = frame.buffer_mut();
         let connector_style = Style::default().fg(theme.catalog_connector);
 
-        for vi in 0..variant_count {
-            let vy = area.y + PRODUCT_CARD_HEIGHT + (vi as u16) * VARIANT_CARD_HEIGHT;
+        // --- Draw variant connectors (product → variant trunk) ---
+        for (vi, slot) in slots.iter().enumerate() {
+            let vy = slot.variant_y;
             if vy + VARIANT_CARD_HEIGHT > area.y + PRODUCT_CARD_HEIGHT + remaining_h {
                 break;
             }
 
-            let is_last = vi == variant_count - 1;
+            let is_last_variant = vi == variant_count - 1 && slot.actor_ys.is_empty();
+            // "last child" means no more items in the product trunk below this.
+            let is_last_in_trunk = vi == variant_count - 1;
 
-            // --- Draw connector lines ---
-            let branch_y = vy + 1; // midpoint of the 4-line variant card
+            // Vertical trunk from previous node to this branch point.
+            let branch_y = vy + 1; // midpoint of the variant card
             let trunk_start = if vi == 0 {
                 area.y + PRODUCT_CARD_HEIGHT
             } else {
-                vy
+                // After previous variant (and its actors), the trunk continues.
+                let prev = &slots[vi - 1];
+                let prev_end = if prev.actor_ys.is_empty() {
+                    prev.variant_y + VARIANT_CARD_HEIGHT
+                } else {
+                    *prev.actor_ys.last().unwrap() + ACTOR_CARD_HEIGHT
+                };
+                prev_end
             };
 
-            for cy in trunk_start..branch_y {
-                if cy < buf.area.y || cy >= buf.area.y + buf.area.height {
-                    continue;
+            Self::draw_trunk(buf, connector_x, trunk_start, branch_y, &connector_style);
+
+            // Branch junction.
+            let junction = if is_last_in_trunk {
+                "\u{251c}"
+            } else {
+                "\u{251c}"
+            };
+            // Use └ only when truly the last entry under this product (no actors after last variant).
+            let junction = if is_last_variant {
+                "\u{2514}"
+            } else {
+                junction
+            };
+            Self::draw_junction(
+                buf,
+                connector_x,
+                branch_y,
+                variant_x,
+                junction,
+                &connector_style,
+            );
+
+            // Continue trunk below this variant for subsequent variants.
+            if !is_last_in_trunk {
+                let next_start = branch_y + 1;
+                let next_slot = &slots[vi + 1];
+                let next_branch = next_slot.variant_y + 1;
+                // If this variant has actors, the trunk continues through them.
+                if !slot.actor_ys.is_empty() {
+                    let actors_end = *slot.actor_ys.last().unwrap() + ACTOR_CARD_HEIGHT;
+                    Self::draw_trunk(buf, connector_x, next_start, actors_end, &connector_style);
+                    Self::draw_trunk(buf, connector_x, actors_end, next_branch, &connector_style);
+                } else {
+                    Self::draw_trunk(buf, connector_x, next_start, next_branch, &connector_style);
                 }
-                if connector_x < buf.area.x || connector_x >= buf.area.x + buf.area.width {
-                    continue;
-                }
-                buf.set_string(connector_x, cy, "\u{2502}", connector_style);
+            } else if !slot.actor_ys.is_empty() {
+                // Last variant but has actors — continue trunk for actor branches.
+                let next_start = branch_y + 1;
+                let actors_end = *slot.actor_ys.last().unwrap() + 1; // branch_y of last actor
+                Self::draw_trunk(buf, connector_x, next_start, actors_end, &connector_style);
+            }
+        }
+
+        // --- Draw actor connectors (variant → actor sub-branches) ---
+        let actor_connector_x = variant_x + 3;
+        let actor_x = actor_connector_x + ACTOR_CONNECTOR_WIDTH;
+        let actor_w =
+            ACTOR_CARD_WIDTH.min(area.width.saturating_sub(actor_x.saturating_sub(area.x)));
+
+        for (vi, (variant, slot)) in group.variants.iter().zip(slots.iter()).enumerate() {
+            let actors = app.actors_for_variant(&variant.id);
+            if actors.is_empty() {
+                continue;
             }
 
-            // Branch junction
-            let junction = if is_last { "\u{2514}" } else { "\u{251c}" };
-            if branch_y < buf.area.y + buf.area.height && connector_x < buf.area.x + buf.area.width
-            {
-                buf.set_string(connector_x, branch_y, junction, connector_style);
-                // Horizontal arm
-                let arm_end = variant_x.min(buf.area.x + buf.area.width);
-                for cx in (connector_x + 1)..arm_end {
-                    buf.set_string(cx, branch_y, "\u{2500}", connector_style);
-                }
-            }
+            let is_last_variant = vi == variant_count - 1;
 
-            // Continue vertical trunk below for non-last variants
-            if !is_last {
-                let next_branch_y =
-                    area.y + PRODUCT_CARD_HEIGHT + ((vi + 1) as u16) * VARIANT_CARD_HEIGHT + 1;
-                for cy in (branch_y + 1)..next_branch_y {
-                    if cy >= buf.area.y + buf.area.height {
-                        break;
-                    }
-                    if connector_x >= buf.area.x + buf.area.width {
-                        break;
-                    }
-                    buf.set_string(connector_x, cy, "\u{2502}", connector_style);
+            for (ai, actor_y) in slot.actor_ys.iter().enumerate() {
+                let ay = *actor_y;
+                if ay + ACTOR_CARD_HEIGHT > area.y + area.height {
+                    break;
+                }
+
+                let is_last_actor = ai == actors.len() - 1;
+
+                // Vertical trunk from variant card bottom / previous actor.
+                let branch_y = ay + 1; // midpoint of actor card
+                let trunk_start = if ai == 0 {
+                    slot.variant_y + VARIANT_CARD_HEIGHT
+                } else {
+                    slot.actor_ys[ai - 1] + ACTOR_CARD_HEIGHT
+                };
+
+                Self::draw_trunk(
+                    buf,
+                    actor_connector_x,
+                    trunk_start,
+                    branch_y,
+                    &connector_style,
+                );
+
+                // Also continue the main product trunk through actor rows
+                // (only if this is NOT the last variant).
+                if !is_last_variant {
+                    Self::draw_trunk(
+                        buf,
+                        connector_x,
+                        trunk_start,
+                        branch_y + 1,
+                        &connector_style,
+                    );
+                }
+
+                let junction = if is_last_actor {
+                    "\u{2514}"
+                } else {
+                    "\u{251c}"
+                };
+                Self::draw_junction(
+                    buf,
+                    actor_connector_x,
+                    branch_y,
+                    actor_x,
+                    junction,
+                    &connector_style,
+                );
+
+                // Continue vertical trunk for non-last actors.
+                if !is_last_actor {
+                    Self::draw_trunk(
+                        buf,
+                        actor_connector_x,
+                        branch_y + 1,
+                        slot.actor_ys[ai + 1] + 1,
+                        &connector_style,
+                    );
                 }
             }
         }
 
         // --- Render variant cards (after connectors so cards paint on top) ---
-        for (vi, variant) in group.variants.iter().enumerate() {
-            let vy = area.y + PRODUCT_CARD_HEIGHT + (vi as u16) * VARIANT_CARD_HEIGHT;
+        for (_vi, (variant, slot)) in group.variants.iter().zip(slots.iter()).enumerate() {
+            let vy = slot.variant_y;
             if vy + VARIANT_CARD_HEIGHT > area.y + PRODUCT_CARD_HEIGHT + remaining_h {
                 break;
             }
@@ -338,41 +599,121 @@ impl UnifiedCatalogView {
                 height: VARIANT_CARD_HEIGHT,
             };
 
-            let is_selected_variant =
-                is_selected_product && selected_variant_id == Some(variant.id.as_str());
+            let is_variant_selected = matches!(
+                viz_sel,
+                Some(VizSelection::Variant { product_index, variant_id })
+                if *product_index == group.product_index && *variant_id == variant.id
+            );
+            // Variant is "active" if it or one of its actors is selected.
+            let is_variant_active = is_variant_selected
+                || matches!(
+                    viz_sel,
+                    Some(VizSelection::Actor { product_index, variant_id, .. })
+                    if *product_index == group.product_index && *variant_id == variant.id
+                );
 
             Self::render_variant_card(
                 frame,
                 tile_area,
                 variant,
-                is_selected_variant,
-                variant_focused,
+                is_variant_selected,
+                is_variant_active,
                 theme,
             );
+
+            // --- Render actor cards for this variant ---
+            let actors = app.actors_for_variant(&variant.id);
+            for (ai, actor) in actors.iter().enumerate() {
+                let ay = slot.actor_ys[ai];
+                if ay + ACTOR_CARD_HEIGHT > area.y + area.height {
+                    break;
+                }
+
+                let actor_area = Rect {
+                    x: actor_x,
+                    y: ay,
+                    width: actor_w,
+                    height: ACTOR_CARD_HEIGHT,
+                };
+
+                let is_actor_selected = matches!(
+                    viz_sel,
+                    Some(VizSelection::Actor { actor_id, .. })
+                    if *actor_id == actor.id
+                );
+
+                Self::render_actor_card(frame, actor_area, actor, is_actor_selected, theme);
+            }
         }
     }
+
+    // --- Drawing helpers ---
+
+    /// Draw vertical trunk line from y_start to y_end (exclusive).
+    fn draw_trunk(
+        buf: &mut ratatui::buffer::Buffer,
+        x: u16,
+        y_start: u16,
+        y_end: u16,
+        style: &Style,
+    ) {
+        if x < buf.area.x || x >= buf.area.x + buf.area.width {
+            return;
+        }
+        for cy in y_start..y_end {
+            if cy < buf.area.y || cy >= buf.area.y + buf.area.height {
+                continue;
+            }
+            buf.set_string(x, cy, "\u{2502}", *style);
+        }
+    }
+
+    /// Draw a junction + horizontal arm at branch_y from connector_x to target_x.
+    fn draw_junction(
+        buf: &mut ratatui::buffer::Buffer,
+        connector_x: u16,
+        branch_y: u16,
+        target_x: u16,
+        junction_char: &str,
+        style: &Style,
+    ) {
+        if branch_y < buf.area.y || branch_y >= buf.area.y + buf.area.height {
+            return;
+        }
+        if connector_x >= buf.area.x && connector_x < buf.area.x + buf.area.width {
+            buf.set_string(connector_x, branch_y, junction_char, *style);
+        }
+        let arm_end = target_x.min(buf.area.x + buf.area.width);
+        for cx in (connector_x + 1)..arm_end {
+            if cx < buf.area.x {
+                continue;
+            }
+            buf.set_string(cx, branch_y, "\u{2500}", *style);
+        }
+    }
+
+    // --- Card renderers ---
 
     fn render_variant_card(
         frame: &mut Frame,
         area: Rect,
         variant: &VariantRow,
         is_selected: bool,
-        variant_focused: bool,
+        is_active: bool,
         theme: &Theme,
     ) {
-        let border_style = if is_selected && variant_focused {
+        let border_style = if is_selected {
             Style::default()
                 .fg(theme.entity_variant)
                 .add_modifier(Modifier::BOLD)
-        } else if is_selected {
+        } else if is_active {
             Style::default().fg(theme.entity_variant)
         } else {
             Style::default().fg(theme.pane_unfocused_border)
         };
 
-        // Block title carries the name: "Selected: Name" or "Variant: Name"
-        let title = if is_selected && variant_focused {
-            format!("Selected: {}", variant.name)
+        let title = if is_selected {
+            format!("\u{25c6} {}", variant.name)
         } else {
             format!("Variant: {}", variant.name)
         };
@@ -429,10 +770,90 @@ impl UnifiedCatalogView {
 
         frame.render_widget(card, area);
     }
+
+    fn render_actor_card(
+        frame: &mut Frame,
+        area: Rect,
+        actor: &ActorRow,
+        is_selected: bool,
+        theme: &Theme,
+    ) {
+        let border_style = if is_selected {
+            Style::default()
+                .fg(theme.entity_actor)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(theme.pane_unfocused_border)
+        };
+
+        let title = if is_selected {
+            format!("\u{25c6} {}", compact_id(&actor.id))
+        } else {
+            format!("Actor: {}", compact_id(&actor.id))
+        };
+
+        // Row 1: compact actor title/description
+        let title_text = if actor.title.trim().is_empty() {
+            compact_id(&actor.id)
+        } else if actor.title.len() > 30 {
+            format!("{}...", &actor.title[..27])
+        } else {
+            actor.title.clone()
+        };
+        let title_line = Line::from(vec![Span::styled(
+            title_text,
+            Style::default().fg(theme.text_primary),
+        )]);
+
+        // Row 2: provider pill + status pill
+        let provider_pill = StatusPill::info(&actor.provider, theme);
+        let status_pill = match actor.status.as_str() {
+            "active" | "running" => StatusPill::ok(&actor.status, theme),
+            "error" | "failed" | "dead" => StatusPill::error(&actor.status, theme),
+            "idle" | "waiting" => StatusPill::warn(&actor.status, theme),
+            _ => StatusPill::muted(&actor.status, theme),
+        };
+
+        let badges_line = Line::from(vec![
+            provider_pill.span(),
+            Span::raw(" "),
+            status_pill.span(),
+        ]);
+
+        let content = vec![title_line, badges_line];
+
+        let card = Paragraph::new(content)
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(border_style)
+                    .title(title),
+            )
+            .wrap(Wrap { trim: true });
+
+        frame.render_widget(card, area);
+    }
 }
 
 struct ProductGroup<'a> {
     product: &'a ProductRow,
     product_index: usize,
     variants: Vec<&'a VariantRow>,
+}
+
+/// Owned representation of a click-select hit target, used to break the
+/// immutable borrow on `App` before applying the mutable selection call.
+enum ClickHit {
+    Product {
+        product_index: usize,
+    },
+    Variant {
+        product_index: usize,
+        variant_id: String,
+    },
+    Actor {
+        product_index: usize,
+        variant_id: String,
+        actor_id: String,
+    },
 }

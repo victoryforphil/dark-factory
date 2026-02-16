@@ -4,15 +4,16 @@ Ratatui-based TUI frontend for monitoring and operating `dark_core`.
 
 ## Current Status
 
-- Grid-style dashboard is active for products, variants, and actors.
-- Sidebar panel renders focused details and command/action hints.
-- Action keys support refresh, variant poll, product init, actor spawn, and attach command generation.
-- Actor spawn uses provider defaults from `dark_core` config (`providers.defaultProvider` / `providers.enabledProviders`).
+- Grid-style dashboard is active for products and variants with actor/runtime telemetry in the header.
+- Sidebar panel is metadata-focused and follows the actively highlighted product/variant selection.
+- Viz mode supports click-to-select product/variant cards plus drag/scroll panning.
+- `n` opens a `Spawn in TUI` popup with provider selection and an initial prompt field.
+- Action keys support refresh, variant poll, product init, spawn, and attach command generation.
 - Dashboard reuses shared HTTP client/types from `lib/dark_rust`.
 
 ## Scope (Current)
 
-- Provide an at-a-glance terminal dashboard for product/variant/actor state.
+- Provide an at-a-glance terminal dashboard for product/variant state and actor runtime health.
 - Keep keyboard-first controls human-friendly and discoverable.
 - Keep implementation modular so adding panes/actions stays straightforward.
 
@@ -35,18 +36,26 @@ Ratatui-based TUI frontend for monitoring and operating `dark_core`.
 ## Keybindings
 
 - `q` or `Ctrl+C`: quit
-- `Tab` / `Shift+Tab`: cycle focus across products, variants, and actors panes
+- `Tab` / `Shift+Tab`: cycle focus across products and variants
 - `j`/`Down`, `k`/`Up`: move selection inside focused pane
 - `r`: refresh all panes
 - `f`: toggle variant filter (selected product only vs all variants)
 - `p`: poll selected variant
 - `i`: run product init for the configured directory
-- `n`: spawn an actor for the configured directory
+- `n`: open spawn popup (provider + initial prompt)
 - `a`: build attach command for selected actor
+
+Spawn popup controls:
+
+- `j`/`Down`, `k`/`Up`: select provider
+- type text: edit initial prompt
+- `Backspace`: delete prompt text
+- `Enter`: spawn with selected provider and prompt
+- `Esc`: close popup
 
 Provider source of truth:
 
-- `dark_tui` queries `GET /system/providers` to resolve spawn provider defaults.
+- `dark_tui` queries `GET /system/providers` for enabled/default providers when opening the spawn popup.
 
 ## Run
 

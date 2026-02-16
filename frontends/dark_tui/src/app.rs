@@ -8,13 +8,42 @@ use crate::theme::Theme;
 pub enum FocusPane {
     Products,
     Variants,
-    Sessions,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResultsViewMode {
     Table,
     Viz,
+}
+
+/// Identifies which node is selected in the viz catalog view.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum VizSelection {
+    Product {
+        product_index: usize,
+    },
+    Variant {
+        product_index: usize,
+        variant_id: String,
+    },
+    Actor {
+        product_index: usize,
+        variant_id: String,
+        actor_id: String,
+    },
+}
+
+#[derive(Debug, Clone)]
+pub struct SpawnRequest {
+    pub provider: String,
+    pub initial_prompt: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct SpawnFormState {
+    providers: Vec<String>,
+    selected_provider: usize,
+    initial_prompt: String,
 }
 
 impl ResultsViewMode {
@@ -37,16 +66,14 @@ impl FocusPane {
     pub fn next(self) -> Self {
         match self {
             Self::Products => Self::Variants,
-            Self::Variants => Self::Sessions,
-            Self::Sessions => Self::Products,
+            Self::Variants => Self::Products,
         }
     }
 
     pub fn previous(self) -> Self {
         match self {
-            Self::Products => Self::Sessions,
+            Self::Products => Self::Variants,
             Self::Variants => Self::Products,
-            Self::Sessions => Self::Variants,
         }
     }
 
@@ -54,7 +81,6 @@ impl FocusPane {
         match self {
             Self::Products => "products",
             Self::Variants => "variants",
-            Self::Sessions => "actors",
         }
     }
 }
@@ -79,6 +105,8 @@ pub struct App {
     selected_product: usize,
     selected_variant: usize,
     selected_actor: usize,
+    /// Current viz-mode node selection.
+    viz_selection: Option<VizSelection>,
     status_message: String,
     command_message: String,
     runtime_status: String,
@@ -90,6 +118,7 @@ pub struct App {
     drag_anchor: Option<DragAnchor>,
     /// Color theme — loaded once at startup.
     theme: Theme,
+    spawn_form: Option<SpawnFormState>,
 }
 
 impl App {
@@ -106,6 +135,7 @@ impl App {
             selected_product: 0,
             selected_variant: 0,
             selected_actor: 0,
+            viz_selection: None,
             status_message: "Booting dashboard".to_string(),
             command_message: String::new(),
             runtime_status: "unknown".to_string(),
@@ -114,11 +144,22 @@ impl App {
             viz_offset_y: 0,
             drag_anchor: None,
             theme,
+            spawn_form: None,
         }
     }
 
     pub fn refresh_seconds(&self) -> u64 {
         self.refresh_seconds
+    }
+
+    /// Compact directory display: last 2 path components or full path if short.
+    pub fn directory_display(&self) -> &str {
+        let d = self.directory.as_str();
+        // Show last component or last 2 segments for context.
+        if d.len() <= 40 {
+            return d;
+        }
+        d.rsplit_once('/').map_or(d, |(_, tail)| tail)
     }
 
     pub fn focus(&self) -> FocusPane {
@@ -145,6 +186,7 @@ impl App {
         &self.runtime_status
     }
 
+    #[allow(dead_code)]
     pub fn last_updated(&self) -> &str {
         &self.last_updated
     }
@@ -161,16 +203,112 @@ impl App {
         self.filter_variants_to_product
     }
 
+    #[allow(dead_code)]
     pub fn selected_product_index(&self) -> usize {
         self.selected_product
     }
 
+    #[allow(dead_code)]
     pub fn selected_variant_index(&self) -> usize {
         self.selected_variant
     }
 
+    #[allow(dead_code)]
     pub fn selected_actor_index(&self) -> usize {
         self.selected_actor
+    }
+
+    pub fn is_spawn_form_open(&self) -> bool {
+        self.spawn_form.is_some()
+    }
+
+    pub fn spawn_form_providers(&self) -> Option<&[String]> {
+        self.spawn_form
+            .as_ref()
+            .map(|form| form.providers.as_slice())
+    }
+
+    pub fn spawn_form_selected_provider_index(&self) -> Option<usize> {
+        self.spawn_form.as_ref().map(|form| form.selected_provider)
+    }
+
+    pub fn spawn_form_prompt(&self) -> Option<&str> {
+        self.spawn_form
+            .as_ref()
+            .map(|form| form.initial_prompt.as_str())
+    }
+
+    pub fn open_spawn_form(&mut self, mut providers: Vec<String>, default_provider: Option<&str>) {
+        providers.retain(|provider| !provider.trim().is_empty());
+        providers.sort();
+        providers.dedup();
+
+        if providers.is_empty() {
+            providers.push("mock".to_string());
+        }
+
+        let selected_provider = default_provider
+            .and_then(|default| providers.iter().position(|provider| provider == default))
+            .unwrap_or(0);
+
+        self.spawn_form = Some(SpawnFormState {
+            providers,
+            selected_provider,
+            initial_prompt: String::new(),
+        });
+    }
+
+    pub fn close_spawn_form(&mut self) {
+        self.spawn_form = None;
+    }
+
+    pub fn spawn_form_move_provider_up(&mut self) {
+        let Some(form) = self.spawn_form.as_mut() else {
+            return;
+        };
+
+        form.selected_provider = previous_index(form.selected_provider, form.providers.len());
+    }
+
+    pub fn spawn_form_move_provider_down(&mut self) {
+        let Some(form) = self.spawn_form.as_mut() else {
+            return;
+        };
+
+        form.selected_provider = next_index(form.selected_provider, form.providers.len());
+    }
+
+    pub fn spawn_form_insert_char(&mut self, value: char) {
+        let Some(form) = self.spawn_form.as_mut() else {
+            return;
+        };
+
+        form.initial_prompt.push(value);
+    }
+
+    pub fn spawn_form_backspace(&mut self) {
+        let Some(form) = self.spawn_form.as_mut() else {
+            return;
+        };
+
+        form.initial_prompt.pop();
+    }
+
+    pub fn take_spawn_request(&mut self) -> Option<SpawnRequest> {
+        let form = self.spawn_form.take()?;
+        let provider = form.providers.get(form.selected_provider)?.to_string();
+        let trimmed_prompt = form.initial_prompt.trim();
+
+        let initial_prompt = if trimmed_prompt.is_empty() {
+            None
+        } else {
+            Some(trimmed_prompt.to_string())
+        };
+
+        Some(SpawnRequest {
+            provider,
+            initial_prompt,
+        })
     }
 
     pub fn apply_snapshot(&mut self, snapshot: DashboardSnapshot) {
@@ -201,6 +339,12 @@ impl App {
             });
 
         self.ensure_variant_selection(previous_variant_id.as_deref());
+
+        self.sync_catalog_selection(
+            previous_product_id.as_deref(),
+            previous_variant_id.as_deref(),
+            previous_actor_id.as_deref(),
+        );
     }
 
     pub fn set_status(&mut self, status: impl Into<String>) {
@@ -220,35 +364,54 @@ impl App {
     }
 
     pub fn move_selection_down(&mut self) {
-        match self.focus {
-            FocusPane::Products => {
-                self.selected_product = next_index(self.selected_product, self.products.len());
-                self.ensure_variant_selection(None);
-            }
-            FocusPane::Variants => {
-                let len = self.visible_variant_indices().len();
-                self.selected_variant = next_index(self.selected_variant, len);
-            }
-            FocusPane::Sessions => {
-                self.selected_actor = next_index(self.selected_actor, self.actors.len());
-            }
-        }
+        self.viz_select_next();
     }
 
     pub fn move_selection_up(&mut self) {
-        match self.focus {
-            FocusPane::Products => {
-                self.selected_product = previous_index(self.selected_product, self.products.len());
-                self.ensure_variant_selection(None);
-            }
-            FocusPane::Variants => {
-                let len = self.visible_variant_indices().len();
-                self.selected_variant = previous_index(self.selected_variant, len);
-            }
-            FocusPane::Sessions => {
-                self.selected_actor = previous_index(self.selected_actor, self.actors.len());
-            }
+        self.viz_select_prev();
+    }
+
+    pub fn select_product_by_index(&mut self, product_index: usize) {
+        if product_index >= self.products.len() {
+            return;
         }
+
+        self.selected_product = product_index;
+        self.ensure_variant_selection(None);
+        self.focus = FocusPane::Products;
+        self.viz_selection = Some(VizSelection::Product { product_index });
+    }
+
+    pub fn select_variant_in_product(&mut self, product_index: usize, variant_id: &str) {
+        if product_index >= self.products.len() {
+            return;
+        }
+
+        self.selected_product = product_index;
+        self.ensure_variant_selection(Some(variant_id));
+        self.focus = FocusPane::Variants;
+        self.viz_selection = Some(VizSelection::Variant {
+            product_index,
+            variant_id: variant_id.to_string(),
+        });
+    }
+
+    pub fn select_actor_in_viz(&mut self, product_index: usize, variant_id: &str, actor_id: &str) {
+        if product_index >= self.products.len() {
+            return;
+        }
+
+        self.selected_product = product_index;
+        self.ensure_variant_selection(Some(variant_id));
+        if let Some(idx) = self.actors.iter().position(|a| a.id == actor_id) {
+            self.selected_actor = idx;
+        }
+        self.focus = FocusPane::Variants;
+        self.viz_selection = Some(VizSelection::Actor {
+            product_index,
+            variant_id: variant_id.to_string(),
+            actor_id: actor_id.to_string(),
+        });
     }
 
     pub fn toggle_variant_filter(&mut self) {
@@ -258,6 +421,154 @@ impl App {
 
     pub fn toggle_results_view_mode(&mut self) {
         self.results_view_mode = self.results_view_mode.toggle();
+        // Initialize viz selection when entering viz mode.
+        if self.results_view_mode == ResultsViewMode::Viz && self.viz_selection.is_none() {
+            self.sync_viz_selection_from_table();
+        }
+    }
+
+    // --- Viz-mode node selection ---
+
+    pub fn viz_selection(&self) -> Option<&VizSelection> {
+        self.viz_selection.as_ref()
+    }
+
+    pub fn catalog_nodes(&self) -> Vec<VizSelection> {
+        self.viz_node_list()
+    }
+
+    /// Set viz selection directly (used by click-select).
+    pub fn set_viz_selection(&mut self, selection: VizSelection) {
+        // Also sync the table selection state for details panel / actions.
+        match &selection {
+            VizSelection::Product { product_index } => {
+                self.selected_product = *product_index;
+                self.ensure_variant_selection(None);
+                self.focus = FocusPane::Products;
+            }
+            VizSelection::Variant {
+                product_index,
+                variant_id,
+            } => {
+                self.selected_product = *product_index;
+                self.ensure_variant_selection(Some(variant_id));
+                self.focus = FocusPane::Variants;
+            }
+            VizSelection::Actor {
+                actor_id,
+                product_index,
+                variant_id,
+            } => {
+                self.selected_product = *product_index;
+                self.ensure_variant_selection(Some(variant_id));
+                // Sync selected_actor to the matching actor.
+                if let Some(idx) = self.actors.iter().position(|a| a.id == *actor_id) {
+                    self.selected_actor = idx;
+                }
+                self.focus = FocusPane::Variants;
+            }
+        }
+        self.viz_selection = Some(selection);
+    }
+
+    /// Build the flattened node list for viz navigation.
+    /// Order: for each product, its variants, then each variant's actors.
+    fn viz_node_list(&self) -> Vec<VizSelection> {
+        let mut nodes = Vec::new();
+        for (pi, product) in self.products.iter().enumerate() {
+            nodes.push(VizSelection::Product { product_index: pi });
+            let variants: Vec<&VariantRow> = self
+                .variants
+                .iter()
+                .filter(|v| v.product_id == product.id)
+                .collect();
+            for variant in &variants {
+                nodes.push(VizSelection::Variant {
+                    product_index: pi,
+                    variant_id: variant.id.clone(),
+                });
+                let actors: Vec<&ActorRow> = self
+                    .actors
+                    .iter()
+                    .filter(|a| a.variant_id == variant.id)
+                    .collect();
+                for actor in &actors {
+                    nodes.push(VizSelection::Actor {
+                        product_index: pi,
+                        variant_id: variant.id.clone(),
+                        actor_id: actor.id.clone(),
+                    });
+                }
+            }
+        }
+        nodes
+    }
+
+    /// Move viz selection to next node in the flattened list.
+    pub fn viz_select_next(&mut self) {
+        let nodes = self.viz_node_list();
+        if nodes.is_empty() {
+            return;
+        }
+        let current_pos = self
+            .viz_selection
+            .as_ref()
+            .and_then(|sel| nodes.iter().position(|n| n == sel))
+            .unwrap_or(0);
+        let next = (current_pos + 1) % nodes.len();
+        let sel = nodes[next].clone();
+        self.set_viz_selection(sel);
+    }
+
+    /// Move viz selection to previous node in the flattened list.
+    pub fn viz_select_prev(&mut self) {
+        let nodes = self.viz_node_list();
+        if nodes.is_empty() {
+            return;
+        }
+        let current_pos = self
+            .viz_selection
+            .as_ref()
+            .and_then(|sel| nodes.iter().position(|n| n == sel))
+            .unwrap_or(0);
+        let prev = (current_pos + nodes.len() - 1) % nodes.len();
+        let sel = nodes[prev].clone();
+        self.set_viz_selection(sel);
+    }
+
+    /// Sync viz selection from the current table selection state.
+    fn sync_viz_selection_from_table(&mut self) {
+        if self.products.is_empty() {
+            self.viz_selection = None;
+            return;
+        }
+        match self.focus {
+            FocusPane::Products => {
+                self.viz_selection = Some(VizSelection::Product {
+                    product_index: self.selected_product,
+                });
+            }
+            FocusPane::Variants => {
+                if let Some(variant) = self.selected_variant() {
+                    self.viz_selection = Some(VizSelection::Variant {
+                        product_index: self.selected_product,
+                        variant_id: variant.id.clone(),
+                    });
+                } else {
+                    self.viz_selection = Some(VizSelection::Product {
+                        product_index: self.selected_product,
+                    });
+                }
+            }
+        }
+    }
+
+    /// Return actors belonging to a specific variant.
+    pub fn actors_for_variant(&self, variant_id: &str) -> Vec<&ActorRow> {
+        self.actors
+            .iter()
+            .filter(|a| a.variant_id == variant_id)
+            .collect()
     }
 
     // --- Viz-mode 2D pan / drag ---
@@ -279,6 +590,7 @@ impl App {
         self.drag_anchor = None;
     }
 
+    #[allow(dead_code)]
     pub fn is_dragging(&self) -> bool {
         self.drag_anchor.is_some()
     }
@@ -321,6 +633,7 @@ impl App {
         self.selected_actor().map(|row| row.id.as_str())
     }
 
+    #[allow(dead_code)]
     pub fn visible_variants(&self) -> Vec<&VariantRow> {
         self.visible_variant_indices()
             .into_iter()
@@ -328,14 +641,29 @@ impl App {
             .collect()
     }
 
+    #[allow(dead_code)]
     pub fn detail_lines(&self) -> Vec<String> {
+        if let Some(sel) = &self.viz_selection {
+            return match sel {
+                VizSelection::Product { .. } => self.product_detail_lines(),
+                VizSelection::Variant { .. } => self.variant_detail_lines(),
+                VizSelection::Actor { actor_id, .. } => {
+                    if let Some(actor) = self.actors.iter().find(|a| a.id == *actor_id) {
+                        self.actor_detail_lines(actor)
+                    } else {
+                        vec!["No actor selected.".to_string()]
+                    }
+                }
+            };
+        }
+
         match self.focus {
             FocusPane::Products => self.product_detail_lines(),
             FocusPane::Variants => self.variant_detail_lines(),
-            FocusPane::Sessions => self.session_detail_lines(),
         }
     }
 
+    #[allow(dead_code)]
     pub fn action_lines(&self) -> Vec<String> {
         let mut lines = vec![
             "Keys:".to_string(),
@@ -363,6 +691,7 @@ impl App {
         lines
     }
 
+    #[allow(dead_code)]
     fn product_detail_lines(&self) -> Vec<String> {
         let Some(product) = self.selected_product() else {
             return vec!["No product selected.".to_string()];
@@ -383,6 +712,7 @@ impl App {
         ]
     }
 
+    #[allow(dead_code)]
     fn variant_detail_lines(&self) -> Vec<String> {
         let Some(variant) = self.selected_variant() else {
             return vec!["No variant selected.".to_string()];
@@ -405,27 +735,21 @@ impl App {
         ]
     }
 
-    fn session_detail_lines(&self) -> Vec<String> {
-        let Some(actor) = self.selected_actor() else {
-            return vec![
-                "No actor selected.".to_string(),
-                format!("Directory: {}", self.directory),
-                format!("Runtime: {}", self.runtime_status),
-            ];
-        };
-
+    #[allow(dead_code)]
+    fn actor_detail_lines(&self, actor: &ActorRow) -> Vec<String> {
         vec![
             format!("Actor: {}", compact_id(&actor.id)),
             format!("Title: {}", actor.title),
             format!("Provider: {}", actor.provider),
             format!("Status: {}", actor.status),
-            format!("Directory: {}", compact_locator(&actor.directory, 58)),
+            format!("Variant: {}", compact_id(&actor.variant_id)),
+            format!("Dir: {}", compact_locator(&actor.directory, 58)),
             format!("Created: {}", actor.created_at),
             format!("Updated: {}", actor.updated_at),
-            format!("Runtime: {}", self.runtime_status),
         ]
     }
 
+    #[allow(dead_code)]
     pub fn command_examples(&self) -> Vec<String> {
         let mut commands = vec![
             "  dark_cli products list".to_string(),
@@ -490,6 +814,72 @@ impl App {
 
         let max_index = visible.len().saturating_sub(1);
         self.selected_variant = self.selected_variant.min(max_index);
+    }
+
+    fn sync_catalog_selection(
+        &mut self,
+        previous_product_id: Option<&str>,
+        previous_variant_id: Option<&str>,
+        previous_actor_id: Option<&str>,
+    ) {
+        if self.products.is_empty() {
+            self.viz_selection = None;
+            return;
+        }
+
+        if let Some(actor_id) = previous_actor_id {
+            if let Some(actor) = self.actors.iter().find(|row| row.id == actor_id) {
+                if let Some((product_index, variant_id)) = self
+                    .variants
+                    .iter()
+                    .find(|variant| variant.id == actor.variant_id)
+                    .and_then(|variant| {
+                        self.products
+                            .iter()
+                            .position(|product| product.id == variant.product_id)
+                            .map(|product_index| (product_index, variant.id.clone()))
+                    })
+                {
+                    self.set_viz_selection(VizSelection::Actor {
+                        product_index,
+                        variant_id,
+                        actor_id: actor.id.clone(),
+                    });
+                    return;
+                }
+            }
+        }
+
+        if let Some(variant_id) = previous_variant_id {
+            if let Some((product_index, variant_id)) = self
+                .variants
+                .iter()
+                .find(|variant| variant.id == variant_id)
+                .and_then(|variant| {
+                    self.products
+                        .iter()
+                        .position(|product| product.id == variant.product_id)
+                        .map(|product_index| (product_index, variant.id.clone()))
+                })
+            {
+                self.set_viz_selection(VizSelection::Variant {
+                    product_index,
+                    variant_id,
+                });
+                return;
+            }
+        }
+
+        if let Some(product_id) = previous_product_id {
+            if let Some(product_index) = self.products.iter().position(|row| row.id == product_id) {
+                self.set_viz_selection(VizSelection::Product { product_index });
+                return;
+            }
+        }
+
+        self.set_viz_selection(VizSelection::Product {
+            product_index: self.selected_product,
+        });
     }
 }
 

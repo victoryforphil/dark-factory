@@ -1,36 +1,45 @@
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
-use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
 use crate::app::App;
+
+use super::super::components::StatusPill;
 
 pub(crate) struct HeaderPanel;
 
 impl HeaderPanel {
     pub(crate) fn render(frame: &mut Frame, area: Rect, app: &App) {
         let theme = app.theme();
-        let title = format!(
-            "Dark Factory // dark_tui  products={} variants={} actors={}  runtime={}",
-            app.products().len(),
-            app.variants().len(),
-            app.actors().len(),
-            app.runtime_status()
+
+        // Compact single-line title with brand + view mode pill.
+        let brand = Span::styled(
+            " Dark Factory ",
+            Style::default()
+                .fg(theme.header_border)
+                .add_modifier(Modifier::BOLD),
         );
 
-        let header = Paragraph::new(title)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(
-                        Style::default()
-                            .fg(theme.header_border)
-                            .add_modifier(Modifier::BOLD),
-                    )
-                    .title("Overview"),
-            )
-            .wrap(Wrap { trim: true });
+        let sep = Span::styled(" \u{2502} ", Style::default().fg(theme.text_muted));
 
-        frame.render_widget(header, area);
+        let view_pill = StatusPill::info(app.results_view_mode().label(), theme);
+        let dir_span = Span::styled(
+            format!(" {}", app.directory_display()),
+            Style::default().fg(theme.text_muted),
+        );
+
+        let line = Line::from(vec![brand, sep, view_pill.span(), dir_span]);
+
+        // Second line: thin horizontal rule for visual separation.
+        let rule_len = area.width as usize;
+        let rule = Line::styled(
+            "\u{2500}".repeat(rule_len),
+            Style::default().fg(theme.pane_unfocused_border),
+        );
+
+        let widget = Paragraph::new(vec![line, rule]);
+        frame.render_widget(widget, area);
     }
 }

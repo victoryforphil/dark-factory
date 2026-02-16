@@ -8,8 +8,10 @@ use crate::theme::Theme;
 
 use super::PaneBlockComponent;
 
+#[allow(dead_code)]
 pub(crate) struct CardGridComponent;
 
+#[allow(dead_code)]
 impl CardGridComponent {
     pub(crate) fn render(
         frame: &mut Frame,
