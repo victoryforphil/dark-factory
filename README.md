@@ -27,9 +27,19 @@
 
 - Agentic Coding: `opencode`
 - Main languages: `rust` and `bun` / `typscript`
+- Scripting: shebanged Bun TypeScript scripts under `scripts/` (`*.sh.ts`)
 - Optional build system: `moon` / `proto`
 - Common Schema Defintion: `prisma`
   - [ ] TODO: Investigate use of protobuff
+
+# Scripts
+
+- Project shell-style scripts are Bun TypeScript files with shebangs: `#!/usr/bin/env bun`.
+- Shared helpers live in `scripts/helpers/`.
+- `scripts/install.sh.ts` runs an ordered array of install steps from repository root.
+- `scripts/proto_install.sh.ts` runs `proto install` from repository root.
+- OpenCode skill reference: `.opencode/skills/proto-install/SKILL.md`.
+- OpenCode skill reference: `.opencode/skills/script-authoring/SKILL.md`.
 
 # Components
 

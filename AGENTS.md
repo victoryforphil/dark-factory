@@ -58,6 +58,8 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 
 - `.opencode/agents/gitter.md` is the git-focused subagent.
 - `.opencode/skills/gitter-commit/SKILL.md` documents when to route commit tasks to `@gitter`.
+- `.opencode/skills/proto-install/SKILL.md` documents standardized script-based `proto install` usage.
+- `.opencode/skills/script-authoring/SKILL.md` documents how to build reusable Bun scripts from prompt/example/bash/context.
 - Use `@gitter` when the user asks for commit support or cleanup.
 
 ## 7) Local Fork Workflow (`elysia-protobuf`)
@@ -66,7 +68,16 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - If Core hits a bug in that dependency, patch it in the local fork repo, push the fork, then update the pinned git ref in `core/package.json` and refresh `core/bun.lock`.
 - Core currently tracks `elysia-protobuf` from the fork `master` branch in `core/package.json`; after pushing fork changes, refresh `core/bun.lock` in this repo.
 
-## 8) Keep This File Updated
+## 8) Script Conventions
+
+- Project scripts use shebanged Bun TypeScript files (`#!/usr/bin/env bun`) under `scripts/`.
+- Script naming uses `*.sh.ts` to indicate executable shell-style Bun scripts.
+- Shared script helpers live under `scripts/helpers/`.
+- `scripts/install.sh.ts` runs a reusable ordered list of install steps.
+- `scripts/proto_install.sh.ts` runs `proto install` from repository root.
+- After a new command sequence succeeds in a conversation, suggest capturing it into a reusable script via `.opencode/commands/capture_script_from_context.md`.
+
+## 9) Keep This File Updated
 
 - Update this file when real code, tooling, or CI is added.
 - Keep instructions tied to verified repository behavior.
