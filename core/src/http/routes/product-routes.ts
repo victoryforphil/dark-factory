@@ -1,14 +1,12 @@
-import type { Elysia } from "elysia";
-
 import {
   createProductRequestSchemaId,
   createProductResponseSchemaId,
 } from "../../protobuf";
 
-export const registerProductRoutes = (app: Elysia) =>
+export const registerProductRoutes = (app: any) =>
   app.post(
     "/v1/products:create",
-    async ({ body, decode, headers }) => {
+    async ({ body, decode, headers }: any) => {
       const request = await decode(createProductRequestSchemaId, body, headers);
 
       return {
