@@ -11,6 +11,13 @@ import {
   updateProductResponseSchemaId,
 } from "../../clients/protobuf-client";
 import { ProductClientError, productClient } from "../../clients/product-client";
+import {
+  createProductOpenApiDetail,
+  deleteProductOpenApiDetail,
+  getProductOpenApiDetail,
+  listProductsOpenApiDetail,
+  updateProductOpenApiDetail,
+} from "../openapi/product-openapi";
 import { logger } from "../../logging";
 
 const toApiError = (
@@ -81,6 +88,7 @@ export const registerProductRoutes = (app: any) =>
       {
         parse: "protobuf",
         responseSchema: createProductResponseSchemaId,
+        detail: createProductOpenApiDetail,
       },
     )
     .post(
@@ -116,6 +124,7 @@ export const registerProductRoutes = (app: any) =>
       {
         parse: "protobuf",
         responseSchema: getProductResponseSchemaId,
+        detail: getProductOpenApiDetail,
       },
     )
     .post(
@@ -148,6 +157,7 @@ export const registerProductRoutes = (app: any) =>
       {
         parse: "protobuf",
         responseSchema: listProductsResponseSchemaId,
+        detail: listProductsOpenApiDetail,
       },
     )
     .post(
@@ -184,6 +194,7 @@ export const registerProductRoutes = (app: any) =>
       {
         parse: "protobuf",
         responseSchema: updateProductResponseSchemaId,
+        detail: updateProductOpenApiDetail,
       },
     )
     .post(
@@ -216,5 +227,6 @@ export const registerProductRoutes = (app: any) =>
       {
         parse: "protobuf",
         responseSchema: deleteProductResponseSchemaId,
+        detail: deleteProductOpenApiDetail,
       },
     );
