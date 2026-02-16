@@ -76,7 +76,7 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - Shared script helpers live under `scripts/helpers/`.
 - `scripts/install.sh.ts` runs a reusable ordered list of install steps.
 - `scripts/proto_install.sh.ts` runs `proto install` from repository root.
-- `scripts/scrape_moon_docs.sh.ts` scrapes moonrepo docs into `docs/external/moonrepo/*.ext.md`.
+- `scripts/scrape_moon_docs.sh.ts` scrapes moonrepo docs into split per-page `docs/external/moonrepo/*.ext.md` files and writes `docs/external/moonrepo/index.ext.md`.
 - After a new command sequence succeeds in a conversation, suggest capturing it into a reusable script via `.opencode/commands/capture_script_from_context.md`.
 
 ## 9) Keep This File Updated

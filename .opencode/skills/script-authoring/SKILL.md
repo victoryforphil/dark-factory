@@ -24,6 +24,7 @@ Use this skill when script requirements come from any of these sources:
 - Include shebang: `#!/usr/bin/env bun`.
 - Prefer shared helpers from `scripts/helpers/` instead of duplicating utility logic.
 - Default to explicit, readable command flow and fail fast on command errors.
+- For external docs scraping workflows, default output to split per-page `.ext.md` files and include an `index.ext.md` in the target directory.
 
 ## Implementation workflow
 

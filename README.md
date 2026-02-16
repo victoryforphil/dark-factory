@@ -38,7 +38,7 @@
 - Shared helpers live in `scripts/helpers/`.
 - `scripts/install.sh.ts` runs an ordered array of install steps from repository root.
 - `scripts/proto_install.sh.ts` runs `proto install` from repository root.
-- `scripts/scrape_moon_docs.sh.ts` captures moonrepo docs into `docs/external/moonrepo/*.ext.md`.
+- `scripts/scrape_moon_docs.sh.ts` captures moonrepo docs as split per-page `docs/external/moonrepo/*.ext.md` files plus `docs/external/moonrepo/index.ext.md`.
 - OpenCode skill reference: `.opencode/skills/proto-install/SKILL.md`.
 - OpenCode skill reference: `.opencode/skills/script-authoring/SKILL.md`.
 

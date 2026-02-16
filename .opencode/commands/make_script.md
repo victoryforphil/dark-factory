@@ -20,7 +20,8 @@ Process:
 3. Reuse or add helpers in `scripts/helpers/` when utility logic is needed.
 4. If input includes troubleshooting history, filter out failed/diagnostic steps and keep only confirmed working steps.
 5. Keep scripts explicit, readable, and safe (no embedded secrets).
-6. If conventions or entrypoints change, update `README.md` and/or `AGENTS.md`.
+6. For external docs scraping workflows, output split per-page `.ext.md` files and an `index.ext.md` manifest.
+7. If conventions or entrypoints change, update `README.md` and/or `AGENTS.md`.
 
 Return:
 

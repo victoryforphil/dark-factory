@@ -18,6 +18,7 @@ Process:
 4. Keep `failed` and `diagnostic` steps out of executable script logic.
 5. Reuse helpers from `scripts/helpers/` and follow `*.sh.ts` + shebang conventions.
 6. Add short usage notes and explicit verification steps in the response.
+7. For external docs scraping workflows, emit split per-page `.ext.md` files and include an `index.ext.md` file.
 
 Return:
 
