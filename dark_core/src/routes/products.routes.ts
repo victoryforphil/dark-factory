@@ -1,12 +1,27 @@
 import { Elysia, t } from 'elysia';
-import { ProductPlain, ProductPlainInputCreate } from '../../../generated/prismabox/Product';
+import {
+  ProductPlain,
+  ProductPlainInputCreate,
+  ProductPlainInputUpdate,
+} from '../../../generated/prismabox/Product';
 
-import { createProduct, listProducts } from '../controllers';
+import {
+  createProduct,
+  deleteProductById,
+  getProductById,
+  isNotFoundError,
+  listProducts,
+  updateProductById,
+} from '../controllers';
 import { failure, success, toErrorMessage } from '../utils/api-response';
+import Log, { formatLogMetadata } from '../utils/logging';
 
 export interface ProductsRoutesDependencies {
   createProduct: typeof createProduct;
+  deleteProductById: typeof deleteProductById;
+  getProductById: typeof getProductById;
   listProducts: typeof listProducts;
+  updateProductById: typeof updateProductById;
 }
 
 const productsListResponse = t.Object({
@@ -19,6 +34,21 @@ const productCreateResponse = t.Object({
   data: ProductPlain,
 });
 
+const productGetResponse = t.Object({
+  ok: t.Literal(true),
+  data: ProductPlain,
+});
+
+const productUpdateResponse = t.Object({
+  ok: t.Literal(true),
+  data: ProductPlain,
+});
+
+const productDeleteResponse = t.Object({
+  ok: t.Literal(true),
+  data: ProductPlain,
+});
+
 const apiFailureResponse = t.Object({
   ok: t.Literal(false),
   error: t.Object({
@@ -27,10 +57,21 @@ const apiFailureResponse = t.Object({
   }),
 });
 
+const notFoundResponse = t.Object({
+  ok: t.Literal(false),
+  error: t.Object({
+    code: t.Literal('PRODUCTS_NOT_FOUND'),
+    message: t.String(),
+  }),
+});
+
 export const createProductsRoutes = (
   dependencies: ProductsRoutesDependencies = {
     createProduct,
+    deleteProductById,
+    getProductById,
     listProducts,
+    updateProductById,
   },
 ): Elysia => {
   return new Elysia({ prefix: '/products' })
@@ -45,6 +86,9 @@ export const createProductsRoutes = (
 
           return success(products);
         } catch (error) {
+          Log.error(
+            `Core // Products Route // List failed ${formatLogMetadata({ error: toErrorMessage(error) })}`,
+          );
           set.status = 500;
           return failure('PRODUCTS_LIST_FAILED', toErrorMessage(error));
         }
@@ -68,6 +112,9 @@ export const createProductsRoutes = (
           set.status = 201;
           return success(createdProduct);
         } catch (error) {
+          Log.error(
+            `Core // Products Route // Create failed ${formatLogMetadata({ error: toErrorMessage(error) })}`,
+          );
           set.status = 500;
           return failure('PRODUCTS_CREATE_FAILED', toErrorMessage(error));
         }
@@ -76,6 +123,109 @@ export const createProductsRoutes = (
         body: ProductPlainInputCreate,
         response: {
           201: productCreateResponse,
+          500: apiFailureResponse,
+        },
+      },
+    )
+    .get(
+      '/:id',
+      async ({ params, set }) => {
+        try {
+          const product = await dependencies.getProductById(params.id);
+          return success(product);
+        } catch (error) {
+          if (isNotFoundError(error)) {
+            set.status = 404;
+            Log.warn(
+              `Core // Products Route // Product not found ${formatLogMetadata({ id: params.id })}`,
+            );
+            return failure('PRODUCTS_NOT_FOUND', error.message);
+          }
+
+          Log.error(
+            `Core // Products Route // Get failed ${formatLogMetadata({
+              error: toErrorMessage(error),
+              id: params.id,
+            })}`,
+          );
+          set.status = 500;
+          return failure('PRODUCTS_GET_FAILED', toErrorMessage(error));
+        }
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        response: {
+          200: productGetResponse,
+          404: notFoundResponse,
+          500: apiFailureResponse,
+        },
+      },
+    )
+    .patch(
+      '/:id',
+      async ({ params, body, set }) => {
+        try {
+          const updatedProduct = await dependencies.updateProductById(params.id, body);
+          return success(updatedProduct);
+        } catch (error) {
+          if (isNotFoundError(error)) {
+            set.status = 404;
+            Log.warn(
+              `Core // Products Route // Update product not found ${formatLogMetadata({ id: params.id })}`,
+            );
+            return failure('PRODUCTS_NOT_FOUND', error.message);
+          }
+
+          Log.error(
+            `Core // Products Route // Update failed ${formatLogMetadata({
+              error: toErrorMessage(error),
+              id: params.id,
+            })}`,
+          );
+          set.status = 500;
+          return failure('PRODUCTS_UPDATE_FAILED', toErrorMessage(error));
+        }
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        body: ProductPlainInputUpdate,
+        response: {
+          200: productUpdateResponse,
+          404: notFoundResponse,
+          500: apiFailureResponse,
+        },
+      },
+    )
+    .delete(
+      '/:id',
+      async ({ params, set }) => {
+        try {
+          const deletedProduct = await dependencies.deleteProductById(params.id);
+          return success(deletedProduct);
+        } catch (error) {
+          if (isNotFoundError(error)) {
+            set.status = 404;
+            Log.warn(
+              `Core // Products Route // Delete product not found ${formatLogMetadata({ id: params.id })}`,
+            );
+            return failure('PRODUCTS_NOT_FOUND', error.message);
+          }
+
+          Log.error(
+            `Core // Products Route // Delete failed ${formatLogMetadata({
+              error: toErrorMessage(error),
+              id: params.id,
+            })}`,
+          );
+          set.status = 500;
+          return failure('PRODUCTS_DELETE_FAILED', toErrorMessage(error));
+        }
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        response: {
+          200: productDeleteResponse,
+          404: notFoundResponse,
           500: apiFailureResponse,
         },
       },

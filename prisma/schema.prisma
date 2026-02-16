@@ -31,7 +31,7 @@ model Variant {
   id        String   @id
   productId String   @map("product_id")
   name      String   @default("default")
-  locator   String   @unique
+  locator   String
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

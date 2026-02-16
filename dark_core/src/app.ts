@@ -3,7 +3,7 @@ import { openapi } from '@elysiajs/openapi';
 import { logger } from '@grotto/logysia';
 import { llms } from '@opuu/elysia-llms-txt';
 
-import { opencodeRoutes, productsRoutes, systemRoutes } from './routes';
+import { opencodeRoutes, productsRoutes, systemRoutes, variantsRoutes } from './routes';
 import Log from './utils/logging';
 
 export const buildApp = (): Elysia => {
@@ -30,5 +30,6 @@ export const buildApp = (): Elysia => {
     .get('/', () => ({ service: 'dark_core', status: 'ok' }))
     .use(systemRoutes)
     .use(opencodeRoutes)
-    .use(productsRoutes);
+    .use(productsRoutes)
+    .use(variantsRoutes);
 };

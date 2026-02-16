@@ -25,7 +25,7 @@ describe('products routes integration', () => {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          locator: 'route-test-product',
+          locator: '@local:///tmp/route-test-product',
           displayName: 'Route Test Product',
         }),
       }),
@@ -40,7 +40,22 @@ describe('products routes integration', () => {
 
     expect(created.ok).toBe(true);
     expect(typeof created.data.id).toBe('string');
-    expect(created.data.locator).toBe('route-test-product');
+    expect(created.data.locator).toBe('@local:///tmp/route-test-product');
+
+    const variantsResponse = await app.handle(
+      new Request(`http://localhost/variants/?productId=${created.data.id}`),
+    );
+    expect(variantsResponse.status).toBe(200);
+
+    const listedVariants = (await variantsResponse.json()) as {
+      ok: true;
+      data: Array<{ productId: string; name: string; locator: string }>;
+    };
+
+    expect(listedVariants.data.length).toBe(1);
+    expect(listedVariants.data[0]?.productId).toBe(created.data.id);
+    expect(listedVariants.data[0]?.name).toBe('default');
+    expect(listedVariants.data[0]?.locator).toBe(created.data.locator);
 
     const listResponse = await app.handle(new Request('http://localhost/products/'));
 
@@ -54,6 +69,45 @@ describe('products routes integration', () => {
     expect(listed.ok).toBe(true);
     expect(listed.data.length).toBe(1);
     expect(listed.data[0]?.id).toBe(created.data.id);
-    expect(listed.data[0]?.locator).toBe('route-test-product');
+    expect(listed.data[0]?.locator).toBe('@local:///tmp/route-test-product');
+
+    const getResponse = await app.handle(
+      new Request(`http://localhost/products/${created.data.id}`),
+    );
+    expect(getResponse.status).toBe(200);
+
+    const updateResponse = await app.handle(
+      new Request(`http://localhost/products/${created.data.id}`, {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          displayName: 'Route Test Product Updated',
+        }),
+      }),
+    );
+
+    expect(updateResponse.status).toBe(200);
+
+    const updated = (await updateResponse.json()) as {
+      ok: true;
+      data: { id: string; displayName: string | null };
+    };
+
+    expect(updated.data.id).toBe(created.data.id);
+    expect(updated.data.displayName).toBe('Route Test Product Updated');
+
+    const deleteResponse = await app.handle(
+      new Request(`http://localhost/products/${created.data.id}`, {
+        method: 'DELETE',
+      }),
+    );
+    expect(deleteResponse.status).toBe(200);
+
+    const getDeletedResponse = await app.handle(
+      new Request(`http://localhost/products/${created.data.id}`),
+    );
+    expect(getDeletedResponse.status).toBe(404);
   });
 });

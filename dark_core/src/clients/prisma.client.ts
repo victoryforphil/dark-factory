@@ -2,7 +2,7 @@ import { PrismaClient } from '../../../generated/prisma/client';
 import { PrismaLibSql } from '@prisma/adapter-libsql';
 
 import { getConfig } from '../config';
-import Log from '../utils/logging';
+import Log, { formatLogMetadata } from '../utils/logging';
 
 let prismaClient: PrismaClient | undefined;
 
@@ -17,7 +17,11 @@ const createPrismaClient = (): PrismaClient => {
   });
 
   Log.info(
-    `Core // Client Prisma // Initialized (db=sqlite,url=${prismaDatabaseUrl},queryLogs=${prismaLogQueries})`,
+    `Core // Client Prisma // Initialized ${formatLogMetadata({
+      database: 'sqlite',
+      queryLogs: prismaLogQueries,
+      url: prismaDatabaseUrl,
+    })}`,
   );
 
   return client;
