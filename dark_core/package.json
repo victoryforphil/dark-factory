@@ -15,6 +15,7 @@
     "@grotto/logysia": "^0.1.6",
     "@iarna/toml": "^2.2.5",
     "@opuu/elysia-llms-txt": "^1.1.0",
+    "@prisma/adapter-libsql": "^7.4.0",
     "@prisma/client": "^7.4.0",
     "add": "^2.0.6",
     "adze": "^2.3.0",

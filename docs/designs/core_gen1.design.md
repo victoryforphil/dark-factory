@@ -1,5 +1,6 @@
 # Notes
 
+- Config system design: `docs/designs/config_system.design.md`
 - Use moon to manage tools and deps
 - Use a shared schemas language to define our types / APIs
     - This will allow us to port to a new language easier

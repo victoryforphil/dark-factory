@@ -1,12 +1,11 @@
 import type { Product } from '../../../generated/prisma/client';
 
-import { getPrismaClient } from '../clients';
+import { ensurePrismaSchema, getPrismaClient } from '../clients';
 import type { CursorListQuery } from './controller.types';
 
 export type ListProductsQuery = CursorListQuery;
 
 export interface CreateProductInput {
-  id?: string;
   locator: string;
   displayName?: string | null;
 }
@@ -25,6 +24,7 @@ const normalizeLimit = (value?: number): number => {
 };
 
 export const listProducts = async (query: ListProductsQuery = {}): Promise<Product[]> => {
+  await ensurePrismaSchema();
   const prisma = getPrismaClient();
 
   return prisma.product.findMany({
@@ -35,11 +35,12 @@ export const listProducts = async (query: ListProductsQuery = {}): Promise<Produ
 };
 
 export const createProduct = async (input: CreateProductInput): Promise<Product> => {
+  await ensurePrismaSchema();
   const prisma = getPrismaClient();
 
   return prisma.product.create({
     data: {
-      id: input.id ?? crypto.randomUUID(),
+      id: crypto.randomUUID(),
       locator: input.locator,
       displayName: input.displayName ?? null,
     },

@@ -1,0 +1,9 @@
+- Keep this file short and practical: bullets only, target 10-50 lines, always under 100 lines.
+- Capture durable, reusable lessons from normal work (not one-off task logs).
+- Save successful troubleshooting patterns and command sequences once they are verified.
+- Include relevant rule/behavior updates from `.opencode/commands/rule.md` when they should guide future tasks.
+- Capture user feedback and style nits when they are likely to repeat.
+- Never store secrets, credentials, tokens, or sensitive environment details.
+- Prefer generic phrasing that future agents can apply across similar tasks.
+- Read lessons files early in each task before planning implementation details.
+- Prune duplicates and stale bullets so signal stays high as work evolves.

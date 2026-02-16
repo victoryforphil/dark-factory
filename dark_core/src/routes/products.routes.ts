@@ -1,7 +1,26 @@
 import { Elysia, t } from 'elysia';
+import { ProductPlain, ProductPlainInputCreate } from '../../../generated/prismabox/Product';
 
 import { createProduct, listProducts } from '../controllers';
 import { failure, success, toErrorMessage } from '../utils/api-response';
+
+const productsListResponse = t.Object({
+  ok: t.Literal(true),
+  data: t.Array(ProductPlain),
+});
+
+const productCreateResponse = t.Object({
+  ok: t.Literal(true),
+  data: ProductPlain,
+});
+
+const apiFailureResponse = t.Object({
+  ok: t.Literal(false),
+  error: t.Object({
+    code: t.String(),
+    message: t.String(),
+  }),
+});
 
 export const productsRoutes = new Elysia({ prefix: '/products' })
   .get(
@@ -24,6 +43,10 @@ export const productsRoutes = new Elysia({ prefix: '/products' })
         cursor: t.Optional(t.String()),
         limit: t.Optional(t.String()),
       }),
+      response: {
+        200: productsListResponse,
+        500: apiFailureResponse,
+      },
     },
   )
   .post(
@@ -39,10 +62,10 @@ export const productsRoutes = new Elysia({ prefix: '/products' })
       }
     },
     {
-      body: t.Object({
-        id: t.Optional(t.String()),
-        locator: t.String(),
-        displayName: t.Optional(t.Union([t.String(), t.Null()])),
-      }),
+      body: ProductPlainInputCreate,
+      response: {
+        201: productCreateResponse,
+        500: apiFailureResponse,
+      },
     },
   );

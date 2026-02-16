@@ -1,0 +1,3 @@
+- Store timestamped reflection artifacts here.
+- Filename pattern: `YYYYMMDDTHHMMSSZ_<session-id>.reflection.md`.
+- Keep entries concise and free of secrets.
