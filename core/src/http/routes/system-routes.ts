@@ -1,10 +1,8 @@
-import type { Elysia } from "elysia";
-
 import { config } from "../../config";
 
 const serviceName = "dark-factory-core";
 
-export const registerSystemRoutes = (app: Elysia) =>
+export const registerSystemRoutes = (app: any) =>
   app
     .get("/", () => ({
       service: serviceName,
