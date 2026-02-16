@@ -1,7 +1,7 @@
 ---
 description: Handles git status, diffs, and commits for the repo
 mode: subagent
-model: openai/gpt-5.3-codex-spark
+
 tools:
   bash: true
   write: false
