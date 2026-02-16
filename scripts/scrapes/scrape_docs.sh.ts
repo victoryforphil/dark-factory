@@ -3,13 +3,15 @@
 import { resolve } from "node:path";
 import { findRepoRoot } from "../helpers/run_root.sh.ts";
 
-type SourceKey = "opencode" | "elysia" | "prisma" | "moonrepo";
+type SourceKey = "opencode" | "elysia" | "prisma" | "moonrepo" | "ratatui_web" | "ratatui_docs";
 
 const SCRAPER_SCRIPT_BY_SOURCE: Record<SourceKey, string> = {
   opencode: "scripts/scrapes/scrape_opencode_docs.sh.ts",
   elysia: "scripts/scrapes/scrape_elysia_docs.sh.ts",
   prisma: "scripts/scrapes/scrape_prisma_docs.sh.ts",
   moonrepo: "scripts/scrapes/scrape_moonrepo_docs.sh.ts",
+  ratatui_web: "scripts/scrapes/scrape_ratatui_web_docs.sh.ts",
+  ratatui_docs: "scripts/scrapes/scrape_ratatui_docs_docs.sh.ts",
 };
 
 const sourceArg = Bun.argv[2] as SourceKey | undefined;

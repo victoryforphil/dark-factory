@@ -1,0 +1,100 @@
+----
+## External Docs Snapshot // ratatui_web
+
+- Captured: 2026-02-16T10:16:59.527Z
+- Source root: https://ratatui.rs/
+- Source page: /recipes/apps/terminal-and-event-handler
+- Keywords: ratatui, rust, tui, terminal ui, docs, recipes, apps, terminal and event handler
+- Summary: See [`tui.rs`](https://github.com/ratatui/crates-tui/blob/main/src/tui.rs) and
+----
+
+Source: https://ratatui.rs/recipes/apps/terminal-and-event-handler
+
+# Tui with Terminal and EventHandler
+
+Tip
+
+See [`tui.rs`](https://github.com/ratatui/crates-tui/blob/main/src/tui.rs) and
+[`events.rs`](https://github.com/ratatui/crates-tui/blob/main/src/events.rs) in the
+[`crates-tui`](https://github.com/ratatui/crates-tui/) repository for a more simpler and modular
+approach to the terminal and event handler code.
+
+If you want a `Tui` struct:
+
+- with `Deref` and `DerefMut`
+
+- with `Terminal` enter raw mode, exit raw mode etc
+
+- with signal handling support
+
+- with key event `EventHandler` with `crossterm`’s `EventStream` support
+
+- and with `tokio`’s `select!`
+
+then you can copy-paste this `Tui` struct into your project.
+
+Add the following dependencies:
+
+Terminal window
+
+```
+cargo add ratatui tokio tokio_util futures # requiredcargo add color_eyre serde serde_derive # optional
+```
+
+You’ll need to copy the code to a `./src/tui.rs`:
+
+```
+use std::{  ops::{Deref, DerefMut},  time::Duration,};
+use color_eyre::eyre::Result;
+use futures::{FutureExt, StreamExt};use ratatui::backend::CrosstermBackend as Backend;use ratatui::crossterm::{  cursor,  event::{    DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture, Event as CrosstermEvent,    KeyEvent, KeyEventKind, MouseEvent,  },  terminal::{EnterAlternateScreen, LeaveAlternateScreen},};use serde::{Deserialize, Serialize};use tokio::{  sync::mpsc::{self, UnboundedReceiver, UnboundedSender},  task::JoinHandle,};use tokio_util::sync::CancellationToken;
+#[derive(Clone, Debug, Serialize, Deserialize)]pub enum Event {  Init,  Quit,  Error,  Closed,  Tick,  Render,  FocusGained,  FocusLost,  Paste(String),  Key(KeyEvent),  Mouse(MouseEvent),  Resize(u16, u16),}
+pub struct Tui {  pub terminal: ratatui::Terminal&#x3C;Backend&#x3C;std::io::Stderr>>,  pub task: JoinHandle&#x3C;()>,  pub cancellation_token: CancellationToken,  pub event_rx: UnboundedReceiver&#x3C;Event>,  pub event_tx: UnboundedSender&#x3C;Event>,  pub frame_rate: f64,  pub tick_rate: f64,  pub mouse: bool,  pub paste: bool,}
+impl Tui {  pub fn new() -> Result&#x3C;Self> {    let tick_rate = 4.0;    let frame_rate = 60.0;    let terminal = ratatui::Terminal::new(Backend::new(std::io::stderr()))?;    let (event_tx, event_rx) = mpsc::unbounded_channel();    let cancellation_token = CancellationToken::new();    let task = tokio::spawn(async {});    let mouse = false;    let paste = false;    Ok(Self { terminal, task, cancellation_token, event_rx, event_tx, frame_rate, tick_rate, mouse, paste })  }
+  pub fn tick_rate(mut self, tick_rate: f64) -> Self {    self.tick_rate = tick_rate;    self  }
+  pub fn frame_rate(mut self, frame_rate: f64) -> Self {    self.frame_rate = frame_rate;    self  }
+  pub fn mouse(mut self, mouse: bool) -> Self {    self.mouse = mouse;    self  }
+  pub fn paste(mut self, paste: bool) -> Self {    self.paste = paste;    self  }
+  pub fn start(&#x26;mut self) {    let tick_delay = std::time::Duration::from_secs_f64(1.0 / self.tick_rate);    let render_delay = std::time::Duration::from_secs_f64(1.0 / self.frame_rate);    self.cancel();    self.cancellation_token = CancellationToken::new();    let _cancellation_token = self.cancellation_token.clone();    let _event_tx = self.event_tx.clone();    self.task = tokio::spawn(async move {      let mut reader = crossterm::event::EventStream::new();      let mut tick_interval = tokio::time::interval(tick_delay);      let mut render_interval = tokio::time::interval(render_delay);      _event_tx.send(Event::Init).unwrap();      loop {        let tick_delay = tick_interval.tick();        let render_delay = render_interval.tick();        let crossterm_event = reader.next().fuse();        tokio::select! {          _ = _cancellation_token.cancelled() => {            break;          }          maybe_event = crossterm_event => {            match maybe_event {              Some(Ok(evt)) => {                match evt {                  CrosstermEvent::Key(key) => {                    if key.kind == KeyEventKind::Press {                      _event_tx.send(Event::Key(key)).unwrap();                    }                  },                  CrosstermEvent::Mouse(mouse) => {                    _event_tx.send(Event::Mouse(mouse)).unwrap();                  },                  CrosstermEvent::Resize(x, y) => {                    _event_tx.send(Event::Resize(x, y)).unwrap();                  },                  CrosstermEvent::FocusLost => {                    _event_tx.send(Event::FocusLost).unwrap();                  },                  CrosstermEvent::FocusGained => {                    _event_tx.send(Event::FocusGained).unwrap();                  },                  CrosstermEvent::Paste(s) => {                    _event_tx.send(Event::Paste(s)).unwrap();                  },                }              }              Some(Err(_)) => {                _event_tx.send(Event::Error).unwrap();              }              None => {},            }          },          _ = tick_delay => {              _event_tx.send(Event::Tick).unwrap();          },          _ = render_delay => {              _event_tx.send(Event::Render).unwrap();          },        }      }    });  }
+  pub fn stop(&#x26;self) -> Result&#x3C;()> {    self.cancel();    let mut counter = 0;    while !self.task.is_finished() {      std::thread::sleep(Duration::from_millis(1));      counter += 1;      if counter > 50 {        self.task.abort();      }      if counter > 100 {        log::error!("Failed to abort task in 100 milliseconds for unknown reason");        break;      }    }    Ok(())  }
+  pub fn enter(&#x26;mut self) -> Result&#x3C;()> {    crossterm::terminal::enable_raw_mode()?;    crossterm::execute!(std::io::stderr(), EnterAlternateScreen, cursor::Hide)?;    if self.mouse {      crossterm::execute!(std::io::stderr(), EnableMouseCapture)?;    }    if self.paste {      crossterm::execute!(std::io::stderr(), EnableBracketedPaste)?;    }    self.start();    Ok(())  }
+  pub fn exit(&#x26;mut self) -> Result&#x3C;()> {    self.stop()?;    if crossterm::terminal::is_raw_mode_enabled()? {      self.flush()?;      if self.paste {        crossterm::execute!(std::io::stderr(), DisableBracketedPaste)?;      }      if self.mouse {        crossterm::execute!(std::io::stderr(), DisableMouseCapture)?;      }      crossterm::execute!(std::io::stderr(), LeaveAlternateScreen, cursor::Show)?;      crossterm::terminal::disable_raw_mode()?;    }    Ok(())  }
+  pub fn cancel(&#x26;self) {    self.cancellation_token.cancel();  }
+  pub fn suspend(&#x26;mut self) -> Result&#x3C;()> {    self.exit()?;    #[cfg(not(windows))]    signal_hook::low_level::raise(signal_hook::consts::signal::SIGTSTP)?;    Ok(())  }
+  pub fn resume(&#x26;mut self) -> Result&#x3C;()> {    self.enter()?;    Ok(())  }
+  pub async fn next(&#x26;mut self) -> Option&#x3C;Event> {    self.event_rx.recv().await  }}
+impl Deref for Tui {  type Target = ratatui::Terminal&#x3C;Backend&#x3C;std::io::Stderr>>;
+  fn deref(&#x26;self) -> &#x26;Self::Target {    &#x26;self.terminal  }}
+impl DerefMut for Tui {  fn deref_mut(&#x26;mut self) -> &#x26;mut Self::Target {    &#x26;mut self.terminal  }}
+impl Drop for Tui {  fn drop(&#x26;mut self) {    self.exit().unwrap();  }}
+```
+
+Wondering why use `stderr`?
+
+See the [FAQ](/faq/#should-i-use-stdout-or-stderr) for more details.
+
+Then you’ll be able write code like this:
+
+```
+mod tui;
+impl App {  async fn run(&#x26;mut self) -> Result&#x3C;()> {
+    let mut tui = tui::Tui::new()?            .tick_rate(4.0) // 4 ticks per second            .frame_rate(30.0); // 30 frames per second
+    tui.enter()?; // Starts event handler, enters raw mode, enters alternate screen
+    loop {
+      tui.draw(|f| { // Deref allows calling `tui.terminal.draw`        self.ui(f);      })?;
+      if let Some(evt) = tui.next().await { // `tui.next().await` blocks till next event        let mut maybe_action = self.handle_event(evt);        while let Some(action) = maybe_action {          maybe_action = self.update(action);        }      };
+      if self.should_quit {        break;      }    }
+    tui.exit()?; // stops event handler, exits raw mode, exits alternate screen
+    Ok(())  }}
+```
+
+ [Edit page](https://github.com/ratatui/ratatui-website/edit/main/src/content/docs/recipes/apps/terminal-and-event-handler.md)
+
+ [Previous Logging with Tracing](/recipes/apps/log-with-tracing/) [Next Setup Panic Hooks](/recipes/apps/panic-hooks/)
+
+----
+## Notes / Comments / Lessons
+
+- Collection method: sitemap-index-first discovery with direct HTML fallback support.
+- Conversion path: direct HTML fallback parser.
+- This file is one page-level external snapshot in markdown `.ext.md` format.
+----
