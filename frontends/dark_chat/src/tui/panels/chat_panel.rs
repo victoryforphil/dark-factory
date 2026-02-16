@@ -1,8 +1,8 @@
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Clear, Paragraph, Wrap};
-use ratatui::Frame;
 
 use dark_tui_components::{
     ChatConversationHeaderComponent, ChatConversationHeaderProps, ChatMessageListComponent,
@@ -443,7 +443,7 @@ fn render_messages(frame: &mut Frame, area: Rect, app: &App, theme: &impl Compon
         messages: &component_messages,
         empty_label: "No messages yet. Send a prompt to begin.",
         max_messages: 80,
-        max_body_lines_per_message: 18,
+        max_body_lines_per_message: 30,
         scroll_offset_lines: app.chat_scroll_lines(),
         palette: ChatPalette {
             text_primary: Color::White,

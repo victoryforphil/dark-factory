@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use futures_util::StreamExt;
 use reqwest::Method;
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 use crate::core::{
@@ -554,7 +554,7 @@ struct SessionWire {
 
 #[cfg(test)]
 mod tests {
-    use super::SessionWire;
+    use super::{SessionWire, extract_message_text};
 
     #[test]
     fn session_wire_reads_parent_id_from_parent_id_key() {
@@ -562,7 +562,8 @@ mod tests {
             "id": "ses_child",
             "parent_id": "ses_parent"
         });
-        let parsed: SessionWire = serde_json::from_value(payload).expect("session wire should parse");
+        let parsed: SessionWire =
+            serde_json::from_value(payload).expect("session wire should parse");
 
         assert_eq!(parsed.parent_id.as_deref(), Some("ses_parent"));
     }
@@ -573,9 +574,51 @@ mod tests {
             "id": "ses_child",
             "parentID": "ses_parent"
         });
-        let parsed: SessionWire = serde_json::from_value(payload).expect("session wire should parse");
+        let parsed: SessionWire =
+            serde_json::from_value(payload).expect("session wire should parse");
 
         assert_eq!(parsed.parent_id.as_deref(), Some("ses_parent"));
+    }
+
+    #[test]
+    fn extract_message_text_formats_thinking_and_tool_calls() {
+        let parts = vec![
+            serde_json::json!({
+                "type": "thinking",
+                "text": "Inspecting repository state"
+            }),
+            serde_json::json!({
+                "type": "tool_call",
+                "tool": "bash",
+                "input": { "command": "git status" },
+                "output": "clean"
+            }),
+            serde_json::json!({
+                "type": "text",
+                "text": "All set."
+            }),
+        ];
+
+        let rendered = extract_message_text(&parts);
+
+        assert!(rendered.contains("### Thinking"));
+        assert!(rendered.contains("Inspecting repository state"));
+        assert!(rendered.contains("### Tool Call (bash)"));
+        assert!(rendered.contains("Input:"));
+        assert!(rendered.contains("\"command\": \"git status\""));
+        assert!(rendered.contains("Output:"));
+        assert!(rendered.contains("All set."));
+    }
+
+    #[test]
+    fn extract_message_text_falls_back_when_no_content_exists() {
+        let parts = vec![serde_json::json!({
+            "type": "tool_call",
+            "tool": "bash"
+        })];
+
+        let rendered = extract_message_text(&parts);
+        assert_eq!(rendered, "### Tool Call (bash)");
     }
 }
 
@@ -848,8 +891,7 @@ fn extract_session_statuses(value: &Value) -> HashMap<String, String> {
     entries
         .iter()
         .filter_map(|(session_id, status_value)| {
-            extract_status_type(status_value)
-                .map(|status| (session_id.clone(), status.to_string()))
+            extract_status_type(status_value).map(|status| (session_id.clone(), status.to_string()))
         })
         .collect()
 }
@@ -1083,9 +1125,10 @@ fn extract_config_path(value: &Value) -> Option<String> {
 fn extract_message_text(parts: &[Value]) -> String {
     let joined = parts
         .iter()
-        .flat_map(|part| collect_text(part, 0))
+        .enumerate()
+        .filter_map(|(index, part)| format_message_part(part, index + 1))
         .collect::<Vec<_>>()
-        .join("\n")
+        .join("\n\n")
         .trim()
         .to_string();
 
@@ -1094,6 +1137,213 @@ fn extract_message_text(parts: &[Value]) -> String {
     } else {
         joined
     }
+}
+
+fn format_message_part(part: &Value, index: usize) -> Option<String> {
+    let Value::Object(map) = part else {
+        let text = collect_text(part, 0).join("\n");
+        let trimmed = text.trim();
+        return (!trimmed.is_empty()).then(|| trimmed.to_string());
+    };
+
+    let part_type = map
+        .get("type")
+        .and_then(Value::as_str)
+        .map(|value| value.trim().to_ascii_lowercase())
+        .unwrap_or_default();
+
+    let text = extract_text_from_keys(
+        map,
+        &[
+            "text",
+            "content",
+            "value",
+            "message",
+            "summary",
+            "reasoning",
+            "analysis",
+            "commentary",
+            "note",
+        ],
+    )
+    .join("\n");
+    let text = text.trim().to_string();
+
+    match part_type.as_str() {
+        "" | "text" | "output_text" | "assistant" | "message" => (!text.is_empty()).then_some(text),
+        "thinking" | "reasoning" | "analysis" | "commentary" => {
+            if text.is_empty() {
+                None
+            } else {
+                Some(format!("### Thinking\n{text}"))
+            }
+        }
+        "tool" | "tool_call" | "toolcall" | "tool_use" | "function_call" => {
+            format_tool_call_part(map, index, &text)
+        }
+        "tool_result" | "tool_output" | "function_result" | "observation" => {
+            format_tool_result_part(map, &text)
+        }
+        other => {
+            if text.is_empty() {
+                None
+            } else {
+                Some(format!("### {}\n{text}", part_type_title(other)))
+            }
+        }
+    }
+}
+
+fn format_tool_call_part(part: &Map<String, Value>, index: usize, text: &str) -> Option<String> {
+    let name = extract_tool_name(part).unwrap_or_else(|| format!("step-{index}"));
+    let mut sections = vec![format!("### Tool Call ({name})")];
+
+    if !text.is_empty() {
+        sections.push(text.to_string());
+    }
+
+    if let Some(value) = first_non_empty_value(part, &["input", "arguments", "args", "params"]) {
+        sections.push(render_value_block("Input", value));
+    }
+
+    if let Some(value) = first_non_empty_value(part, &["output", "result", "response", "content"]) {
+        sections.push(render_value_block("Output", value));
+    }
+
+    if let Some(value) = first_non_empty_value(part, &["error", "errors", "failure"]) {
+        sections.push(render_value_block("Error", value));
+    }
+
+    Some(sections.join("\n\n").trim().to_string()).filter(|value| !value.is_empty())
+}
+
+fn format_tool_result_part(part: &Map<String, Value>, text: &str) -> Option<String> {
+    let mut sections = vec!["### Tool Result".to_string()];
+
+    if let Some(name) = extract_tool_name(part) {
+        sections.push(format!("tool: `{name}`"));
+    }
+
+    if !text.is_empty() {
+        sections.push(text.to_string());
+    }
+
+    if let Some(value) = first_non_empty_value(part, &["output", "result", "content", "response"]) {
+        sections.push(render_value_block("Output", value));
+    }
+
+    Some(sections.join("\n\n").trim().to_string()).filter(|value| !value.is_empty())
+}
+
+fn extract_tool_name(part: &Map<String, Value>) -> Option<String> {
+    for key in [
+        "tool",
+        "toolName",
+        "name",
+        "command",
+        "recipient_name",
+        "recipientName",
+        "function",
+        "id",
+    ] {
+        let Some(value) = part.get(key) else {
+            continue;
+        };
+
+        if let Some(name) = value_to_string(value).map(|value| value.trim().to_string()) {
+            if !name.is_empty() {
+                return Some(name);
+            }
+        }
+
+        if let Some(map) = value.as_object() {
+            for nested in ["name", "id", "tool", "toolName", "command"] {
+                if let Some(name) = map
+                    .get(nested)
+                    .and_then(value_to_string)
+                    .map(|value| value.trim().to_string())
+                {
+                    if !name.is_empty() {
+                        return Some(name);
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
+fn extract_text_from_keys(part: &Map<String, Value>, keys: &[&str]) -> Vec<String> {
+    let segments = keys
+        .iter()
+        .flat_map(|key| part.get(*key).into_iter())
+        .flat_map(|value| collect_text(value, 0))
+        .collect::<Vec<_>>();
+
+    dedupe_segments(segments)
+}
+
+fn dedupe_segments(segments: Vec<String>) -> Vec<String> {
+    let mut unique = Vec::new();
+
+    for segment in segments {
+        if unique.iter().any(|existing| existing == &segment) {
+            continue;
+        }
+
+        unique.push(segment);
+    }
+
+    unique
+}
+
+fn first_non_empty_value<'a>(part: &'a Map<String, Value>, keys: &[&str]) -> Option<&'a Value> {
+    keys.iter().find_map(|key| {
+        let value = part.get(*key)?;
+
+        match value {
+            Value::Null => None,
+            Value::String(text) if text.trim().is_empty() => None,
+            _ => Some(value),
+        }
+    })
+}
+
+fn render_value_block(title: &str, value: &Value) -> String {
+    match value {
+        Value::String(text) => {
+            let trimmed = text.trim();
+            format!("{title}:\n```text\n{trimmed}\n```")
+        }
+        _ => {
+            let json = serde_json::to_string_pretty(value)
+                .unwrap_or_else(|_| value.to_string())
+                .trim()
+                .to_string();
+            format!("{title}:\n```json\n{json}\n```")
+        }
+    }
+}
+
+fn part_type_title(value: &str) -> String {
+    let compact = value.trim();
+    if compact.is_empty() {
+        return "Part".to_string();
+    }
+
+    compact
+        .split(['_', '-', ' '])
+        .filter(|segment| !segment.is_empty())
+        .map(|segment| {
+            let mut chars = segment.chars();
+            let Some(first) = chars.next() else {
+                return String::new();
+            };
+            format!("{}{}", first.to_ascii_uppercase(), chars.as_str())
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn collect_text(value: &Value, depth: usize) -> Vec<String> {
@@ -1115,11 +1365,21 @@ fn collect_text(value: &Value, depth: usize) -> Vec<String> {
             .iter()
             .flat_map(|item| collect_text(item, depth + 1))
             .collect(),
-        Value::Object(map) => ["text", "content", "value", "message"]
-            .iter()
-            .flat_map(|key| map.get(*key).into_iter())
-            .flat_map(|entry| collect_text(entry, depth + 1))
-            .collect(),
+        Value::Object(map) => [
+            "text",
+            "content",
+            "value",
+            "message",
+            "summary",
+            "reasoning",
+            "analysis",
+            "commentary",
+            "note",
+        ]
+        .iter()
+        .flat_map(|key| map.get(*key).into_iter())
+        .flat_map(|entry| collect_text(entry, depth + 1))
+        .collect(),
         _ => Vec::new(),
     }
 }
