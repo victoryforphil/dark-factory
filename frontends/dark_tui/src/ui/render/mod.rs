@@ -1,4 +1,3 @@
-mod components;
 mod panels;
 mod views;
 

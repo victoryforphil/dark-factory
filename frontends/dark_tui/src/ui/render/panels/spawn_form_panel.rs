@@ -6,7 +6,7 @@ use ratatui::widgets::{Clear, Paragraph, Wrap};
 
 use crate::app::App;
 
-use super::super::components::PaneBlockComponent;
+use dark_tui_components::PaneBlockComponent;
 
 pub(crate) struct SpawnFormPanel;
 

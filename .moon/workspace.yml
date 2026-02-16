@@ -5,7 +5,9 @@ projects:
   prisma: "prisma"
   generated: "generated"
   dark_rust: "lib/dark_rust"
+  dark_tui_components: "lib/dark_tui_components"
   dark_cli: "frontends/dark_cli"
+  dark_chat: "frontends/dark_chat"
   dark_tui: "frontends/dark_tui"
 
 vcs:

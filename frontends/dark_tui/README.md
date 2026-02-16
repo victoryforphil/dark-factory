@@ -11,7 +11,8 @@ Ratatui-based TUI frontend for monitoring and operating `dark_core`.
 - Selecting an actor opens a dedicated chat panel between catalog and details panes.
 - Chat panel supports compose/send and can be toggled visible/hidden.
 - Action keys support refresh, variant poll, product init, spawn, and attach command generation.
-- Dashboard reuses shared HTTP client/types from `lib/dark_rust`.
+- Dashboard prefers shared websocket RPC transport from `lib/dark_rust` and falls back to REST when websocket is unavailable.
+- Realtime route mutation events from `dark_core` trigger immediate refreshes between interval ticks.
 
 ## Scope (Current)
 

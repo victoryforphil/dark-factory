@@ -6,7 +6,7 @@ use ratatui::widgets::Paragraph;
 
 use crate::app::App;
 
-use super::super::components::StatusPill;
+use dark_tui_components::StatusPill;
 
 pub(crate) struct HeaderPanel;
 

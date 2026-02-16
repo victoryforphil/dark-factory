@@ -955,7 +955,7 @@ impl App {
         if let Some(variant) = self.selected_variant() {
             commands.push(format!("  dark_cli variants poll --id {}", variant.id));
             commands.push(format!(
-                "  dark_cli variants import-actors --id {} --provider opencode",
+                "  dark_cli variants import-actors --id {} --provider opencode/server",
                 variant.id
             ));
         }

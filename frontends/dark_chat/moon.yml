@@ -1,0 +1,35 @@
+$schema: "https://moonrepo.dev/schemas/project.json"
+
+language: "rust"
+stack: "backend"
+type: "application"
+dependsOn:
+  - "dark_tui_components"
+
+tasks:
+  install:
+    command: "cargo fetch"
+
+  build:
+    command: "cargo build"
+    inputs:
+      - "src/**/*"
+      - "Cargo.toml"
+      - "/Cargo.toml"
+      - "/Cargo.lock"
+
+  check:
+    command: "cargo check"
+    inputs:
+      - "src/**/*"
+      - "Cargo.toml"
+      - "/Cargo.toml"
+      - "/Cargo.lock"
+
+  test:
+    command: "cargo test"
+    inputs:
+      - "src/**/*"
+      - "Cargo.toml"
+      - "/Cargo.toml"
+      - "/Cargo.lock"

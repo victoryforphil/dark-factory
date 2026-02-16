@@ -1,13 +1,14 @@
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Modifier, Style};
-use ratatui::text::{Line, Span};
-use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::Frame;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::style::Color;
 
 use crate::app::App;
-use crate::models::compact_timestamp;
 
-use super::super::components::PaneBlockComponent;
+use dark_tui_components::{
+    ChatComposerComponent, ChatComposerProps, ChatConversationHeaderComponent,
+    ChatConversationHeaderProps, ChatMessageEntry, ChatMessageListComponent, ChatMessageListProps,
+    ChatMessageRole, ChatPalette, ChatStatusTone, PaneBlockComponent,
+};
 
 pub(crate) struct ChatPanel;
 
@@ -24,124 +25,102 @@ impl ChatPanel {
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Min(3), Constraint::Length(3)])
+            .constraints([
+                Constraint::Length(3),
+                Constraint::Min(3),
+                Constraint::Length(3),
+            ])
             .split(inner);
 
-        let messages = Self::message_lines(app);
-        frame.render_widget(
-            Paragraph::new(messages).wrap(Wrap { trim: false }),
-            chunks[0],
-        );
+        let header = Self::header_props(app);
+        ChatConversationHeaderComponent::render(frame, chunks[0], theme, header);
 
-        let input = Self::input_lines(app);
-        frame.render_widget(Paragraph::new(input).wrap(Wrap { trim: false }), chunks[1]);
-    }
+        let message_entries = app
+            .chat_messages()
+            .iter()
+            .map(|message| {
+                ChatMessageEntry::new(
+                    ChatMessageRole::from_role(&message.role),
+                    message.text.clone(),
+                    Some(message.created_at.clone()),
+                )
+            })
+            .collect::<Vec<_>>();
 
-    fn message_lines(app: &App) -> Vec<Line<'static>> {
-        let theme = app.theme();
-
-        let Some(actor) = app.chat_actor() else {
-            return vec![
-                Line::styled(
-                    "Select an actor node to open chat.",
-                    Style::default().fg(theme.text_muted),
-                ),
-                Line::styled(
-                    "Use j/k to move in the catalog tree.",
-                    Style::default().fg(theme.text_muted),
-                ),
-            ];
-        };
-
-        let mut lines = vec![Line::from(vec![
-            Span::styled("Actor: ", Style::default().fg(theme.text_muted)),
-            Span::styled(
-                actor.title.clone(),
-                Style::default()
-                    .fg(theme.entity_actor)
-                    .add_modifier(Modifier::BOLD),
-            ),
-        ])];
-
-        if !actor.description.trim().is_empty() && actor.description.trim() != "-" {
-            lines.push(Line::from(vec![
-                Span::styled("Description: ", Style::default().fg(theme.text_muted)),
-                Span::styled(
-                    actor.description.clone(),
-                    Style::default().fg(theme.text_secondary),
-                ),
-            ]));
-        }
-
-        let messages = app.chat_messages();
-        if messages.is_empty() {
-            lines.push(Line::raw(""));
-            lines.push(Line::styled(
-                "No chat messages yet.",
-                Style::default().fg(theme.text_muted),
-            ));
-            return lines;
-        }
-
-        lines.push(Line::raw(""));
-
-        let recent_count = usize::max(1, messages.len().min(20));
-        let start = messages.len().saturating_sub(recent_count);
-
-        for message in &messages[start..] {
-            let role_color = match message.role.as_str() {
-                "user" => theme.entity_variant,
-                "assistant" => theme.entity_actor,
-                _ => theme.text_secondary,
-            };
-
-            lines.push(Line::from(vec![
-                Span::styled(
-                    format!("{} ", message.role),
-                    Style::default().fg(role_color).add_modifier(Modifier::BOLD),
-                ),
-                Span::styled(
-                    compact_timestamp(&message.created_at),
-                    Style::default().fg(theme.text_muted),
-                ),
-            ]));
-            lines.push(Line::from(Span::styled(
-                message.text.clone(),
-                Style::default().fg(theme.text_primary),
-            )));
-            lines.push(Line::raw(""));
-        }
-
-        lines
-    }
-
-    fn input_lines(app: &App) -> Vec<Line<'static>> {
-        let theme = app.theme();
-
-        if app.chat_actor().is_none() {
-            return vec![Line::styled(
-                "Input disabled until an actor is selected.",
-                Style::default().fg(theme.text_muted),
-            )];
-        }
-
-        if !app.is_chat_composing() {
-            return vec![Line::styled(
-                "Press c to compose, Enter to send, t to hide chat.",
-                Style::default().fg(theme.text_muted),
-            )];
-        }
-
-        let draft = app.chat_draft();
-        let prompt = if draft.is_empty() {
-            "> _".to_string()
+        let empty_label = if app.chat_actor().is_some() {
+            "No chat messages yet."
         } else {
-            format!("> {draft}_")
+            "Select an actor node to open chat."
+        };
+        let messages = ChatMessageListProps {
+            messages: &message_entries,
+            empty_label,
+            max_messages: 20,
+            max_body_lines_per_message: 12,
+            scroll_offset_lines: 0,
+            palette: Self::chat_palette(app),
+        };
+        ChatMessageListComponent::render(frame, chunks[1], theme, messages);
+
+        let composer = Self::composer_props(app);
+        ChatComposerComponent::render(frame, chunks[2], theme, composer);
+    }
+
+    fn header_props(app: &App) -> ChatConversationHeaderProps {
+        let Some(actor) = app.chat_actor() else {
+            return ChatConversationHeaderProps {
+                title: "No actor selected".to_string(),
+                subtitle: Some("Select an actor node in the catalog".to_string()),
+                status_label: Some("idle".to_string()),
+                status_tone: ChatStatusTone::Muted,
+            };
         };
 
-        vec![Line::styled(
-            prompt,
-            Style::default().fg(theme.text_primary),
-        )]
+        let subtitle = if actor.description.trim().is_empty() || actor.description.trim() == "-" {
+            Some(format!("provider:{}", actor.provider))
+        } else {
+            Some(actor.description.clone())
+        };
+
+        ChatConversationHeaderProps {
+            title: actor.title.clone(),
+            subtitle,
+            status_label: Some(actor.status.clone()),
+            status_tone: status_tone(&actor.status),
+        }
+    }
+
+    fn chat_palette(app: &App) -> ChatPalette {
+        let theme = app.theme();
+        ChatPalette {
+            text_primary: theme.text_primary,
+            role_user: theme.entity_variant,
+            role_assistant: theme.entity_actor,
+            role_system: Color::Yellow,
+            role_tool: Color::Cyan,
+            role_other: theme.text_secondary,
+        }
+    }
+
+    fn composer_props(app: &App) -> ChatComposerProps<'_> {
+        ChatComposerProps {
+            enabled: app.chat_actor().is_some(),
+            composing: app.is_chat_composing(),
+            draft: app.chat_draft(),
+            cursor_index: app.chat_draft().chars().count(),
+            idle_hint: "Press c to compose, Enter to send, t to hide chat.",
+            disabled_hint: "Input disabled until an actor is selected.",
+        }
+    }
+}
+
+fn status_tone(status: &str) -> ChatStatusTone {
+    match status.trim().to_ascii_lowercase().as_str() {
+        "ready" | "active" | "idle" => ChatStatusTone::Ok,
+        "busy" | "running" => ChatStatusTone::Info,
+        "retrying" | "warning" => ChatStatusTone::Warn,
+        "error" | "failed" => ChatStatusTone::Error,
+        "stopped" | "offline" => ChatStatusTone::Muted,
+        _ => ChatStatusTone::Accent,
     }
 }

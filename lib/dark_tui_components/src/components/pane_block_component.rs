@@ -1,18 +1,18 @@
 use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Block, Borders};
 
-use crate::theme::Theme;
+use crate::theme::ComponentThemeLike;
 
-pub(crate) struct PaneBlockComponent;
+pub struct PaneBlockComponent;
 
 impl PaneBlockComponent {
-    pub(crate) fn build<'a>(title: &'a str, focused: bool, theme: &Theme) -> Block<'a> {
+    pub fn build<'a>(title: &'a str, focused: bool, theme: &impl ComponentThemeLike) -> Block<'a> {
         let border_style = if focused {
             Style::default()
-                .fg(theme.pane_focused_border)
+                .fg(theme.pane_focused_border())
                 .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(theme.pane_unfocused_border)
+            Style::default().fg(theme.pane_unfocused_border())
         };
 
         Block::default()

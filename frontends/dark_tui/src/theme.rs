@@ -1,3 +1,4 @@
+use dark_tui_components::ComponentThemeLike;
 use ratatui::style::Color;
 use serde::Deserialize;
 use std::path::Path;
@@ -385,4 +386,86 @@ pub enum EntityKind {
     Product,
     Variant,
     Actor,
+}
+
+impl ComponentThemeLike for Theme {
+    fn pill_ok_fg(&self) -> Color {
+        self.pill_ok_fg
+    }
+
+    fn pill_ok_bg(&self) -> Color {
+        self.pill_ok_bg
+    }
+
+    fn pill_warn_fg(&self) -> Color {
+        self.pill_warn_fg
+    }
+
+    fn pill_warn_bg(&self) -> Color {
+        self.pill_warn_bg
+    }
+
+    fn pill_err_fg(&self) -> Color {
+        self.pill_err_fg
+    }
+
+    fn pill_err_bg(&self) -> Color {
+        self.pill_err_bg
+    }
+
+    fn pill_info_fg(&self) -> Color {
+        self.pill_info_fg
+    }
+
+    fn pill_info_bg(&self) -> Color {
+        self.pill_info_bg
+    }
+
+    fn pill_muted_fg(&self) -> Color {
+        self.pill_muted_fg
+    }
+
+    fn pill_muted_bg(&self) -> Color {
+        self.pill_muted_bg
+    }
+
+    fn pill_accent_fg(&self) -> Color {
+        self.pill_accent_fg
+    }
+
+    fn pill_accent_bg(&self) -> Color {
+        self.pill_accent_bg
+    }
+
+    fn key_hint_key_fg(&self) -> Color {
+        self.key_hint_key_fg
+    }
+
+    fn key_hint_key_bg(&self) -> Color {
+        self.key_hint_key_bg
+    }
+
+    fn key_hint_action_fg(&self) -> Color {
+        self.key_hint_action_fg
+    }
+
+    fn key_hint_bracket_fg(&self) -> Color {
+        self.key_hint_bracket_fg
+    }
+
+    fn pane_focused_border(&self) -> Color {
+        self.pane_focused_border
+    }
+
+    fn pane_unfocused_border(&self) -> Color {
+        self.pane_unfocused_border
+    }
+
+    fn text_secondary(&self) -> Color {
+        self.text_secondary
+    }
+
+    fn text_muted(&self) -> Color {
+        self.text_muted
+    }
 }

@@ -1,12 +1,12 @@
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
-use ratatui::Frame;
 
 use crate::app::App;
 
-use super::super::components::{LoadingSpinner, StatusPill};
+use dark_tui_components::{LoadingSpinner, StatusPill};
 
 pub(crate) struct FooterPanel;
 

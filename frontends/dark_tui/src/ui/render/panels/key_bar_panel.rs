@@ -1,11 +1,11 @@
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 
 use crate::app::{App, ResultsViewMode};
 
-use super::super::components::{KeyBind, KeyHintBar};
+use dark_tui_components::{KeyBind, KeyHintBar};
 
 /// Core navigation + view keys (always visible).
 const CORE_KEYS: &[KeyBind] = &[

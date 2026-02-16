@@ -5,6 +5,7 @@ stack: "backend"
 type: "application"
 dependsOn:
   - "dark_rust"
+  - "dark_tui_components"
 
 tasks:
   install:

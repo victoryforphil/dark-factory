@@ -1,2 +1,8 @@
 [workspace]
-members = ["frontends/dark_cli", "frontends/dark_tui", "lib/dark_rust"]
+members = [
+    "frontends/dark_cli",
+    "frontends/dark_chat",
+    "frontends/dark_tui",
+    "lib/dark_rust",
+    "lib/dark_tui_components",
+]

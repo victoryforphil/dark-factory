@@ -6,7 +6,7 @@ use ratatui::Frame;
 use crate::app::{App, FocusPane, ResultsViewMode};
 use crate::models::{compact_id, compact_locator, compact_timestamp};
 
-use super::super::components::{CardGridComponent, PaneBlockComponent};
+use dark_tui_components::{CardGridComponent, PaneBlockComponent};
 
 pub(crate) struct SessionsView;
 

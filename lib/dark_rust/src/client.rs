@@ -30,6 +30,17 @@ impl DarkCoreClient {
         }
     }
 
+    pub async fn request_raw(
+        &self,
+        method: &str,
+        path: &str,
+        query: Option<&[(String, String)]>,
+        body: Option<Value>,
+    ) -> Result<RawApiResponse, DarkRustError> {
+        let method = parse_http_method(method)?;
+        self.request(method, path, query, body).await
+    }
+
     pub async fn service_status(&self) -> Result<RawApiResponse, DarkRustError> {
         self.get("/", None).await
     }
@@ -456,11 +467,23 @@ impl DarkCoreClient {
     }
 }
 
-fn normalize_path(path: &str) -> String {
+pub(crate) fn normalize_path(path: &str) -> String {
     if path.starts_with('/') {
         path.to_string()
     } else {
         format!("/{path}")
+    }
+}
+
+fn parse_http_method(method: &str) -> Result<Method, DarkRustError> {
+    match method.trim().to_uppercase().as_str() {
+        "GET" => Ok(Method::GET),
+        "POST" => Ok(Method::POST),
+        "PATCH" => Ok(Method::PATCH),
+        "DELETE" => Ok(Method::DELETE),
+        _ => Err(DarkRustError::InvalidHttpMethod {
+            method: method.to_string(),
+        }),
     }
 }
 
@@ -510,7 +533,8 @@ fn url_encode(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{append_query, normalize_path, parse_body, url_encode};
+    use super::{append_query, normalize_path, parse_body, parse_http_method, url_encode};
+    use crate::error::DarkRustError;
     use serde_json::json;
 
     #[test]
@@ -551,5 +575,17 @@ mod tests {
     fn preserves_plain_text_response() {
         let parsed = parse_body("not-json".to_string());
         assert_eq!(parsed, json!("not-json"));
+    }
+
+    #[test]
+    fn rejects_invalid_http_methods() {
+        let error = parse_http_method("TRACE").expect_err("method should be rejected");
+
+        match error {
+            DarkRustError::InvalidHttpMethod { method } => {
+                assert_eq!(method, "TRACE");
+            }
+            other => panic!("unexpected error: {other:?}"),
+        }
     }
 }

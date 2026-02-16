@@ -1,14 +1,14 @@
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem, ListState};
-use ratatui::Frame;
 
 use crate::app::{App, VizSelection};
 use crate::models::compact_id;
 use crate::theme::EntityKind;
 
-use super::super::components::{PaneBlockComponent, StatusPill};
+use dark_tui_components::{PaneBlockComponent, StatusPill};
 
 pub(crate) struct CatalogTreeView;
 

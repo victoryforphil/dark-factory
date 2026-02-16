@@ -70,7 +70,8 @@ struct ActionTask {
 
 pub async fn run(cli: Cli) -> Result<()> {
     let directory = resolve_directory(cli.directory.as_deref())?;
-    let service = DashboardService::new(cli.base_url.clone(), directory.clone(), cli.poll_variants);
+    let service =
+        DashboardService::new(cli.base_url.clone(), directory.clone(), cli.poll_variants).await;
 
     // Load theme — look for themes/default.toml relative to the executable,
     // falling back to the compiled-in defaults.
@@ -91,7 +92,12 @@ pub async fn run(cli: Cli) -> Result<()> {
     };
 
     let mut app = App::new(directory, cli.refresh_seconds, theme);
-    app.set_status(format!("Connected to {}", cli.base_url));
+    let transport = if service.uses_realtime_transport() {
+        "websocket"
+    } else {
+        "rest"
+    };
+    app.set_status(format!("Connected to {} via {}", cli.base_url, transport));
 
     let mut terminal = setup_terminal()?;
 
@@ -123,7 +129,20 @@ async fn run_loop(
     let mut action_tasks: Vec<ActionTask> = Vec::new();
 
     loop {
-        if snapshot_task.as_ref().is_some_and(|task| task.is_finished()) {
+        let route_mutation_events = service.consume_route_mutation_events().await;
+        if route_mutation_events > 0 {
+            force_refresh = true;
+            if snapshot_task.is_none() {
+                app.set_status(format!(
+                    "Realtime update received ({route_mutation_events})"
+                ));
+            }
+        }
+
+        if snapshot_task
+            .as_ref()
+            .is_some_and(|task| task.is_finished())
+        {
             let Some(task) = snapshot_task.take() else {
                 unreachable!("snapshot task should exist when marked finished");
             };
@@ -156,7 +175,10 @@ async fn run_loop(
             force_refresh = false;
         }
 
-        if chat_refresh_task.as_ref().is_some_and(|task| task.is_finished()) {
+        if chat_refresh_task
+            .as_ref()
+            .is_some_and(|task| task.is_finished())
+        {
             let Some(task) = chat_refresh_task.take() else {
                 unreachable!("chat refresh task should exist when marked finished");
             };
@@ -187,7 +209,10 @@ async fn run_loop(
             }
         }
 
-        if chat_send_task.as_ref().is_some_and(|task| task.is_finished()) {
+        if chat_send_task
+            .as_ref()
+            .is_some_and(|task| task.is_finished())
+        {
             let Some(task) = chat_send_task.take() else {
                 unreachable!("chat send task should exist when marked finished");
             };
@@ -444,12 +469,10 @@ async fn run_loop(
                     kind: BackgroundActionKind::SpawnSession,
                     handle: tokio::spawn(async move {
                         BackgroundActionResult::SpawnSession(
-                            run_with_api_timeout(
-                                service.create_session(
-                                    &request.provider,
-                                    request.initial_prompt.as_deref(),
-                                ),
-                            )
+                            run_with_api_timeout(service.create_session(
+                                &request.provider,
+                                request.initial_prompt.as_deref(),
+                            ))
                             .await,
                         )
                     }),
@@ -515,8 +538,8 @@ async fn run_loop(
                 let service = service.clone();
                 app.set_chat_send_in_flight(true);
                 chat_send_task = Some(tokio::spawn(async move {
-                    let result = run_with_api_timeout(service.send_actor_prompt(&actor_id, &prompt))
-                        .await;
+                    let result =
+                        run_with_api_timeout(service.send_actor_prompt(&actor_id, &prompt)).await;
                     (actor_id, result)
                 }));
             }
@@ -529,10 +552,7 @@ async fn run_loop(
 async fn run_with_api_timeout<T>(future: impl Future<Output = Result<T>>) -> Result<T> {
     match tokio::time::timeout(Duration::from_secs(API_TIMEOUT_SECONDS), future).await {
         Ok(result) => result,
-        Err(_) => Err(anyhow!(
-            "request timed out after {}s",
-            API_TIMEOUT_SECONDS
-        )),
+        Err(_) => Err(anyhow!("request timed out after {}s", API_TIMEOUT_SECONDS)),
     }
 }
 

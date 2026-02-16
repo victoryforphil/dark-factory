@@ -3,12 +3,14 @@
 import { findRepoRoot } from "./helpers/run_root.sh.ts";
 
 const repoRoot = findRepoRoot(import.meta.dir);
+const launchCwd = process.cwd();
 const args = Bun.argv.slice(2);
+const manifestPath = `${repoRoot}/frontends/dark_tui/Cargo.toml`;
 
 const childProcess = Bun.spawn(
-  ["cargo", "run", "--quiet", "--manifest-path", "frontends/dark_tui/Cargo.toml", "--", ...args],
+  ["cargo", "run", "--quiet", "--manifest-path", manifestPath, "--", ...args],
   {
-    cwd: repoRoot,
+    cwd: launchCwd,
     stdin: "inherit",
     stdout: "inherit",
     stderr: "inherit",

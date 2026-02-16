@@ -3,14 +3,12 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
-use dark_rust::types::{
-    ActorAttachQuery, ActorCreateInput, ActorListQuery, ActorMessage, ActorMessageInput,
-    ActorMessagesQuery, ProductCreateInput, ProductListQuery, VariantImportActorsInput,
-    VariantListQuery,
+use dark_rust::types::ActorMessage;
+use dark_rust::{
+    DarkCoreClient, DarkCoreWsClient, DarkRustError, LocatorId, LocatorKind, RawApiResponse,
 };
-use dark_rust::{DarkCoreClient, DarkRustError, LocatorId, LocatorKind, RawApiResponse};
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use crate::models::{
     ActorChatMessageRow, ActorRow, DashboardSnapshot, ProductRow, VariantRow, compact_timestamp,
@@ -21,6 +19,7 @@ const PAGE_LIMIT: u32 = 100;
 #[derive(Debug, Clone)]
 pub struct DashboardService {
     api: DarkCoreClient,
+    ws_api: Option<DarkCoreWsClient>,
     directory: String,
     poll_variants: bool,
 }
@@ -32,16 +31,37 @@ pub struct SpawnOptions {
 }
 
 impl DashboardService {
-    pub fn new(base_url: String, directory: String, poll_variants: bool) -> Self {
+    pub async fn new(base_url: String, directory: String, poll_variants: bool) -> Self {
+        let ws_api = DarkCoreWsClient::connect(base_url.clone()).await.ok();
+
         Self {
             api: DarkCoreClient::new(base_url),
+            ws_api,
             directory,
             poll_variants,
         }
     }
 
+    pub fn uses_realtime_transport(&self) -> bool {
+        self.ws_api.is_some()
+    }
+
     pub fn directory(&self) -> &str {
         &self.directory
+    }
+
+    pub async fn consume_route_mutation_events(&self) -> usize {
+        let Some(ws_api) = &self.ws_api else {
+            return 0;
+        };
+
+        match ws_api.drain_events().await {
+            Ok(events) => events
+                .into_iter()
+                .filter(|event| event.event == "routes.mutated")
+                .count(),
+            Err(_) => 0,
+        }
     }
 
     pub async fn fetch_snapshot(&self) -> Result<DashboardSnapshot> {
@@ -96,8 +116,16 @@ impl DashboardService {
     }
 
     pub async fn poll_variant(&self, variant_id: &str) -> Result<String> {
-        let response = self.api.variants_poll(variant_id, Some(true)).await?;
-        ensure_success(response)?;
+        let query = [("poll".to_string(), "true".to_string())];
+        let response = self
+            .request(
+                "POST",
+                &format!("/variants/{variant_id}/poll"),
+                Some(&query),
+                None,
+            )
+            .await?;
+        let _ = ensure_success(response)?;
 
         Ok(format!("Variant polled: {variant_id}"))
     }
@@ -107,13 +135,17 @@ impl DashboardService {
         variant_id: &str,
         provider: Option<&str>,
     ) -> Result<String> {
+        let request_body = match provider {
+            Some(provider) => json!({ "provider": provider }),
+            None => json!({}),
+        };
+
         let response = self
-            .api
-            .variants_import_actors(
-                variant_id,
-                &VariantImportActorsInput {
-                    provider: provider.map(ToString::to_string),
-                },
+            .request(
+                "POST",
+                &format!("/variants/{variant_id}/actors/import"),
+                None,
+                Some(request_body),
             )
             .await?;
         let body = ensure_success(response)?;
@@ -149,11 +181,15 @@ impl DashboardService {
         let display_name = Some(directory_name(&self.directory));
 
         let response = self
-            .api
-            .products_create(&ProductCreateInput {
-                locator,
-                display_name,
-            })
+            .request(
+                "POST",
+                "/products/",
+                None,
+                Some(json!({
+                    "locator": locator,
+                    "displayName": display_name,
+                })),
+            )
             .await?;
         let body = ensure_success(response)?;
 
@@ -167,7 +203,7 @@ impl DashboardService {
     }
 
     pub async fn fetch_spawn_options(&self) -> Result<SpawnOptions> {
-        let response = self.api.system_providers().await?;
+        let response = self.request("GET", "/system/providers", None, None).await?;
         let body = ensure_success(response)?;
 
         let default_provider = body
@@ -222,14 +258,17 @@ impl DashboardService {
             .context("Dark TUI // Actors // No variant available to spawn actor")?;
 
         let response = self
-            .api
-            .actors_create(&ActorCreateInput {
-                variant_id: default_variant.id,
-                provider: provider.to_string(),
-                title: Some(format!("Dark TUI // {}", directory_name(&self.directory))),
-                description: Some("Spawned from dark_tui".to_string()),
-                metadata: None,
-            })
+            .request(
+                "POST",
+                "/actors/",
+                None,
+                Some(json!({
+                    "variantId": default_variant.id,
+                    "provider": provider,
+                    "title": format!("Dark TUI // {}", directory_name(&self.directory)),
+                    "description": "Spawned from dark_tui",
+                })),
+            )
             .await?;
         let body = ensure_success(response)?;
 
@@ -244,15 +283,14 @@ impl DashboardService {
             .filter(|value| !value.is_empty())
         {
             let response = self
-                .api
-                .actors_send_message(
-                    actor_id,
-                    &ActorMessageInput {
-                        prompt: prompt.to_string(),
-                        no_reply: Some(false),
-                        model: None,
-                        agent: None,
-                    },
+                .request(
+                    "POST",
+                    &format!("/actors/{actor_id}/messages"),
+                    None,
+                    Some(json!({
+                        "prompt": prompt,
+                        "noReply": false,
+                    })),
                 )
                 .await?;
             let _ = ensure_success(response)?;
@@ -266,9 +304,18 @@ impl DashboardService {
         actor_id: &str,
         n_last_messages: Option<u32>,
     ) -> Result<Vec<ActorChatMessageRow>> {
+        let mut query = Vec::new();
+        if let Some(n_last_messages) = n_last_messages {
+            query.push(("nLastMessages".to_string(), n_last_messages.to_string()));
+        }
+
         let response = self
-            .api
-            .actors_list_messages(actor_id, &ActorMessagesQuery { n_last_messages })
+            .request(
+                "GET",
+                &format!("/actors/{actor_id}/messages"),
+                query_slice_or_none(&query),
+                None,
+            )
             .await?;
         let body = ensure_success(response)?;
 
@@ -291,15 +338,14 @@ impl DashboardService {
         }
 
         let response = self
-            .api
-            .actors_send_message(
-                actor_id,
-                &ActorMessageInput {
-                    prompt: trimmed.to_string(),
-                    no_reply: Some(false),
-                    model: None,
-                    agent: None,
-                },
+            .request(
+                "POST",
+                &format!("/actors/{actor_id}/messages"),
+                None,
+                Some(json!({
+                    "prompt": trimmed,
+                    "noReply": false,
+                })),
             )
             .await?;
         let _ = ensure_success(response)?;
@@ -308,14 +354,7 @@ impl DashboardService {
 
     pub async fn build_attach_command(&self, session_id: &str) -> Result<String> {
         let response = self
-            .api
-            .actors_attach(
-                session_id,
-                &ActorAttachQuery {
-                    model: None,
-                    agent: None,
-                },
-            )
+            .request("GET", &format!("/actors/{session_id}/attach"), None, None)
             .await?;
         let body = ensure_success(response)?;
         let attach_data = body
@@ -335,18 +374,37 @@ impl DashboardService {
         Ok(command.to_string())
     }
 
+    async fn request(
+        &self,
+        method: &str,
+        path: &str,
+        query: Option<&[(String, String)]>,
+        body: Option<Value>,
+    ) -> Result<RawApiResponse> {
+        if let Some(ws_api) = &self.ws_api {
+            if let Ok(response) = ws_api.request_raw(method, path, query, body.clone()).await {
+                return Ok(response);
+            }
+        }
+
+        self.api
+            .request_raw(method, path, query, body)
+            .await
+            .map_err(Into::into)
+    }
+
     async fn fetch_all_products(&self) -> Result<Vec<ProductRecord>> {
         let mut cursor: Option<String> = None;
         let mut products: Vec<ProductRecord> = Vec::new();
 
         loop {
+            let mut query = vec![("limit".to_string(), PAGE_LIMIT.to_string())];
+            if let Some(cursor) = cursor.clone() {
+                query.push(("cursor".to_string(), cursor));
+            }
+
             let response = self
-                .api
-                .products_list(&ProductListQuery {
-                    cursor: cursor.clone(),
-                    limit: Some(PAGE_LIMIT),
-                    include: None,
-                })
+                .request("GET", "/products/", query_slice_or_none(&query), None)
                 .await?;
 
             let body = ensure_success(response)?;
@@ -375,14 +433,16 @@ impl DashboardService {
         let mut variants: Vec<VariantRecord> = Vec::new();
 
         loop {
+            let mut query = vec![
+                ("limit".to_string(), PAGE_LIMIT.to_string()),
+                ("poll".to_string(), self.poll_variants.to_string()),
+            ];
+            if let Some(cursor) = cursor.clone() {
+                query.push(("cursor".to_string(), cursor));
+            }
+
             let response = self
-                .api
-                .variants_list(&VariantListQuery {
-                    cursor: cursor.clone(),
-                    limit: Some(PAGE_LIMIT),
-                    poll: Some(self.poll_variants),
-                    ..VariantListQuery::default()
-                })
+                .request("GET", "/variants/", query_slice_or_none(&query), None)
                 .await?;
 
             let body = ensure_success(response)?;
@@ -411,14 +471,13 @@ impl DashboardService {
         let mut actors: Vec<ActorRecord> = Vec::new();
 
         loop {
+            let mut query = vec![("limit".to_string(), PAGE_LIMIT.to_string())];
+            if let Some(cursor) = cursor.clone() {
+                query.push(("cursor".to_string(), cursor));
+            }
+
             let response = self
-                .api
-                .actors_list(&ActorListQuery {
-                    cursor: cursor.clone(),
-                    limit: Some(PAGE_LIMIT),
-                    provider: None,
-                    ..ActorListQuery::default()
-                })
+                .request("GET", "/actors/", query_slice_or_none(&query), None)
                 .await?;
 
             let body = ensure_success(response)?;
@@ -601,6 +660,10 @@ fn to_actor_chat_message_row(record: ActorMessage) -> ActorChatMessageRow {
         text,
         created_at: compact_timestamp(&record.created_at),
     }
+}
+
+fn query_slice_or_none(query: &[(String, String)]) -> Option<&[(String, String)]> {
+    if query.is_empty() { None } else { Some(query) }
 }
 
 fn ensure_success(response: RawApiResponse) -> Result<Value> {

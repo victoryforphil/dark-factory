@@ -1,19 +1,16 @@
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-use ratatui::Frame;
 
-use crate::theme::Theme;
+use crate::components::PaneBlockComponent;
+use crate::theme::ComponentThemeLike;
 
-use super::PaneBlockComponent;
+pub struct CardGridComponent;
 
-#[allow(dead_code)]
-pub(crate) struct CardGridComponent;
-
-#[allow(dead_code)]
 impl CardGridComponent {
-    pub(crate) fn render(
+    pub fn render(
         frame: &mut Frame,
         area: Rect,
         title: &str,
@@ -21,7 +18,7 @@ impl CardGridComponent {
         selected_index: usize,
         cards: &[(String, Vec<String>)],
         selected_color: Color,
-        theme: &Theme,
+        theme: &impl ComponentThemeLike,
     ) {
         let panel = PaneBlockComponent::build(title, focused, theme);
         let inner = panel.inner(area);
@@ -33,7 +30,7 @@ impl CardGridComponent {
 
         if cards.is_empty() {
             let empty = Paragraph::new("No rows")
-                .style(Style::default().fg(theme.text_muted))
+                .style(Style::default().fg(theme.text_muted()))
                 .wrap(Wrap { trim: true });
             frame.render_widget(empty, inner);
             return;
@@ -46,7 +43,7 @@ impl CardGridComponent {
         let page_start = selected_index.saturating_div(capacity) * capacity;
         let render_start = page_start.min(cards.len().saturating_sub(1));
         let render_count = (cards.len() - render_start).min(capacity);
-        let used_rows = ((render_count + max_columns - 1) / max_columns).max(1);
+        let used_rows = render_count.div_ceil(max_columns).max(1);
 
         let row_constraints = vec![Constraint::Length(card_height); used_rows];
         let row_areas = Layout::default()
@@ -91,7 +88,7 @@ impl CardGridComponent {
                         .fg(selected_color)
                         .add_modifier(Modifier::BOLD)
                 } else {
-                    Style::default().fg(theme.pane_unfocused_border)
+                    Style::default().fg(theme.pane_unfocused_border())
                 };
 
                 let text_style = if is_selected {
@@ -126,7 +123,7 @@ impl CardGridComponent {
                 range_end,
                 cards.len()
             ))
-            .style(Style::default().fg(theme.text_muted))
+            .style(Style::default().fg(theme.text_muted()))
             .wrap(Wrap { trim: true });
 
             let hint_area = Rect {
@@ -150,10 +147,6 @@ impl CardGridComponent {
     }
 
     fn card_height(height: u16) -> u16 {
-        if height >= 14 {
-            7
-        } else {
-            6
-        }
+        if height >= 14 { 7 } else { 6 }
     }
 }
