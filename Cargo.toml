@@ -1,0 +1,2 @@
+[workspace]
+members = ["frontends/dark_cli"]

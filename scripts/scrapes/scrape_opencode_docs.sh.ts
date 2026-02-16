@@ -5,6 +5,8 @@ import {
   buildPageArtifacts,
   buildSnapshotIndexMarkdown,
   buildSnapshotPageMarkdown,
+  dedupeSorted,
+  discoverUrlsFromRootPage,
   discoverUrlsFromSitemap,
   fileStemFromSourcePath,
   mapConcurrent,
@@ -17,9 +19,19 @@ import {
 } from "../helpers/docs_scrape.sh.ts";
 import { findRepoRoot } from "../helpers/run_root.sh.ts";
 
+type DiscoveryMethod = "sitemap" | "html";
+
+type DiscoveryResult = {
+  urls: string[];
+  method: DiscoveryMethod;
+  detail: string;
+};
+
 const SOURCE_KEY = "opencode";
 const DOCS_ROOT = "https://opencode.ai/docs";
-const ROOT_HOST = new URL(DOCS_ROOT).hostname;
+const ROOT_URL = new URL(DOCS_ROOT);
+const ROOT_HOST = ROOT_URL.hostname;
+const ROOT_PATH = ROOT_URL.pathname.replace(/\/+$/, "");
 const SITEMAP_URL = "https://opencode.ai/sitemap.xml";
 const DEFAULT_OUTPUT_DIR_RELATIVE = "docs/external/opencode";
 const CONCURRENCY = 4;
@@ -54,7 +66,7 @@ function isEnglishDocsUrl(url: string): boolean {
 
 function normalizeUrl(url: string): string | null {
   try {
-    const parsed = new URL(url);
+    const parsed = new URL(url, DOCS_ROOT);
     if (parsed.hostname !== ROOT_HOST) {
       return null;
     }
@@ -63,7 +75,7 @@ function normalizeUrl(url: string): string | null {
     parsed.search = "";
     parsed.pathname = parsed.pathname.replace(/\/+$/, "") || "/";
 
-    if (!parsed.pathname.startsWith("/docs")) {
+    if (parsed.pathname !== ROOT_PATH && !parsed.pathname.startsWith(`${ROOT_PATH}/`)) {
       return null;
     }
 
@@ -76,10 +88,39 @@ function normalizeUrl(url: string): string | null {
 function fileStemFromUrl(url: string): string {
   const sourcePath = sourcePathFromUrl(url, { emptyPathFallback: "/docs" });
   return fileStemFromSourcePath(sourcePath, {
-    rootPath: "/docs",
+    rootPath: ROOT_PATH,
     rootStem: "docs",
-    trimPrefixPath: "/docs",
+    trimPrefixPath: ROOT_PATH,
   });
+}
+
+function applyLanguageFilter(urls: string[], requestedLanguage: string): string[] {
+  if (requestedLanguage === "en" || requestedLanguage === "english") {
+    return urls.filter(isEnglishDocsUrl);
+  }
+
+  return urls;
+}
+
+async function discoverDocsUrls(requestedLanguage: string): Promise<DiscoveryResult> {
+  const sitemapUrls = applyLanguageFilter(await discoverUrlsFromSitemap(SITEMAP_URL, normalizeUrl), requestedLanguage);
+
+  if (sitemapUrls.length > 0) {
+    return {
+      urls: sitemapUrls,
+      method: "sitemap",
+      detail: `sitemap_url=${SITEMAP_URL},matched=${sitemapUrls.length},lang=${requestedLanguage}`,
+    };
+  }
+
+  const htmlUrls = applyLanguageFilter(await discoverUrlsFromRootPage(DOCS_ROOT, normalizeUrl), requestedLanguage);
+  const dedupedUrls = dedupeSorted(htmlUrls);
+
+  return {
+    urls: dedupedUrls,
+    method: "html",
+    detail: `root_fallback=${dedupedUrls.length},lang=${requestedLanguage}`,
+  };
 }
 
 const repoRoot = findRepoRoot(import.meta.dir);
@@ -90,18 +131,14 @@ const outputDirRelative = outputDirectoryRelative(repoRoot, outputDir);
 prepareOutputDirectory(outputDir);
 
 const requestedLanguage = (Bun.env.DOCS_LANGUAGE ?? DEFAULT_LANGUAGE).toLowerCase();
-const discoveredUrls = await discoverUrlsFromSitemap(SITEMAP_URL, normalizeUrl);
-const docsUrls =
-  requestedLanguage === "en" || requestedLanguage === "english"
-    ? discoveredUrls.filter(isEnglishDocsUrl)
-    : discoveredUrls;
+const discovery = await discoverDocsUrls(requestedLanguage);
 
-if (docsUrls.length === 0) {
-  throw new Error(`No docs URLs found from sitemap discovery (${SITEMAP_URL})`);
+if (discovery.urls.length === 0) {
+  throw new Error(`No docs URLs found for source ${SOURCE_KEY} (sitemap=${SITEMAP_URL},root=${DOCS_ROOT})`);
 }
 
-const scrapeResults = await mapConcurrent(docsUrls, CONCURRENCY, (url, index) =>
-  scrapeDocsPage(url, index + 1, docsUrls.length),
+const scrapeResults = await mapConcurrent(discovery.urls, CONCURRENCY, (url, index) =>
+  scrapeDocsPage(url, index + 1, discovery.urls.length),
 );
 
 const artifacts = buildPageArtifacts(
@@ -120,7 +157,7 @@ for (const artifact of artifacts) {
       sourceRoot: DOCS_ROOT,
       baseKeywords: "opencode, docs, ai coding assistant, cli",
       summaryFallback: "OpenCode documentation page snapshot.",
-      collectionMethodNote: "sitemap discovery + markdown conversion.",
+      collectionMethodNote: "sitemap-first discovery with direct HTML fallback support.",
       dropKeywordPathSegments: 1,
     }),
   );
@@ -132,6 +169,7 @@ await Bun.write(
     sourceKey: SOURCE_KEY,
     sourceRoot: DOCS_ROOT,
     outputDirRelative,
+    discovery,
     scopeText: `${artifacts.length} pages under /docs`,
     indexKeywords: "opencode, docs index, ai coding assistant, cli",
     indexSummary: "This index links one `.ext.md` file per docs page snapshot for OpenCode.",
@@ -144,5 +182,5 @@ await Bun.write(
 
 const stats = summarizeArtifacts(artifacts);
 console.log(
-  `Docs // Scrape // Wrote split external docs (source=${SOURCE_KEY},lang=${requestedLanguage},pages=${artifacts.length},ok=${stats.successCount},failed=${stats.failureCount},blocked=${stats.blockedPages.join(",") || "none"},dir=${outputDir})`,
+  `Docs // Scrape // Wrote split external docs (source=${SOURCE_KEY},discovery=${discovery.method},lang=${requestedLanguage},pages=${artifacts.length},ok=${stats.successCount},failed=${stats.failureCount},blocked=${stats.blockedPages.join(",") || "none"},dir=${outputDir})`,
 );

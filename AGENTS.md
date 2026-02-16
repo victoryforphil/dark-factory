@@ -80,6 +80,8 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - `.opencode/skills/reflect-constant/SKILL.md` documents periodic background reflection with `@reflector`.
 - `.opencode/commands/scrape_docs.md` provides the command entrypoint for docs scraping tasks.
 - `.opencode/commands/tsc_fix.md` provides the command entrypoint for safe TypeScript fixing loops.
+- `.opencode/commands/crtique.md` provides the command entrypoint for critique-driven fix-then-rule updates.
+- `.opencode/commands/critique.md` provides an alias entrypoint for the same critique-driven workflow.
 - `.opencode/commands/reflect.md` provides the command entrypoint for reflection/lesson capture.
 - `.opencode/commands/reflect_constant.md` provides the command entrypoint for periodic background reflection.
 - Use `@gitter` when the user asks for commit support or cleanup.

@@ -3,6 +3,7 @@
 - Save successful troubleshooting patterns and command sequences once they are verified.
 - Include relevant rule/behavior updates from `.opencode/commands/rule.md` when they should guide future tasks.
 - Capture user feedback and style nits when they are likely to repeat.
+- When user critique identifies a miss, fix the current output first, then codify durable guidance in rules and lessons.
 - Never store secrets, credentials, tokens, or sensitive environment details.
 - Prefer generic phrasing that future agents can apply across similar tasks.
 - Read lessons files early in each task before planning implementation details.

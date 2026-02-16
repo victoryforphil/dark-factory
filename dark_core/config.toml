@@ -6,3 +6,11 @@ listenPort = 4150
 
 [prisma]
 logQueries = false
+
+[opencode]
+hostname = "127.0.0.1"
+port = 4096
+startupTimeoutMs = 5000
+autoStartServer = true
+logLevel = "INFO"
+tuiCommand = "opencode"

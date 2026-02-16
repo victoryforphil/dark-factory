@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { opencodeConfigSection } from '../clients/opencode.config';
 import { prismaConfigSection } from '../clients/prisma.config';
 import { serverConfigSection } from '../controllers/system.config';
 import { coreEnvironmentConfigValue, coreEnvironmentEnvBinding } from './env.config';
@@ -21,6 +22,9 @@ export const coreConfigDefinition = {
 
   /** Prisma runtime settings. */
   prisma: prismaConfigSection,
+
+  /** OpenCode SDK/server runtime settings. */
+  opencode: opencodeConfigSection,
 } as const;
 
 /**
@@ -30,6 +34,7 @@ export const coreConfigEnvBindings: ReadonlyArray<EnvBinding> = [
   coreEnvironmentEnvBinding,
   ...coreConfigDefinition.server.env,
   ...coreConfigDefinition.prisma.env,
+  ...coreConfigDefinition.opencode.env,
 ];
 
 /**
@@ -41,6 +46,7 @@ export const createCoreConfigSchema = (strict: boolean) => {
     env: coreConfigDefinition.env.schema,
     server: createSubsystemSchema(coreConfigDefinition.server, strict),
     prisma: createSubsystemSchema(coreConfigDefinition.prisma, strict),
+    opencode: createSubsystemSchema(coreConfigDefinition.opencode, strict),
   };
 
   return strict ? z.object(rootShape).strict() : z.object(rootShape).passthrough();
