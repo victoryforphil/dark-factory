@@ -37,6 +37,32 @@ const resolveOpencodeModel = (model?: string): string => {
   return DEFAULT_OPENCODE_MODEL;
 };
 
+const toSessionDescription = (
+  messages: ReturnType<typeof mapOpenCodeMessages>,
+): string | undefined => {
+  const ordered = [...messages].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  const preferred = ordered.find((message) => {
+    const role = message.role.trim().toLowerCase();
+    return (
+      ['assistant', 'agent', 'model'].includes(role) &&
+      typeof message.text === 'string' &&
+      message.text.trim().length > 0
+    );
+  });
+  const fallback = ordered.find((message) => {
+    const role = message.role.trim().toLowerCase();
+    return role !== 'user' && typeof message.text === 'string' && message.text.trim().length > 0;
+  });
+  const finalMessage = preferred ?? fallback;
+  const text = finalMessage?.text?.trim();
+  if (!text) {
+    return undefined;
+  }
+
+  const compact = text.replace(/\s+/g, ' ');
+  return compact.length > 280 ? `${compact.slice(0, 277)}...` : compact;
+};
+
 export const opencodeActorProviderAdapter: ActorProviderAdapter = {
   provider: 'opencode',
   async spawn(input) {
@@ -159,24 +185,35 @@ export const opencodeActorProviderAdapter: ActorProviderAdapter = {
     ]);
     const activeSessionIds = new Set(Object.keys(statuses));
 
-    return sessions
-      .filter((session) => activeSessionIds.has(session.id))
-      .map((session): ProviderSessionSnapshot => {
-        return {
-          actorLocator: buildActorLocator({
-            provider: 'opencode',
-            workingLocator: input.workingLocator,
-            providerRef: session.id,
-          }),
-          providerSessionId: session.id,
-          status: mapOpenCodeSessionStatus(statuses[session.id] as OpenCodeStatusLike | undefined),
-          title: session.title,
-          connectionInfo: {
-            provider: 'opencode',
+    return Promise.all(
+      sessions
+        .filter((session) => activeSessionIds.has(session.id))
+        .map(async (session): Promise<ProviderSessionSnapshot> => {
+          const rawMessages = await listOpencodeSessionMessages({
             directory,
-          },
-        };
-      });
+            id: session.id,
+            limit: 40,
+          });
+          const mappedMessages = mapOpenCodeMessages(rawMessages);
+          const description = toSessionDescription(mappedMessages);
+
+          return {
+            actorLocator: buildActorLocator({
+              provider: 'opencode',
+              workingLocator: input.workingLocator,
+              providerRef: session.id,
+            }),
+            providerSessionId: session.id,
+            status: mapOpenCodeSessionStatus(statuses[session.id] as OpenCodeStatusLike | undefined),
+            title: session.title,
+            description,
+            connectionInfo: {
+              provider: 'opencode',
+              directory,
+            },
+          };
+        }),
+    );
   },
   async terminate(input) {
     const providerSessionId = input.providerSessionId;

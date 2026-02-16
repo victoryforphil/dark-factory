@@ -7,6 +7,7 @@ import { createProduct } from '../products/products.controller';
 import {
   createMockAgentSession,
   resetMockAgentEngineForTests,
+  sendMockAgentSessionPrompt,
 } from '../providers/mockagent/mockagent.controller';
 import {
   createVariant,
@@ -223,10 +224,17 @@ describe('variants module integration', () => {
     expect(defaultVariant).toBeTruthy();
 
     const directory = locatorIdToHostPath(defaultVariant!.locator);
-    await createMockAgentSession({
+    const sessionOne = await createMockAgentSession({
       directory,
       title: 'Imported actor one',
     });
+    await sendMockAgentSessionPrompt({
+      directory,
+      id: sessionOne.id,
+      prompt: 'Capture this assistant description',
+      noReply: false,
+    });
+
     await createMockAgentSession({
       directory,
       title: 'Imported actor two',
@@ -251,7 +259,7 @@ describe('variants module integration', () => {
         discovered: number;
         created: number;
         updated: number;
-        actors: Array<{ id: string }>;
+        actors: Array<{ id: string; description?: string | null }>;
       };
     };
 
@@ -259,6 +267,11 @@ describe('variants module integration', () => {
     expect(firstImportPayload.data.created).toBe(2);
     expect(firstImportPayload.data.updated).toBe(0);
     expect(firstImportPayload.data.actors.length).toBe(2);
+    expect(
+      firstImportPayload.data.actors.some((actor) =>
+        typeof actor.description === 'string' && actor.description.trim().length > 0,
+      ),
+    ).toBeTrue();
 
     const secondImportResponse = await app.handle(
       new Request(`http://localhost/variants/${defaultVariant!.id}/actors/import`, {
@@ -293,9 +306,14 @@ describe('variants module integration', () => {
     expect(listActorsResponse.status).toBe(200);
     const listActorsPayload = (await listActorsResponse.json()) as {
       ok: true;
-      data: Array<{ id: string }>;
+      data: Array<{ id: string; description?: string | null }>;
     };
 
     expect(listActorsPayload.data.length).toBe(2);
+    expect(
+      listActorsPayload.data.some((actor) =>
+        typeof actor.description === 'string' && actor.description.trim().length > 0,
+      ),
+    ).toBeTrue();
   });
 });

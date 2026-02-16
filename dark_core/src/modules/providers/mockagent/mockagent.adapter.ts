@@ -71,6 +71,30 @@ const mapMockMessages = (
   });
 };
 
+const toSessionDescription = (messages: ProviderMessage[]): string | undefined => {
+  const ordered = [...messages].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+  const preferred = ordered.find((message) => {
+    const role = message.role.trim().toLowerCase();
+    return (
+      ['assistant', 'agent', 'model'].includes(role) &&
+      typeof message.text === 'string' &&
+      message.text.trim().length > 0
+    );
+  });
+  const fallback = ordered.find((message) => {
+    const role = message.role.trim().toLowerCase();
+    return role !== 'user' && typeof message.text === 'string' && message.text.trim().length > 0;
+  });
+  const finalMessage = preferred ?? fallback;
+  const text = finalMessage?.text?.trim();
+  if (!text) {
+    return undefined;
+  }
+
+  const compact = text.replace(/\s+/g, ' ');
+  return compact.length > 280 ? `${compact.slice(0, 277)}...` : compact;
+};
+
 const toSessionSnapshot = (
   session: { id: string; title: string; projectID: string },
   status: { type: string } | undefined,
@@ -214,8 +238,21 @@ export const mockActorProviderAdapter: ActorProviderAdapter = {
       getMockAgentSessionStatuses({ directory }),
     ]);
 
-    return sessions.map((session) =>
-      toSessionSnapshot(session, statuses[session.id], input.workingLocator),
+    return Promise.all(
+      sessions.map(async (session) => {
+        const rawMessages = await listMockAgentSessionMessages({
+          directory,
+          id: session.id,
+          limit: 40,
+        });
+        const mappedMessages = mapMockMessages(rawMessages);
+        const description = toSessionDescription(mappedMessages);
+
+        return {
+          ...toSessionSnapshot(session, statuses[session.id], input.workingLocator),
+          description,
+        };
+      }),
     );
   },
   async terminate(input) {
