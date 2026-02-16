@@ -2,12 +2,19 @@
 
 - [x] Basic README.md
 - [x] Basic TODOs.md
+- [x] Script system
 
 # Agentic TODOs
 
 - [x] Setup OpenCode Base MCPs
 - [x] Setup OpenCode Git
 - [x] Setup AGENTS.md
+- [x] ProtoBuff Maker
+
+- [x] Script Maker
+- [x] Doc Scrapers
+- [x] Commit All 
+- [x] Script Capture
 
 # Design TODOs
 
