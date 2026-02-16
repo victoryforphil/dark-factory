@@ -11,7 +11,9 @@ pub enum DarkRustError {
         source: reqwest::Error,
     },
 
-    #[error("Dark Rust // API // Request returned failure status (status={status},path={path},body={body})")]
+    #[error(
+        "Dark Rust // API // Request returned failure status (status={status},path={path},body={body})"
+    )]
     ApiStatus {
         status: u16,
         path: String,
@@ -20,4 +22,7 @@ pub enum DarkRustError {
 
     #[error("Dark Rust // JSON // Serialization failed (error={0})")]
     JsonSerialization(#[from] serde_json::Error),
+
+    #[error("Dark Rust // Locator // Invalid locator value (message={message})")]
+    InvalidLocator { message: String },
 }
