@@ -1,0 +1,7 @@
+moon = "latest"
+rust = "stable"
+bun = "latest"
+
+[plugins]
+protoc = "https://raw.githubusercontent.com/b4nst/proto-plugins/refs/heads/main/toml/protoc.toml"
+gh = "https://raw.githubusercontent.com/appthrust/proto-toml-plugins/main/gh/plugin.toml"
