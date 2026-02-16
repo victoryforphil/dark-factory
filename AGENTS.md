@@ -61,6 +61,7 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - `.opencode/skills/proto-install/SKILL.md` documents standardized script-based `proto install` usage.
 - `.opencode/skills/protobuf-schema-authoring/SKILL.md` documents how to author proto2/proto3 schemas and provide Rust/TypeScript codegen workflows.
 - `.opencode/skills/script-authoring/SKILL.md` documents how to build reusable Bun scripts from prompt/example/bash/context.
+- `.opencode/skills/docs-scraping/SKILL.md` documents generic user-request driven external docs scraping workflows.
 - Use `@gitter` when the user asks for commit support or cleanup.
 
 ## 7) Local Fork Workflow (`elysia-protobuf`)

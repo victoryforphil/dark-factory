@@ -38,6 +38,7 @@
 - `scripts/scrape_moon_docs.sh.ts` captures moonrepo docs as split per-page `docs/external/moonrepo/*.ext.md` files plus `docs/external/moonrepo/index.ext.md`.
 - OpenCode skill reference: `.opencode/skills/proto-install/SKILL.md`.
 - OpenCode skill reference: `.opencode/skills/script-authoring/SKILL.md`.
+- OpenCode skill reference: `.opencode/skills/docs-scraping/SKILL.md`.
 
 # Components
 
