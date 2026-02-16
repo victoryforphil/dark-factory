@@ -1,11 +1,11 @@
 import type { ActorProviderAdapter } from './providers.common';
 import { mockActorProviderAdapter } from './mockagent/mockagent.adapter';
-import { opencodeActorProviderAdapter } from './opencode/opencode.provider';
+import { OPENCODE_SERVER_PROVIDER_KEY, opencodeServerActorProviderAdapter } from './opencode_server/opencode_server.provider';
 import { getConfig } from '../../config';
 
 const providerRegistry: Record<string, ActorProviderAdapter> = {
   mock: mockActorProviderAdapter,
-  opencode: opencodeActorProviderAdapter,
+  [OPENCODE_SERVER_PROVIDER_KEY]: opencodeServerActorProviderAdapter,
 };
 
 export const listProviderAdapters = (): ActorProviderAdapter[] => {

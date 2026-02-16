@@ -6,7 +6,7 @@ import type { ConfigSubsystemDefinition } from '../../config/lib/types';
 export const providersConfigSection = {
   shape: {
     defaultProvider: z.string().min(1).default('mock'),
-    enabledProviders: z.array(z.string().min(1)).default(['mock', 'opencode']),
+    enabledProviders: z.array(z.string().min(1)).default(['mock', 'opencode/server']),
   },
   env: [{ path: 'providers.defaultProvider', env: 'DARKFACTORY_DEFAULT_PROVIDER' }],
 } satisfies ConfigSubsystemDefinition;

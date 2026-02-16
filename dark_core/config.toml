@@ -18,5 +18,5 @@ tuiCommand = "opencode"
 
 [providers]
 # Keep mock enabled for deterministic tests and local e2e harnesses.
-defaultProvider = "opencode"
-enabledProviders = [ "mock", "opencode" ]
+defaultProvider = "opencode/server"
+enabledProviders = [ "mock", "opencode/server" ]

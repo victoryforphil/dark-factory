@@ -6,6 +6,7 @@ import Log, { formatLogMetadata } from '../../../utils/logging';
 interface OpencodeServerRuntime {
   url: string;
   close: () => void;
+  source: 'managed' | 'external';
 }
 
 let managedOpencodeRuntime: OpencodeServerRuntime | undefined;
@@ -83,11 +84,17 @@ const ensureManagedOpencodeServer = async (): Promise<void> => {
     const logFile = extractLogFilePath(cleanMessage);
 
     if (isPortBindFailure(cleanMessage) && (await isConfiguredOpencodeReachable())) {
-      Log.warn(
+      managedOpencodeRuntime = {
+        url: buildConfiguredBaseUrl(),
+        close: () => {},
+        source: 'external',
+      };
+      Log.info(
         `Core // Providers OpenCode // Auto-start skipped, reusing existing server ${formatLogMetadata({
           host: config.opencode.hostname,
           logFile: logFile ?? '-',
           port: config.opencode.port,
+          source: 'external',
         })}`,
       );
       return;
@@ -111,7 +118,14 @@ const ensureManagedOpencodeServer = async (): Promise<void> => {
   managedOpencodeRuntime = {
     url: server.url,
     close: server.close,
+    source: 'managed',
   };
+  Log.info(
+    `Core // Providers OpenCode // Managed server ready ${formatLogMetadata({
+      source: 'managed',
+      url: managedOpencodeRuntime.url,
+    })}`,
+  );
 };
 
 export const getOpencodeClient = async (directory?: string): Promise<OpencodeClient> => {
@@ -134,6 +148,8 @@ export const closeManagedOpencodeServer = (): void => {
     return;
   }
 
-  managedOpencodeRuntime.close();
+  if (managedOpencodeRuntime.source === 'managed') {
+    managedOpencodeRuntime.close();
+  }
   managedOpencodeRuntime = undefined;
 };

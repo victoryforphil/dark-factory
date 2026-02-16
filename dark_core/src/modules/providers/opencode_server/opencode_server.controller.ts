@@ -5,7 +5,7 @@ import type { Message, Part, Session } from '@opencode-ai/sdk';
 import { getConfig } from '../../../config';
 import { normalizeProviderDirectory } from '../common/providers.directory';
 import { toShellArgument } from '../common/providers.shell';
-import { getOpencodeClient } from './opencode.client';
+import { getOpencodeClient } from './opencode_server.client';
 
 export interface OpencodeDirectoryInput {
   directory: string;

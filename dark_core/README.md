@@ -43,6 +43,13 @@ bun run config:print
 - Creating a local product (`@local://...`) automatically creates a default variant (`name=default`) with the same locator path.
 - Multiple variants can share the same locator path and are distinguished by `name`.
 
+## WebSocket RPC
+
+- `GET /ws` upgrades to a websocket connection.
+- Clients can send `rpc_request` envelopes with `method`, `path`, and optional `query`/`body`; the request is dispatched through the same HTTP route handlers.
+- Server replies with `rpc_response` envelopes containing `status`, `path`, and `body` in the same API shape as REST responses.
+- Successful `POST`/`PATCH`/`DELETE` route mutations broadcast `event=routes.mutated` payloads for realtime frontends.
+
 ## Config behavior
 
 - `config export` writes a TOML file from schema defaults.

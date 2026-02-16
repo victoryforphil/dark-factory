@@ -156,7 +156,7 @@ describe('variants module unit', () => {
           received = input;
           return {
             variantId: input.variantId,
-            provider: input.provider ?? 'opencode',
+            provider: input.provider ?? 'opencode/server',
             discovered: 2,
             created: 1,
             updated: 1,
@@ -173,7 +173,7 @@ describe('variants module unit', () => {
           'content-type': 'application/json',
         },
         body: JSON.stringify({
-          provider: 'opencode',
+          provider: 'opencode/server',
         }),
       }),
     );
@@ -181,13 +181,13 @@ describe('variants module unit', () => {
     expect(response.status).toBe(200);
     expect(received).toEqual({
       variantId: 'v_1',
-      provider: 'opencode',
+      provider: 'opencode/server',
     });
     await expect(response.json()).resolves.toMatchObject({
       ok: true,
       data: {
         variantId: 'v_1',
-        provider: 'opencode',
+        provider: 'opencode/server',
         discovered: 2,
         created: 1,
         updated: 1,

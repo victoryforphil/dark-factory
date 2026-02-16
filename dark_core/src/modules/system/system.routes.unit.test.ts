@@ -19,7 +19,7 @@ const createDependencies = (): SystemRoutesDependencies => {
     }),
     getProvidersInfo: async () => ({
       defaultProvider: 'mock',
-      enabledProviders: ['mock', 'opencode'],
+      enabledProviders: ['mock', 'opencode/server'],
       providers: [
         {
           key: 'mock',
@@ -28,7 +28,7 @@ const createDependencies = (): SystemRoutesDependencies => {
           available: true,
         },
         {
-          key: 'opencode',
+          key: 'opencode/server',
           configured: true,
           enabled: true,
           available: true,
@@ -106,7 +106,7 @@ describe('system routes unit', () => {
       ok: true,
       data: {
         defaultProvider: 'mock',
-        enabledProviders: ['mock', 'opencode'],
+        enabledProviders: ['mock', 'opencode/server'],
       },
     });
   });

@@ -1,5 +1,5 @@
 import type { ActorStatusLabel, ProviderMessage } from '../providers.common';
-import type { OpenCodeStatusLike } from './opencode.types';
+import type { OpenCodeStatusLike } from './opencode_server.types';
 
 const collectText = (value: unknown, depth = 0): string[] => {
   if (depth > 4 || value === null || value === undefined) {

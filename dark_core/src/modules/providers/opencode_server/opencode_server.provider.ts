@@ -1,4 +1,5 @@
 import { locatorIdToHostPath } from '../../../utils/locator';
+import { logInfoDuration, startLogTimer } from '../../../utils/logging';
 import type {
   ActorProviderAdapter,
   ActorStatusLabel,
@@ -14,9 +15,11 @@ import {
   listOpencodeSessionMessages,
   sendOpencodeSessionCommand,
   sendOpencodeSessionPrompt,
-} from './opencode.controller';
-import { mapOpenCodeMessages, mapOpenCodeSessionStatus } from './opencode.mapper';
-import type { OpenCodeStatusLike } from './opencode.types';
+} from './opencode_server.controller';
+import { mapOpenCodeMessages, mapOpenCodeSessionStatus } from './opencode_server.mapper';
+import type { OpenCodeStatusLike } from './opencode_server.types';
+
+export const OPENCODE_SERVER_PROVIDER_KEY = 'opencode/server';
 
 const DEFAULT_OPENCODE_MODEL = 'openai/gpt-5.3-codex';
 
@@ -63,8 +66,8 @@ const toSessionDescription = (
   return compact.length > 280 ? `${compact.slice(0, 277)}...` : compact;
 };
 
-export const opencodeActorProviderAdapter: ActorProviderAdapter = {
-  provider: 'opencode',
+export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
+  provider: OPENCODE_SERVER_PROVIDER_KEY,
   async spawn(input) {
     const directory = locatorIdToHostPath(input.workingLocator);
     const session = await createOpencodeSession({ directory, title: input.title });
@@ -76,7 +79,7 @@ export const opencodeActorProviderAdapter: ActorProviderAdapter = {
 
     return {
       actorLocator: buildActorLocator({
-        provider: 'opencode',
+        provider: OPENCODE_SERVER_PROVIDER_KEY,
         workingLocator: input.workingLocator,
         providerRef: session.id,
       }),
@@ -85,7 +88,7 @@ export const opencodeActorProviderAdapter: ActorProviderAdapter = {
       title: session.title,
       description: input.description,
       connectionInfo: {
-        provider: 'opencode',
+        provider: OPENCODE_SERVER_PROVIDER_KEY,
         directory,
         projectId: attach.project.id,
       },
@@ -103,7 +106,7 @@ export const opencodeActorProviderAdapter: ActorProviderAdapter = {
       return {
         status,
         connectionInfo: {
-          provider: 'opencode',
+          provider: OPENCODE_SERVER_PROVIDER_KEY,
           directory,
         },
       };
@@ -118,7 +121,7 @@ export const opencodeActorProviderAdapter: ActorProviderAdapter = {
     return {
       status,
       connectionInfo: {
-        provider: 'opencode',
+        provider: OPENCODE_SERVER_PROVIDER_KEY,
         directory,
         projectId: attach.project.id,
       },
@@ -138,7 +141,7 @@ export const opencodeActorProviderAdapter: ActorProviderAdapter = {
     return {
       attachCommand: attach.command,
       connectionInfo: {
-        provider: 'opencode',
+        provider: OPENCODE_SERVER_PROVIDER_KEY,
         directory,
         projectId: attach.project.id,
       },
@@ -158,10 +161,17 @@ export const opencodeActorProviderAdapter: ActorProviderAdapter = {
   async listMessages(input) {
     const providerSessionId = requireSessionId(input.providerSessionId);
     const directory = locatorIdToHostPath(input.workingLocator);
+    const startedAtMs = startLogTimer();
     const messages = await listOpencodeSessionMessages({
       directory,
       id: providerSessionId,
       limit: input.nLastMessages,
+    });
+
+    logInfoDuration('Core // Providers OpenCode // Messages fetched', startedAtMs, {
+      providerSessionId,
+      requestedLimit: input.nLastMessages ?? null,
+      resultCount: messages.length,
     });
 
     return mapOpenCodeMessages(messages);
@@ -179,13 +189,14 @@ export const opencodeActorProviderAdapter: ActorProviderAdapter = {
   },
   async listSessions(input) {
     const directory = locatorIdToHostPath(input.workingLocator);
+    const startedAtMs = startLogTimer();
     const [sessions, statuses] = await Promise.all([
       listOpencodeSessions({ directory }),
       getOpencodeSessionStatuses({ directory }),
     ]);
     const activeSessionIds = new Set(Object.keys(statuses));
 
-    return Promise.all(
+    const importedSessions = await Promise.all(
       sessions
         .filter((session) => activeSessionIds.has(session.id))
         .map(async (session): Promise<ProviderSessionSnapshot> => {
@@ -199,7 +210,7 @@ export const opencodeActorProviderAdapter: ActorProviderAdapter = {
 
           return {
             actorLocator: buildActorLocator({
-              provider: 'opencode',
+              provider: OPENCODE_SERVER_PROVIDER_KEY,
               workingLocator: input.workingLocator,
               providerRef: session.id,
             }),
@@ -208,12 +219,21 @@ export const opencodeActorProviderAdapter: ActorProviderAdapter = {
             title: session.title,
             description,
             connectionInfo: {
-              provider: 'opencode',
+              provider: OPENCODE_SERVER_PROVIDER_KEY,
               directory,
             },
           };
         }),
     );
+
+    logInfoDuration('Core // Providers OpenCode // Sessions listed', startedAtMs, {
+      activeCount: importedSessions.length,
+      directory,
+      sessionCount: sessions.length,
+      statusCount: activeSessionIds.size,
+    });
+
+    return importedSessions;
   },
   async terminate(input) {
     const providerSessionId = input.providerSessionId;

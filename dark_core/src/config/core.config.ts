@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { opencodeConfigSection } from '../modules/providers/opencode/opencode.config';
+import { opencodeServerConfigSection } from '../modules/providers/opencode_server/opencode_server.config';
 import { providersConfigSection } from '../modules/providers/providers.config';
 import { prismaConfigSection } from '../modules/prisma/prisma.config';
 import { serverConfigSection } from '../modules/system/system.config';
@@ -25,7 +25,7 @@ export const coreConfigDefinition = {
   prisma: prismaConfigSection,
 
   /** OpenCode SDK/server runtime settings. */
-  opencode: opencodeConfigSection,
+  opencode: opencodeServerConfigSection,
 
   /** Provider enablement/default selection for actors. */
   providers: providersConfigSection,
