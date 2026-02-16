@@ -36,6 +36,8 @@
 - `scripts/install.sh.ts` runs an ordered array of install steps from repository root.
 - `scripts/proto_install.sh.ts` runs `proto install` from repository root.
 - `scripts/scrape_moon_docs.sh.ts` captures moonrepo docs as split per-page `docs/external/moonrepo/*.ext.md` files plus `docs/external/moonrepo/index.ext.md`.
+- `scripts/scrape_opencode_docs.sh.ts` captures OpenCode docs as split per-page `docs/external/opencode/*.ext.md` files plus `docs/external/opencode/index.ext.md`.
+  - Defaults to English docs only (`DOCS_LANGUAGE=en`), with optional override via `DOCS_LANGUAGE`.
 - OpenCode skill reference: `.opencode/skills/proto-install/SKILL.md`.
 - OpenCode skill reference: `.opencode/skills/script-authoring/SKILL.md`.
 - OpenCode skill reference: `.opencode/skills/docs-scraping/SKILL.md`.

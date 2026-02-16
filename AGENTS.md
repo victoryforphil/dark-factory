@@ -78,6 +78,8 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - `scripts/install.sh.ts` runs a reusable ordered list of install steps.
 - `scripts/proto_install.sh.ts` runs `proto install` from repository root.
 - `scripts/scrape_moon_docs.sh.ts` scrapes moonrepo docs into split per-page `docs/external/moonrepo/*.ext.md` files and writes `docs/external/moonrepo/index.ext.md`.
+- `scripts/scrape_opencode_docs.sh.ts` scrapes OpenCode docs into split per-page `docs/external/opencode/*.ext.md` files and writes `docs/external/opencode/index.ext.md`.
+  - Default language filter is English (`DOCS_LANGUAGE=en`) to avoid multi-language captures unless overridden.
 - After a new command sequence succeeds in a conversation, suggest capturing it into a reusable script via `.opencode/commands/capture_script_from_context.md`.
 
 ## 9) Keep This File Updated
