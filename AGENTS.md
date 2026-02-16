@@ -6,15 +6,18 @@ It reflects only what is currently true in this repository.
 ## 1) Current Repository Context
 
 - The repository contains active Bun/TypeScript code under `dark_core/` and Prisma schema/config under `prisma/`.
-- Prisma models currently include `Product` and `Variant` with these core assumptions:
+- Prisma models currently include `Product`, `Variant`, and `Actor` with these core assumptions:
   - Creating a local product (`@local://`) should also create a default variant at the same locator path.
   - Variant locator values are not globally unique; multiple variants can share a locator and are differentiated by `(productId, name)`.
   - Product IDs are deterministic `prd_{token}` values derived from normalized locator text (SHA-256 first 64 bits encoded as fixed-width base36); repeated creates for the same canonical locator are idempotent.
   - `Product.gitInfo` and `Variant.gitInfo` are optional JSON snapshots populated from local git metadata when available.
   - Variant git polling timestamps are tracked via `gitInfoUpdatedAt` and `gitInfoLastPolledAt`.
+  - Actors attach to variants (`Variant 1 -> N Actors`) and store provider/runtime snapshots (`actorLocator`, `workingLocator`, `providerSessionId`, `attachCommand`, `connectionInfo`).
 - Rust workspace code now includes:
   - `frontends/dark_cli/` for the CLI binary.
+  - `frontends/dark_tui/` for the Ratatui dashboard frontend.
   - `lib/dark_rust/` for shared dark_core API client/types used by Rust frontends.
+- TUI work in this repo uses Ratatui; local scraped references live at `docs/external/ratatui_web/index.ext.md` and `docs/external/ratatui_docs/index.ext.md`.
 - Moon workspace/project config is present at:
   - `.moon/workspace.yml`
   - `.moon/toolchains.yml`
@@ -23,7 +26,10 @@ It reflects only what is currently true in this repository.
   - `generated/moon.yml`
   - `lib/dark_rust/moon.yml`
   - `frontends/dark_cli/moon.yml`
+  - `frontends/dark_tui/moon.yml`
 - Prisma generated outputs are written under `generated/` (for example `generated/prisma/` and `generated/prismabox/`).
+- Do not implement ad-hoc/manual Prisma schema compatibility SQL in app code; evolve `prisma/schema.prisma` and apply changes via Prisma tooling (`prisma db push` / migrations).
+- Layered Docker/devcontainer setup now exists under `docker/` with a multi-stage `docker/Dockerfile` and compose stack at `docker/compose.devcontainers.yml`.
 
 ## 2) Reflection Lessons (Read Early)
 
@@ -52,20 +58,10 @@ It reflects only what is currently true in this repository.
   - `.github/copilot-instructions.md`
 - If any of these files appear later, treat them as authoritative and update this guide.
 
-## 5) Coding Style (Minimal Baseline)
+## 5) Style Guide
 
-Until language/tool-specific configs exist, follow pragmatic defaults:
-
-- Favor readable, explicit code over clever shortcuts.
-- Keep functions focused and avoid hidden side effects.
-- Avoid dead code, unused imports, and speculative abstractions.
-- Keep naming consistent (`PascalCase` types, `camelCase` values/functions, `UPPER_SNAKE_CASE` constants).
-- Handle errors with context; do not swallow exceptions silently.
-- Never log secrets or credentials.
-- Log messages should follow: `System // Optional Sub system // Message (meta={...})`.
-  - Prefer structured JSON metadata over comma-delimited `key=value` text so long IDs/paths remain readable.
-  - In `dark_core`, use `formatLogMetadata` from `dark_core/src/utils/logging.ts` when adding metadata.
-  - Example: `Core // HTTP // Listening (meta={"env":"development","host":"127.0.0.1","port":4150})`.
+- Style, naming, architecture, and runtime conventions now live in `STYLE.md`.
+- Read and apply `STYLE.md` before editing code.
 
 ## 6) Git Workflow
 
@@ -84,10 +80,13 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - `.opencode/agents/gitter.md` is the git-focused subagent.
 - `.opencode/agents/tsc-fixer.md` is the TypeScript safe-fix iteration subagent.
 - `.opencode/agents/reflector.md` is the reflection/review subagent for post-task lessons.
+- `.opencode/agents/sweeper.md` is the project hygiene subagent for cleanup audits and low-risk fixes.
+- `.opencode/agents/designer.md` is the UI/UX-focused Ratatui design subagent for component-first TUI polish.
 - `.opencode/skills/gitter-commit/SKILL.md` documents when to route commit tasks to `@gitter`.
 - `.opencode/skills/tsc-fix/SKILL.md` documents safe-first TypeScript error remediation.
 - `.opencode/skills/proto-install/SKILL.md` documents standardized script-based `proto install` usage.
 - `.opencode/skills/script-authoring/SKILL.md` documents how to build reusable Bun scripts from prompt/example/bash/context.
+- `.opencode/skills/devcontainer-workflows/SKILL.md` documents layered Docker devcontainer workflows and helper script usage.
 - `.opencode/skills/docs-scraping/SKILL.md` documents reusable external docs scraping workflows.
 - `.opencode/skills/reflect/SKILL.md` documents quick end-of-task reflection and lesson capture.
 - `.opencode/skills/reflect-constant/SKILL.md` documents periodic background reflection with `@reflector`.
@@ -97,26 +96,29 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - `.opencode/commands/critique.md` provides an alias entrypoint for the same critique-driven workflow.
 - `.opencode/commands/reflect.md` provides the command entrypoint for reflection/lesson capture.
 - `.opencode/commands/reflect_constant.md` provides the command entrypoint for periodic background reflection.
+- `.opencode/commands/sweeper.md` provides the command entrypoint for project-wide cleanup sweeps.
+- `.opencode/commands/sweep.md` provides an alias entrypoint for the same sweeper workflow.
 - Use `@gitter` when the user asks for commit support or cleanup.
 - Use `@tsc-fixer` when the user asks for iterative TypeScript compiler error cleanup.
 - Use `@reflector` when you want transcript/session-aware reflection (including one-agent-reviewing-another-agent workflows).
+- Use `@sweeper` when you need repo-wide hygiene audits (style conformance, dead code, and stale docs checks).
+- Use `@designer` when you need visual/UI direction, reusable TUI component design, or Ratatui-focused UX polish.
 
-## 8) Dark Core Module-First Style
+## 8) Dark Core API Coverage
 
-- `dark_core/src` now uses a domain-first module layout under `modules/`.
-- Each domain module keeps related files colocated with `{domain}.{kind}.ts` naming, for example:
-  - `modules/products/products.routes.ts`
-  - `modules/products/products.controller.ts`
-  - `modules/system/system.config.ts`
-  - `modules/opencode/opencode.client.ts`
-  - colocated tests like `modules/products/products.unit.test.ts` and `modules/products/products.int.test.ts`
-- Prefer one unit test file and one integration test file per domain module instead of split route/controller test files.
-- Keep route handlers thin: parse input, call controllers, map errors to API JSON shape.
-- Keep controllers modular and promise-based so routes and other controllers can reuse them.
-- Keep shared cross-domain helpers in `dark_core/src/utils/` and config internals in `dark_core/src/config/lib/`.
-- Current REST coverage includes CRUD handlers for both `/products` and `/variants`, plus `POST /variants/:id/poll` for on-demand variant git metadata refresh.
+- Current REST coverage includes CRUD handlers for `/products`, `/variants`, and `/actors`, plus:
+  - `POST /variants/:id/poll` for on-demand variant git metadata refresh.
+  - actor lifecycle/interaction endpoints: `POST /actors/:id/poll`, `GET /actors/:id/attach`, `POST /actors/:id/messages`, `GET /actors/:id/messages`, `POST /actors/:id/commands`.
+  - provider config discovery endpoint: `GET /system/providers`.
 
-## 9) Script Conventions
+## 9) Provider Configuration
+
+- Provider selection defaults are configured in core config TOML under `providers`.
+- `providers.defaultProvider` controls spawn fallback when `/actors` create payload omits `provider`.
+- `providers.enabledProviders` controls which provider keys are allowed for actor operations.
+- Client/frontends should query `GET /system/providers` when they need current runtime provider configuration.
+
+## 10) Script Conventions
 
 - Project scripts use shebanged Bun TypeScript files (`#!/usr/bin/env bun`) under `scripts/`.
 - Script naming uses `*.sh.ts` to indicate executable shell-style Bun scripts.
@@ -125,28 +127,23 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - `scripts/dev.sh.ts` runs `moon run dark_core:dev`.
 - `scripts/test.sh.ts` runs `moon run dark_core:test`.
 - `scripts/dcli.sh.ts` runs `dark_cli` via Cargo from repo root and forwards all CLI args.
+- `scripts/dtui.sh.ts` runs `dark_tui` via Cargo from repo root and forwards all CLI args.
+- `scripts/sys_install.sh.ts` manages shell aliases and `DARKFACTORY_SRC_PATH` in user shell rc files.
 - `scripts/reflect_constant.sh.ts` manages periodic reflector loops (`start`, `status`, `stop`, or foreground `run`).
 - `scripts/reflect_constant.sh.ts` writes timestamped reflector outputs to `docs/reflections/`.
+- `scripts/docker_build.sh.ts` builds layered container targets (`run`, `agentbox`, `ci`, `devcontainer`).
+- `scripts/docker_devcontainer.sh.ts` manages devcontainer lifecycle (`up`, `attach`, `exec -- <cmd>`).
+- `scripts/docker_agentbox.sh.ts` runs one-shot commands in the `agentbox` service and supports `--no-tty`.
+- `scripts/docker_ci.sh.ts` runs CI commands in the `ci` service (default `moon run dark_core:test`).
+- Short wrappers are available as executable paths: `./scripts/docker-build`, `./scripts/devcontainer`, `./scripts/agentbox`, and `./scripts/ci`.
 - `dark_core:check` now includes `dark_core:typecheck` plus `format:check` for full checks.
 - `scripts/` should remain shell-style pragmatic automation; prefer readability over strict TypeScript purity.
 - TypeScript safe-fix loops should ignore `scripts/` diagnostics unless user explicitly opts in.
-- External docs snapshots can be generated with source scripts like `scripts/scrapes/scrape_opencode_docs.sh.ts`, `scripts/scrapes/scrape_elysia_docs.sh.ts`, and `scripts/scrapes/scrape_prisma_docs.sh.ts`.
-- `scripts/scrapes/scrape_docs.sh.ts` dispatches supported source scrapers (`opencode`, `elysia`, `prisma`, `moonrepo`).
+- External docs snapshots can be generated with source scripts like `scripts/scrapes/scrape_opencode_docs.sh.ts`, `scripts/scrapes/scrape_elysia_docs.sh.ts`, `scripts/scrapes/scrape_prisma_docs.sh.ts`, `scripts/scrapes/scrape_ratatui_web_docs.sh.ts`, and `scripts/scrapes/scrape_ratatui_docs_docs.sh.ts`.
+- `scripts/helpers/docsrs_scrape.sh.ts` provides reusable docs.rs sitemap-shard discovery helpers for crate/version/module scoped scrapers.
+- `scripts/scrapes/scrape_docs.sh.ts` dispatches supported source scrapers (`opencode`, `elysia`, `prisma`, `moonrepo`, `ratatui_web`, `ratatui_docs`).
 
-## 10) Bun Runtime Conventions
-
-- `dark_core` runs on Bun; prefer Bun-native APIs when available instead of Node-compatible APIs.
-- For environment variables, use `Bun.env` instead of `process.env`.
-- Apply this convention in both app code and scripts unless a dependency explicitly requires Node-specific behavior.
-
-## 11) Path Minimalism Rule
-
-- Prefer one maintained "hot path" per workflow and build automation around it.
-- Remove dead or duplicate approaches once a supported path is verified.
-- Avoid adding backup implementations "just in case" when one clean path is sufficient.
-- Optimize for easier human navigation: fewer entrypoints, clearer ownership, less branching process logic.
-
-## 12) Keep This File Updated
+## 11) Keep This File Updated
 
 - Update this file when real code, tooling, or CI is added.
 - Keep instructions tied to verified repository behavior.

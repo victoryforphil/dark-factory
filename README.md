@@ -33,8 +33,25 @@
 - Shared helpers live in `scripts/helpers/`.
 - Toolchain/bootstrap install runs through `bun scripts/install.sh.ts` (`proto install` -> root-driven Bun install -> `moon :install`).
 - Dev/test entrypoints are `bun scripts/dev.sh.ts` and `bun scripts/test.sh.ts`.
-- External docs snapshots can be generated with source scripts (for example `scripts/scrapes/scrape_opencode_docs.sh.ts`, `scripts/scrapes/scrape_elysia_docs.sh.ts`, and `scripts/scrapes/scrape_prisma_docs.sh.ts`).
-- Use `bun scripts/scrapes/scrape_docs.sh.ts <source>` to dispatch a source scraper (`opencode`, `elysia`, `prisma`, `moonrepo`).
+- Docker layer builds run through `./scripts/docker-build` or `bun scripts/docker_build.sh.ts` (targets: `run`, `agentbox`, `ci`, `devcontainer`).
+- Devcontainer helpers are `./scripts/devcontainer up|attach|run -- <cmd>`.
+- Agentbox helpers are `./scripts/agentbox up|attach|run -- <cmd>` for CLI-friendly execution.
+- CI container helpers are `./scripts/ci [run] [command...]` (defaults to `moon run dark_core:test`).
+- External docs snapshots can be generated with source scripts (for example `scripts/scrapes/scrape_opencode_docs.sh.ts`, `scripts/scrapes/scrape_elysia_docs.sh.ts`, `scripts/scrapes/scrape_prisma_docs.sh.ts`, `scripts/scrapes/scrape_ratatui_web_docs.sh.ts`, and `scripts/scrapes/scrape_ratatui_docs_docs.sh.ts`).
+- Use `bun scripts/scrapes/scrape_docs.sh.ts <source>` to dispatch a source scraper (`opencode`, `elysia`, `prisma`, `moonrepo`, `ratatui_web`, `ratatui_docs`).
+
+# Containers
+
+- Layered Docker builds are defined in `docker/Dockerfile`:
+  - `common` (minimal shared base)
+  - `build` (full build toolchain: `proto` + `moon` + Bun + build deps)
+  - `run` (runtime-only `dark_core` image from build outputs)
+  - `agentbox` (CLI/agentic workflow sibling target from `build`)
+  - `ci` (test/check sibling target from `build`)
+  - `devcontainer` (developer UX tools: zsh/tmux/fzf/neovim)
+- Compose services for the above targets live in `docker/compose.devcontainers.yml`.
+- The `run` service is configured for host networking mode.
+- VS Code devcontainer wiring is available in `.devcontainer/devcontainer.json`.
 
 
 # Components
@@ -57,6 +74,8 @@
 - Various frontends that invoke / connect to Core
 - Main way of iterating with the system
 - Uses the Core API to communicate (REST / WS or GRPC in the future)
+- TUI frontends in this repo use `ratatui`.
+- Local external snapshots for Ratatui docs are available at `docs/external/ratatui_web/index.ext.md` (website guides/tutorials) and `docs/external/ratatui_docs/index.ext.md` (docs.rs API pages).
 - Some Frontends:
   - Rust TUI (Ratatui.rs) - First One
   - Web Client (Bun + Vite + Shadcn + React)
