@@ -1,0 +1,34 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["opencode-pty"],
+  "mcp": {
+    "websearch": {
+      "type": "remote",
+      "url": "https://mcp.exa.ai/mcp?tools=web_search_exa",
+      "enabled": true,
+      "headers": {
+        "x-api-key": "{env:EXA_API_KEY}",
+      },
+      "oauth": false,
+    },
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "enabled": true,
+      "headers": {
+        "Authorization": "Bearer {env:CONTEXT7_API_KEY}",
+      },
+      "oauth": false,
+    },
+    "grep_app": {
+      "type": "remote",
+      "url": "https://mcp.grep.app",
+      "enabled": true,
+      "oauth": false,
+    },
+    "prefect": {
+      "type": "local",
+      "command": ["uvx", "--from", "prefect-mcp", "prefect-mcp-server"],
+    },
+  },
+}
