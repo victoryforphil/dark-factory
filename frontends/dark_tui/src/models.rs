@@ -43,6 +43,7 @@ pub struct ActorRow {
     pub id: String,
     pub variant_id: String,
     pub title: String,
+    pub description: String,
     pub provider: String,
     pub status: String,
     pub directory: String,

@@ -572,6 +572,11 @@ fn to_actor_row(record: ActorRecord) -> ActorRow {
             .title
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| "Untitled actor".to_string()),
+        description: record
+            .description
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| "-".to_string()),
         provider: record.provider,
         status: record.status,
         directory: record
@@ -724,6 +729,8 @@ struct ActorRecord {
     working_locator: String,
     #[serde(default)]
     title: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
     created_at: String,
     updated_at: String,
 }

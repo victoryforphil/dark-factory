@@ -1,8 +1,8 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem, ListState};
+use ratatui::Frame;
 
 use crate::app::{App, VizSelection};
 use crate::models::compact_id;
@@ -11,6 +11,15 @@ use crate::theme::EntityKind;
 use super::super::components::{PaneBlockComponent, StatusPill};
 
 pub(crate) struct CatalogTreeView;
+
+fn compact_text(value: &str, max_len: usize) -> String {
+    let normalized = value.trim().replace('\n', " ");
+    if normalized.len() <= max_len {
+        return normalized;
+    }
+
+    format!("{}...", &normalized[..max_len.saturating_sub(3)])
+}
 
 impl CatalogTreeView {
     pub(crate) fn render(frame: &mut Frame, area: Rect, app: &App) {
@@ -152,6 +161,12 @@ impl CatalogTreeView {
                     } else {
                         actor.title.clone()
                     };
+                    let description =
+                        if actor.description.trim().is_empty() || actor.description.trim() == "-" {
+                            String::new()
+                        } else {
+                            format!(" -- {}", compact_text(&actor.description, 42))
+                        };
 
                     vec![
                         Span::styled("    └─ ", Style::default().fg(theme.catalog_connector)),
@@ -160,6 +175,7 @@ impl CatalogTreeView {
                             Style::default().fg(theme.entity_color(EntityKind::Actor)),
                         ),
                         Span::styled(title, Style::default().fg(theme.text_secondary)),
+                        Span::styled(description, Style::default().fg(theme.text_muted)),
                         Span::raw("  "),
                         StatusPill::info(&actor.provider, theme).span(),
                         Span::raw(" "),

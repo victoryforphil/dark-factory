@@ -1,8 +1,8 @@
-use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::app::App;
 use crate::models::compact_timestamp;
@@ -62,6 +62,16 @@ impl ChatPanel {
                     .add_modifier(Modifier::BOLD),
             ),
         ])];
+
+        if !actor.description.trim().is_empty() && actor.description.trim() != "-" {
+            lines.push(Line::from(vec![
+                Span::styled("Description: ", Style::default().fg(theme.text_muted)),
+                Span::styled(
+                    actor.description.clone(),
+                    Style::default().fg(theme.text_secondary),
+                ),
+            ]));
+        }
 
         let messages = app.chat_messages();
         if messages.is_empty() {

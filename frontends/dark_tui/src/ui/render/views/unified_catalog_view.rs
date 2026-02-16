@@ -1,12 +1,12 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::app::{App, VizSelection};
 use crate::models::{
-    ActorRow, ProductRow, VariantRow, compact_id, compact_locator, compact_timestamp,
+    compact_id, compact_locator, compact_timestamp, ActorRow, ProductRow, VariantRow,
 };
 use crate::theme::Theme;
 
@@ -22,8 +22,8 @@ const ACTOR_CARD_WIDTH: u16 = 38;
 const PRODUCT_CARD_HEIGHT: u16 = 4;
 /// Height of a variant card (border + 2 content lines + border).
 const VARIANT_CARD_HEIGHT: u16 = 4;
-/// Height of an actor card (border + 1 content line + border).
-const ACTOR_CARD_HEIGHT: u16 = 4;
+/// Height of an actor card (border + 3 content lines + border).
+const ACTOR_CARD_HEIGHT: u16 = 5;
 /// Left margin before the product card.
 const PRODUCT_LEFT_MARGIN: u16 = 2;
 /// Connector column width (the `│` / `├─` / `└─` gutter).
@@ -32,6 +32,15 @@ const CONNECTOR_WIDTH: u16 = 4;
 const ACTOR_CONNECTOR_WIDTH: u16 = 3;
 
 pub(crate) struct UnifiedCatalogView;
+
+fn compact_text(value: &str, max_len: usize) -> String {
+    let normalized = value.trim().replace('\n', " ");
+    if normalized.len() <= max_len {
+        return normalized;
+    }
+
+    format!("{}...", &normalized[..max_len.saturating_sub(3)])
+}
 
 impl UnifiedCatalogView {
     pub(crate) fn render(frame: &mut Frame, area: Rect, app: &App) {
@@ -792,7 +801,7 @@ impl UnifiedCatalogView {
             format!("Actor: {}", compact_id(&actor.id))
         };
 
-        // Row 1: compact actor title/description
+        // Row 1: compact actor title
         let title_text = if actor.title.trim().is_empty() {
             compact_id(&actor.id)
         } else if actor.title.len() > 30 {
@@ -805,7 +814,19 @@ impl UnifiedCatalogView {
             Style::default().fg(theme.text_primary),
         )]);
 
-        // Row 2: provider pill + status pill
+        // Row 2: latest description snapshot
+        let description_text =
+            if actor.description.trim().is_empty() || actor.description.trim() == "-" {
+                "No description".to_string()
+            } else {
+                compact_text(&actor.description, 30)
+            };
+        let description_line = Line::from(vec![Span::styled(
+            description_text,
+            Style::default().fg(theme.text_muted),
+        )]);
+
+        // Row 3: provider pill + status pill
         let provider_pill = StatusPill::info(&actor.provider, theme);
         let status_pill = match actor.status.as_str() {
             "active" | "running" => StatusPill::ok(&actor.status, theme),
@@ -820,7 +841,7 @@ impl UnifiedCatalogView {
             status_pill.span(),
         ]);
 
-        let content = vec![title_line, badges_line];
+        let content = vec![title_line, description_line, badges_line];
 
         let card = Paragraph::new(content)
             .block(

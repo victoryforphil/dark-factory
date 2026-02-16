@@ -1,18 +1,27 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
 use crate::app::{App, VizSelection};
 use crate::models::{
-    ActorRow, ProductRow, VariantRow, compact_id, compact_locator, compact_timestamp,
+    compact_id, compact_locator, compact_timestamp, ActorRow, ProductRow, VariantRow,
 };
 use crate::theme::{EntityKind, Theme};
 
 use super::super::components::{LabeledField, SectionHeader, StatusPill};
 
 pub(crate) struct DetailsPanel;
+
+fn compact_text(value: &str, max_len: usize) -> String {
+    let normalized = value.trim().replace('\n', " ");
+    if normalized.len() <= max_len {
+        return normalized;
+    }
+
+    format!("{}...", &normalized[..max_len.saturating_sub(3)])
+}
 
 impl DetailsPanel {
     pub(crate) fn render(frame: &mut Frame, area: Rect, app: &App) {
@@ -197,6 +206,13 @@ impl DetailsPanel {
         // --- Identity section ---
         lines.push(SectionHeader::new("Identity", theme.entity_actor).line(width, theme));
         lines.push(LabeledField::new("Title", &actor.title).line(theme));
+        lines.push(
+            LabeledField::new(
+                "Description",
+                compact_text(&actor.description, width.saturating_sub(16) as usize),
+            )
+            .line(theme),
+        );
         lines.push(LabeledField::new("ID", compact_id(&actor.id)).line(theme));
         lines.push(LabeledField::new("Variant", compact_id(&actor.variant_id)).line(theme));
         lines.push(Line::raw(""));
