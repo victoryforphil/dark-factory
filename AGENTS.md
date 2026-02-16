@@ -60,6 +60,8 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - `.opencode/skills/gitter-commit/SKILL.md` documents when to route commit tasks to `@gitter`.
 - `.opencode/skills/proto-install/SKILL.md` documents standardized script-based `proto install` usage.
 - `.opencode/skills/script-authoring/SKILL.md` documents how to build reusable Bun scripts from prompt/example/bash/context.
+- `.opencode/skills/docs-scraping/SKILL.md` documents reusable external docs scraping workflows.
+- `.opencode/commands/scrape_docs.md` provides the command entrypoint for docs scraping tasks.
 - Use `@gitter` when the user asks for commit support or cleanup.
 
 ## 8) Script Conventions
@@ -68,6 +70,8 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - Script naming uses `*.sh.ts` to indicate executable shell-style Bun scripts.
 - Shared script helpers live under `scripts/helpers/`.
 - `scripts/install.sh.ts` runs a reusable ordered list of install steps.
+- External docs snapshots can be generated with source scripts like `scripts/scrape_opencode_docs.sh.ts`, `scripts/scrape_elysia_docs.sh.ts`, and `scripts/scrape_prisma_docs.sh.ts`.
+- `scripts/scrape_docs.sh.ts` dispatches supported source scrapers (`opencode`, `elysia`, `prisma`).
 
 ## 9) Keep This File Updated
 

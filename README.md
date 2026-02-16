@@ -32,6 +32,8 @@
 
 - Project shell-style scripts are Bun TypeScript files with shebangs: `#!/usr/bin/env bun`.
 - Shared helpers live in `scripts/helpers/`.
+- External docs snapshots can be generated with source scripts (for example `scripts/scrape_opencode_docs.sh.ts`, `scripts/scrape_elysia_docs.sh.ts`, and `scripts/scrape_prisma_docs.sh.ts`).
+- Use `bun scripts/scrape_docs.sh.ts <source>` to dispatch a source scraper (`opencode`, `elysia`, `prisma`).
 
 
 # Components
