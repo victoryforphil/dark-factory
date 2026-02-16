@@ -1,0 +1,163 @@
+----
+## External Docs Snapshot // moonrepo
+
+- Captured: 2026-02-16T03:48:02.472Z
+- Source root: https://moonrepo.dev/docs
+- Source page: /docs/how-it-works/languages
+- Keywords: moon, moonrepo, docs, monorepo, build, how it works, languages
+- Summary: Although moon is currently focusing on the JavaScript ecosystem, our long-term vision is to be a
+----
+
+Source: https://moonrepo.dev/docs/how-it-works/languages
+
+# Languages
+
+Although moon is currently focusing on the JavaScript ecosystem, our long-term vision is to be a
+multi-language task runner and monorepo management tool. To that end, we've designed our languages
+to work like plugins, where their functionality is implemented in isolation, and is opt-in.
+
+info
+
+We do not support third-party language plugins at this time, but are working towards it!
+
+## Enabling a language
+
+moon [supported languages](/docs/#supported-languages) are opt-in, and are not enabled by default. We
+chose this pattern to avoid unnecessary overhead, especially for the future when we have 10 or more
+built-in languages.
+
+To enable a supported language, simply define a configuration block with the language's name in
+[`.moon/toolchains.yml`](/docs/config/toolchain). Even an empty block will enable the language.
+
+.moon/toolchains.yml
+
+```
+# Enable Node.jsnode: {}# Enable Node.js with custom settingsnode:  packageManager: 'pnpm'# Enable Denodeno: {}
+```
+
+For unsupported languages, use the system toolchain. Continue reading to learn more!
+
+## System language and toolchain
+
+When working with moon, you'll most likely have tasks that run built-in system commands that do not
+belong to any of the supported languages. For example, you may have a task that runs `git` or
+`docker` commands, or common commands like `rm`, `cp`, `mv`, etc.
+
+For these cases, moon provides a special language/toolchain called `system`, that is always enabled.
+This toolchain is a catch-all, an escape-hatch, a fallback, and provides the following:
+
+- Runs a system command or a binary found on `PATH`.
+
+- Wraps the execution in a shell.
+
+To run system commands, set a task's [`toolchain`](/docs/config/project#toolchain) setting to "system".
+
+moon.yml
+
+```
+tasks:  example:    command: 'git status'    toolchain: 'system'
+```
+
+## Tier structure and responsibilities
+
+As mentioned in our introduction,
+[language support is divided up into tiers](/docs/#supported-languages), where each tier introduces
+more internal integrations and automations, but requires more work to properly implement.
+
+Internally each tier maps to a Rust crate, as demonstrated by the graph at the top of the article.
+
+### Tier 0 = Unsupported
+
+The zero tier represents all languages not directly supported by moon. This tier merely exists as
+a mechanism for running non-supported language binaries via the
+[system toolchain](#system-language-and-toolchain).
+
+moon.yml
+
+```
+tasks:  example:    command: 'ruby'    toolchain: 'system'
+```
+
+### Tier 1 = Language
+
+The first tier is the language itself. This is the most basic level of support, and is the only tier
+that is required to be implemented for a language to be considered minimally supported. This tier is
+in charge of:
+
+- Declaring metadata about the language. For example, the name of the binary, supported file extensions, available dependency/package/version managers, names of config/manifest/lock files, etc.
+
+- Helpers for parsing lockfiles and manifest files, and interacting with the language's ecosystem (for example, Node.js module resolution).
+
+- Mechanisms for detecting the language of a project based on config files and other criteria.
+
+- Maps to a project's [`language`](/docs/config/project#language) setting.
+
+moon.yml
+
+```
+language: 'javascript'
+```
+
+### Tier 2 = Platform
+
+The second tier requires the language functionality from tier 1, and eventually the toolchain
+functionality from tier 3, and provides interoperability with moon's internals. This is the most
+complex of all tiers, and the tier is in charge of:
+
+- Determining when, where, and how to install dependencies for a project or the workspace.
+
+- Loading project aliases and inferring implicit relationships between projects.
+
+- Syncing a project and ensuring a healthy project state.
+
+- Hashing efficiently for dependency installs and target runs.
+
+- Prepending `PATH` with appropriate lookups to execute a task.
+
+- Running a target's command with proper arguments, environment variables, and flags.
+
+- Maps to a project's [`toolchain.default`](/docs/config/project#toolchain-1) or task's [`toolchain`](/docs/config/project#toolchain) setting.
+
+- Supports a configuration block by name in [`.moon/toolchains.yml`](/docs/config/toolchain).
+
+moon.yml
+
+```
+tasks:  example:    command: 'webpack'    toolchain: 'node'
+```
+
+.moon/toolchains.yml
+
+```
+node: {}
+```
+
+### Tier 3 = Toolchain
+
+The third tier is toolchain support via [proto](/proto). This is the final tier, as the toolchain is
+unusable unless the platform has been entirely integrated, and as such, the platform depends on this
+tier. This tier handles:
+
+- Downloading and installing a language into the toolchain.
+
+- Installing and deduping project dependencies.
+
+- Detecting appropriate versions of tools to use.
+
+- Determining which binary to use and execute targets with.
+
+- Supports a `version` field in the named configuration block in [`.moon/toolchains.yml`](/docs/config/toolchain).
+
+.moon/toolchains.yml
+
+```
+node:  version: '18.0.0'
+```
+
+----
+## Notes / Comments / Lessons
+
+- Collection method: sitemap discovery + markdown conversion.
+- Conversion path: direct HTML fallback parser.
+- This file is one page-level external snapshot in markdown `.ext.md` format.
+----

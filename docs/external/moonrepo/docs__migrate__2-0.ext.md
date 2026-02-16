@@ -1,0 +1,546 @@
+----
+## External Docs Snapshot // moonrepo
+
+- Captured: 2026-02-16T03:48:02.472Z
+- Source root: https://moonrepo.dev/docs
+- Source page: /docs/migrate/2.0
+- Keywords: moon, moonrepo, docs, monorepo, build, migrate, 2 0
+- Summary: To ease the migration process from moon v1 to v2, we've compiled a list of all breaking changes and
+----
+
+Source: https://moonrepo.dev/docs/migrate/2.0
+
+# Migrate to moon v2.0
+
+To ease the migration process from moon v1 to v2, we've compiled a list of all breaking changes and
+important changes that you should be aware of. Please read through these carefully before upgrading
+your workspace.
+
+To automate some of the migration process, we've created the `moon migrate v2` command that will
+migrate all applicable settings in configuration files.
+
+```
+$ moon migrate v2
+```
+
+## CLI
+
+- Removed `x86_64-apple-darwin` (Apple Intel) as a supported operating system. Only `aarch64-apple-darwin` (Apple Silicon) is now supported.
+
+### Commands
+
+- We've done a large polish pass for all commands, based on the [CLI guidelines](https://clig.dev).
+
+- Updated the `moonx` binary to use `moon exec` instead of `moon run` under the hood.
+
+- Renamed all options and flags to kebab-case instead of camelCase. Example: `--logLevel` -> `--log-level`
+
+- Renamed options for all commands: `--platform` -> `--toolchain`
+
+- Removed commands: `moon node`
+
+- `moon migrate from-package-json` (use the `migrate-turborepo` extension instead)
+
+- `moon query hash` (use `moon hash` instead)
+
+- `moon query hash-diff` (use `moon hash` instead)
+
+#### `moon action-graph`
+
+- Changed the output of `--json` to a new JSON structure (now matches the project and task graphs).
+
+#### `moon check`
+
+- Now runs `moon exec` under the hood, with some arguments/options pre-filled.
+
+- If the project ID is not specifed, it will no longer find the closest project. Instead you must pass `--closest`.
+
+- Renamed options: `--update-cache, -u` -> `--force, -f`
+
+#### `moon ci`
+
+- Now runs `moon exec` under the hood, with some arguments/options pre-filled.
+
+- Renamed options: `--update-cache, -u` -> `--force, -f`
+
+#### `moon generate`
+
+- Changed the destination from a positional argument, to the `--to` option. Example: `moon generate ./dist` -> `moon generate --to ./dist`
+
+#### `moon init`
+
+- Removed "scaffolding a toolchain" functionality from the command. Use the `moon toolchain add` command instead.
+
+- Removed options: `--to` (use a positional argument instead)
+
+#### `moon mcp`
+
+- Updated protocol version to 2025-11-25.
+
+- Updated the `get_projects` tool to no longer have an `includeTasks` option.
+
+- Updated the `get_projects` tool to return a list of project fragments, instead of the whole project object. This was required as the response was too large for MCP.
+
+- Updated the `get_tasks` tool to return a list of task fragments, instead of the whole task object. This was required as the response was too large for MCP.
+
+#### `moon query projects`
+
+- Removed options: `--dependents`
+
+#### `moon run`
+
+- Now runs `moon exec` under the hood, with some arguments/options pre-filled.
+
+- Updated options: `--dependents` now requires a value, either `deep` or `direct`
+
+- Renamed options: `--update-cache, -u` -> `--force, -f`
+
+- Removed options: `--no-bail` (use `moon exec` instead)
+
+- `--profile`
+
+- `--remote` (use `--affected remote` instead)
+
+#### `moon templates`
+
+- Changed the output to render a table instead of a list.
+
+#### `moon run`
+
+- Running a target without a scope no longer locates the closest project and instead uses the new default project feature. To run a target in the closets project, use `~:` scope instead. Example: `moon run build` -> `moon run ~:build`
+
+## Workspace
+
+### Configuration: `.moon/workspace.*`
+
+- Renamed setting values: `codeowners.orderBy` value `project-name` -> `project-id`
+
+- Renamed settings: `codeowners.syncOnRun` -> `codeowners.sync`
+
+- `constraints.enforceProjectTypeRelationships` -> `constraints.enforceLayerRelationships`
+
+- `docker.prune.installToolchainDeps` -> `docker.prune.installToolchainDependencies`
+
+- `docker.scaffold.include` -> `docker.scaffold.configsPhaseGlobs`
+
+- `runner` -> `pipeline`
+
+- `unstable_remote` -> `remote`
+
+- `vcs.manager` -> `vcs.client`
+
+- `vcs.syncHooks` -> `vcs.sync`
+
+- Removed settings: `docker.scaffold.copyToolchainFiles`
+
+- `experiments.*`
+
+- `hasher.batchSize`
+
+- `pipeline.archivableTargets`
+
+## Toolchains
+
+### Configuration: `.moon/toolchain.*`
+
+- This file was renamed to `.moon/toolchains.*` (plural) to reflect that multiple toolchains are configured. This also aligns with the new `.moon/extensions.*` file.
+
+- All toolchains have been stabilized, so the `unstable_` prefix must be removed from identifiers.
+
+#### JavaScript
+
+The `bun`, `deno`, and `node` toolchains now require the `javascript` toolchain to be defined as
+well. All shared settings have been moved to the `javascript` toolchain.
+
+In addition, all `node` package managers are no longer nested under the `node` toolchain, but are
+now top-level settings. These are only required when the `javascript.packageManager` setting is
+defined.
+
+- Moved settings: `bun.dependencyVersionFormat` -> `javascript.dependencyVersionFormat`
+
+- `bun.inferTasksFromScripts` -> `javascript.inferTasksFromScripts`
+
+- `bun.rootPackageOnly` -> `javascript.rootPackageDependenciesOnly`
+
+- `bun.syncProjectWorkspaceDependencies` -> `javascript.syncProjectWorkspaceDependencies`
+
+- `node.dependencyVersionFormat` -> `javascript.dependencyVersionFormat`
+
+- `node.dedupeOnLockfileChange` -> `javascript.dedupeOnLockfileChange`
+
+- `node.inferTasksFromScripts` -> `javascript.inferTasksFromScripts`
+
+- `node.packageManager` -> `javascript.packageManager`
+
+- `node.rootPackageOnly` -> `javascript.rootPackageDependenciesOnly`
+
+- `node.syncPackageManagerField` -> `javascript.syncPackageManagerField`
+
+- `node.syncProjectWorkspaceDependencies` -> `javascript.syncProjectWorkspaceDependencies`
+
+- `node.bun` -> `bun`
+
+- `node.npm` -> `npm`
+
+- `node.pnpm` -> `pnpm`
+
+- `node.yarn` -> `yarn`
+
+- Renamed settings: `node.binExecArgs` -> `node.executeArgs`
+
+- Removed settings: `bun.packagesRoot`
+
+- `deno.depsFile`
+
+- `deno.lockfile`
+
+- `node.addEnginesConstraint`
+
+- `node.packagesRoot`
+
+.moon/toolchains.yml
+
+```
+# Beforenode:  version: '22.14.0'  packageManager: 'yarn'  inferTasksFromScripts: false  syncPackageManagerField: true  syncProjectWorkspaceDependencies: true  yarn:    version: '4.8.0'# Afterjavascript:  packageManager: 'yarn'  inferTasksFromScripts: false  syncPackageManagerField: true  syncProjectWorkspaceDependencies: truenode:  version: '22.14.0'yarn:  version: '4.8.0'
+```
+
+## Extensions
+
+### Configuration: `.moon/extensions.*`
+
+- The `extensions` setting from `.moon/workspace.*` has been moved (and flattened) to its own file, `.moon/extensions.*`.
+
+- The built-in extensions `download`, `migrate-nx`, and `migrate-turborepo` must now be enabled in the configuration file before they can be used. Simply set an empty object. This change was made to reduce the number of extensions that are loaded by default, improving performance.
+
+.moon/extensions.yml
+
+```
+download: {}migrate-nx: {}
+```
+
+## Project
+
+### Configuration: `moon.*`
+
+- Renamed settings: `docker.scaffold.include` -> `docker.scaffold.sourcesPhaseGlobs`
+
+- `project.name` -> `project.title`
+
+- `type` -> `layer`
+
+- `toolchain` -> `toolchains`
+
+- `platform` -> `toolchains.default`
+
+- Removed settings: [`project.metadata`](#custom-metadata)
+
+- [`toolchain.*.disabled`](#toolchain-disabling)
+
+### Language detection
+
+The primary `language` is now detected from toolchains, instead of being a hardcoded implementation.
+The result may now differ, as the first toolchain in the list will be used. Additionally, languages
+that don't have a toolchain yet, like PHP or Ruby, will not be detected and must be explicitly
+configured.
+
+moon.yml
+
+```
+# Afterlanguage: 'ruby'
+```
+
+### Custom metadata
+
+The `project.metadata` setting has been removed, but all custom metadata fields can now be defined
+at the root of the `project` setting.
+
+moon.yml
+
+```
+# Beforeproject:  metadata:    customField: 'value'# Afterproject:  customField: 'value'
+```
+
+### Toolchain disabling
+
+The `toolchain.*.disabled` setting was removed. Instead set the toolchain itself to null/false.
+
+moon.yml
+
+```
+# Beforetoolchain:  typescript:    disabled: true# Aftertoolchains:  typescript: null
+```
+
+## Tasks
+
+### Configuration: `moon.*`, `.moon/tasks`
+
+- The file `.moon/tasks.yml` has been removed. If you want to support tasks that are inherited by all projects, then move this to `.moon/tasks/all.yml` and do not configure the new `inheritedBy` setting.
+
+- Renamed tokens: `$projectName` -> `$projectTitle`
+
+- `$projectType` -> `$projectLayer`
+
+- `$taskPlatform` -> `$taskToolchain`
+
+- Renamed settings: [`tasks.*.local`](#local-mode) -> `tasks.*.preset` using `server` value
+
+- `tasks.*.platform` -> `tasks.*.toolchains`
+
+- `tasks.*.options.affectedPassInputs` -> `tasks.*.options.affectedFiles.passInputsWhenNoMatch`
+
+- Removed setting values: `tasks.*.preset` value `watcher`
+
+- Changed settings: `tasks.deps.*.args` no longer supports a string. Use a list of strings instead.
+
+- `tasks.*.options.affectedFiles` now supports an object for more granular control.
+
+- Changed option defaults: `tasks.*.options.envFile` now defaults to a list of files, instead of a single file, when `true`. Refer to the blog post for more information.
+
+- `tasks.*.options.inferInputs` now defaults to `false` instead of `true`.
+
+- `tasks.*.options.shell` now defaults to `true` instead of `false`.
+
+- `tasks.*.options.unixShell` now defaults to `bash` instead of nothing.
+
+- `tasks.*.options.windowsShell` now defaults to `pwsh` instead of nothing.
+
+### Simple commands only
+
+We've reworked `command` (and `args`) to only support simple commands. A simple command is an
+executable (binary, file, etc) followed by zero or many arguments.
+
+Complex commands that involve shell features like piping (`|`), redirection (`>`, `
+
+Shell features like expansion, globbing, and substitution is still supported in `command`.
+
+### Local mode
+
+The `local` task setting has been removed as the name was confusing. Users assumed it meant "only
+run locally", but it actually meant "this is a persistent server that should only run locally".
+Instead, use the `preset` setting with a value of `server`.
+
+moon.yml
+
+```
+# Beforetasks:  dev:    command: 'start-dev'    local: true# Beforetasks:  dev:    command: 'start-dev'    preset: 'server'
+```
+
+If you want a task that is simply "local only" without other options changes, use `options.runInCI`
+directly.
+
+moon.yml
+
+```
+tasks:  dev:    command: 'start-dev'    options:      runInCI: false
+```
+
+### Shells by default
+
+Tasks now run in a shell by default, and will use Bash on Unix (`options.unixShell`), and pwsh on
+Windows (`options.windowsShell`). You can disable this behavior by setting `options.shell` to
+`false`.
+
+moon.yml
+
+```
+tasks:  dev:    command: 'start-dev'    options:      shell: false
+```
+
+### Env var substitution behavior
+
+The syntax and behavior for substituting (expanding/interpolation) environment variables has
+changed, to better align with the standard of `.env` files. The biggest change is that flagless
+tokens (`$VAR`) and `?` flag tokens (`$VAR?`) swapped functionality. Refer to the following table:
+
+Syntax v1 v2
+
+`$VAR` Substitute with variable syntax (`$VAR`) if variable empty 💥 Substitute with empty string if variable empty
+
+`$VAR!` Don't substitute and keep variable syntax (`$VAR`) 💥 Removed syntax
+
+`$VAR?` Substitute with empty string if variable empty 💥 Removed syntax
+
+`${VAR}` Substitute with variable syntax (`$VAR`) if variable empty 💥 Substitute with empty string if variable empty
+
+`${VAR!}` Don't substitute and keep variable syntax (`$VAR`) ~
+
+`${VAR?}` Substitute with empty string if variable empty 💥 Substitute with variable syntax (`$VAR`) if variable empty
+
+`${VAR:default}` Use default value if variable empty ~
+
+`${VAR:-default}`, `${VAR-default}` ⛔️ Not supported Use default value if variable empty
+
+`${VAR:+alternate}`, `${VAR+alternate}` ⛔️ Not supported Use alternate value if variable non-empty
+
+Legend:
+
+- `~` indicates the syntax/functionality is the same as v1
+
+- `💥` indicates breaking change
+
+- `⛔️` indicates not supported
+
+### Env var precedence
+
+The order of precedence for environment variables has slightly changed when running tasks, as it was
+confusing to users. The new order of precedence is as follows, from lowest to highest tier, with the
+latter overwriting the former:
+
+- Task `.env` files via `options.envFile`
+
+- Task env variables via `env` or `deps.*.env`
+
+- System variables via profile scripts (`.bashrc`, `.zshrc`, etc)
+
+- via command line: `KEY=value moon ...`
+
+In regards to variable substitution, each tier can reference variables within the same tier, or the
+higher tier(s), but not from lower tier(s). This is because variables are processed in reverse
+order. Refer to the following table:
+
+Tier Can reference Evaluated during
+
+Dotenv Dotenv, Task, System Before task execution
+
+Task Task, System After task creation
+
+System System CLI startup
+
+If you don't want to inherit a system variable, you can override it in the task with a null value.
+
+```
+tasks:  dev:    env:      EXAMPLE: null
+```
+
+### Deferred `.env` files
+
+In v1, when `options.envFile` was enabled, the `.env` file(s) were loaded at the time of task
+creation, during the building of project/task graphs. This meant that if the `.env` file changed
+between the time of graph creation and task execution, the changes would not be reflected.
+
+In v2 and later, `.env` files are loaded just before task execution, ensuring that any changes to
+the file are picked up.
+
+caution
+
+Because of this change, task `env` variables will continue to override `.env` file variables, BUT
+can no longer reference them for substitution. This is because the `.env` files are loaded later in
+the process.
+
+### Other changes
+
+- When `options.affectedFiles` is enabled, the list of files will be joined with the OS path separator (`:` on Unix, `;` on Windows) instead of a comma (`,`) when passed as the `MOON_AFFECTED_FILES` environment variable.
+
+## Task inheritance
+
+### Deep merged instead of shallow merged
+
+In v1, when inheriting tasks, all global configs (those in `.moon`) were shallow merged into a
+single config ignoring merge task options, and then merged with the local config (`moon.*`) using
+merge task options. This was not intuitive, as users expected all configs to be merged in sequence.
+To demonstrate this, take the following example configs, in order of inherited:
+
+```
+# .moon/tasks.ymltasks:  build:    command: 'build --cache'    options:      mutex: 'build'# .moon/tasks/tag-a.ymltasks:  build:    args: '--force'# .moon/tasks/tag-b.ymltasks:  build:    args: '--clean'
+```
+
+Users would expect the final `build` task to be `build --cache --force --clean` with the mutex
+option set. However, since the `tasks` setting was shallow merged, only the last config (`tag-b`)
+would be used, resulting in the task being `noop --clean` without the mutex. The `noop` pops up
+because the `command` setting was not configured in the last config.
+
+To remedy this, and to improve task composition overall, global configs are no longer shallow merged
+into a single config before merging with the local config. Instead, all configs are merged in
+sequence, while respecting the task merge options. This is the order of operations for the new
+system:
+
+- Load all global configs (`.moon`) into a list, in order, based on the `inheritedBy` setting.
+
+- Load the local config (`moon.*`).
+
+- Create an inheritance chain by resolving global configs first, then the local config last, while respecting `extend` and other composition settings.
+
+- Merge all task options in order, to create the final task options.
+
+- Merge all tasks in order, using the final task options to guide the merging behavior.
+
+### File groups are merged
+
+Because of the new deep merging behavior, file groups defined in inherited configs are now merged
+together, instead of being replaced by the following config in the sequence. For example, given the
+configs:
+
+```
+# .moon/tasks/tag-a.ymlfileGroups:  sources:    - 'src/**'# .moon/tasks/tag-b.ymlfileGroups:  sources:    - 'docs/**'
+```
+
+In v1, the final `sources` file group would only include `docs/**`, as the second config would
+replace the first. In v2, the final `sources` file group includes both `src/**` and `docs/**`.
+
+## VCS
+
+### New hooks system
+
+We've rewritten our Git hooks from the ground up to be based around the `core.hooksPath` setting.
+The following changes have been made:
+
+- We no longer write hooks to the `.git/hooks` directory.
+
+- Instead, all hooks are written to `.moon/hooks` and Git is configured to use this directory.
+
+- Bash scripts no longer end in `.sh`.
+
+caution
+
+We currently don't have an easy way to clean the previous implementation of hooks. You may need to
+manually remove the old scripts from `.git/hooks` and `.moon/hooks` if they are causing issues.
+
+## Other changes
+
+### Changed (touched) files
+
+We renamed the terminology "touched files" to "changed files" throughout the codebase and
+documentation. This better aligns with common VCS terminology and reduces confusion. Because of
+this, the following changes were made:
+
+- Renamed the `moon query touched-files` CLI command to `moon query changed-files`.
+
+- Renamed the `get_touched_files` MCP tool to `get_changed_files`.
+
+- Renamed the `touchedFiles` run report field to `changedFiles`.
+
+```
+# Before$ moon query touched-files# After$ moon query changed-files
+```
+
+### Docker
+
+- The scaffolded `.moon/docker/workspace` directory was renamed to `.moon/docker/configs`.
+
+- The `moon docker file` command will now loop through all toolchains and use the first image found, otherwise it defaults to "scratch". If you want to be explicit, set the `docker.file.image` setting.
+
+### Query language (MQL)
+
+- Renamed fields: `projectName` -> `projectId`
+
+- `projectType` -> `projectLayer`
+
+- `taskPlatform` -> `taskToolchain`
+
+```
+# BeforeprojectType=application && taskPlatform=node# AfterprojectLayer=application && taskToolchain=node
+```
+
+### Webhooks
+
+- Removed the `tool.*` events. Use `toolchain.*` events instead.
+
+- Removed the `runtime` field from `dependencies.*` events. Use the `toolchain` field instead.
+
+----
+## Notes / Comments / Lessons
+
+- Collection method: sitemap discovery + markdown conversion.
+- Conversion path: direct HTML fallback parser.
+- This file is one page-level external snapshot in markdown `.ext.md` format.
+----

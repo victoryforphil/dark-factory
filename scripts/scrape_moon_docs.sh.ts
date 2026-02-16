@@ -1,21 +1,29 @@
 #!/usr/bin/env bun
 
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { findRepoRoot } from "./helpers/run_root.sh.ts";
+
+type ScrapeMode = "jina" | "html";
 
 type ScrapeResult = {
   url: string;
   ok: boolean;
   markdown?: string;
   error?: string;
+  mode?: ScrapeMode;
+};
+
+type PageArtifact = ScrapeResult & {
+  fileName: string;
+  sourcePath: string;
 };
 
 const SITEMAP_URL = "https://moonrepo.dev/sitemap.xml";
 const DOCS_ROOT = "https://moonrepo.dev/docs";
-const DEFAULT_OUTPUT_RELATIVE =
-  "docs/external/moonrepo/moonrepo_docs.ext.md";
+const DEFAULT_OUTPUT_DIR_RELATIVE = "docs/external/moonrepo";
 const CONCURRENCY = 4;
+const SUMMARY_MAX_CHARS = 240;
 
 function decodeEntities(value: string): string {
   return value
@@ -93,14 +101,17 @@ function htmlToMarkdown(html: string): string {
     return normalizedCode ? `\`${normalizedCode}\`` : "";
   });
 
-  content = content.replace(/<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (_m, href, label) => {
-    const text = plainTextFromHtml(label);
-    if (!text) {
-      return "";
-    }
+  content = content.replace(
+    /<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi,
+    (_match, href, label) => {
+      const text = plainTextFromHtml(label);
+      if (!text) {
+        return "";
+      }
 
-    return `[${text}](${decodeEntities(href)})`;
-  });
+      return `[${text}](${decodeEntities(href)})`;
+    },
+  );
 
   content = content.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_match, level, inner) => {
     const heading = plainTextFromHtml(inner);
@@ -143,6 +154,165 @@ function extractDocsUrls(sitemapXml: string): string[] {
     .filter((url) => !url.includes("#"));
 
   return Array.from(new Set(urls)).sort((a, b) => a.localeCompare(b));
+}
+
+function sanitizeSegment(value: string): string {
+  const clean = decodeURIComponent(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return clean || "page";
+}
+
+function sourcePathFromUrl(url: string): string {
+  const pathname = new URL(url).pathname.replace(/\/+$/, "") || "/docs";
+  return pathname;
+}
+
+function fileStemFromUrl(url: string): string {
+  const sourcePath = sourcePathFromUrl(url);
+
+  if (sourcePath === "/docs") {
+    return "docs";
+  }
+
+  const relative = sourcePath.replace(/^\/docs\/?/, "");
+  const segments = relative
+    .split("/")
+    .filter(Boolean)
+    .map(sanitizeSegment);
+
+  if (segments.length === 0) {
+    return "docs";
+  }
+
+  return ["docs", ...segments].join("__");
+}
+
+function extractSummary(markdown: string): string {
+  const lines = markdown.split("\n");
+  let inCodeBlock = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+
+    if (line.startsWith("```") || line.startsWith("~~~")) {
+      inCodeBlock = !inCodeBlock;
+      continue;
+    }
+
+    if (inCodeBlock) {
+      continue;
+    }
+
+    if (!line || line.startsWith("#") || line.startsWith("- [") || line.startsWith("```")) {
+      continue;
+    }
+
+    if (line.length <= 25) {
+      continue;
+    }
+
+    if (line.length > SUMMARY_MAX_CHARS) {
+      return `${line.slice(0, SUMMARY_MAX_CHARS - 3)}...`;
+    }
+
+    return line;
+  }
+
+  return "moonrepo documentation page snapshot.";
+}
+
+function keywordsForPath(sourcePath: string): string {
+  const dynamic = sourcePath
+    .split("/")
+    .filter(Boolean)
+    .slice(1)
+    .map((part) => part.replace(/[^a-zA-Z0-9]+/g, " "))
+    .filter(Boolean)
+    .join(", ");
+
+  const base = "moon, moonrepo, docs, monorepo, build";
+  return dynamic ? `${base}, ${dynamic}` : base;
+}
+
+function buildPageMarkdown(result: PageArtifact, capturedAt: string): string {
+  const pageSummary = result.ok
+    ? extractSummary(result.markdown ?? "")
+    : `Scrape failed: ${result.error ?? "unknown error"}`;
+
+  const pageBody = result.ok
+    ? result.markdown?.trim() ?? ""
+    : `> Scrape failed: ${result.error ?? "unknown error"}`;
+
+  return [
+    "----",
+    "## External Docs Snapshot // moonrepo",
+    "",
+    `- Captured: ${capturedAt}`,
+    `- Source root: ${DOCS_ROOT}`,
+    `- Source page: ${result.sourcePath}`,
+    `- Keywords: ${keywordsForPath(result.sourcePath)}`,
+    `- Summary: ${pageSummary}`,
+    "----",
+    "",
+    `Source: ${result.url}`,
+    "",
+    pageBody,
+    "",
+    "----",
+    "## Notes / Comments / Lessons",
+    "",
+    "- Collection method: sitemap discovery + markdown conversion.",
+    `- Conversion path: ${result.mode === "html" ? "direct HTML fallback parser" : "r.jina.ai markdown proxy"}.`,
+    "- This file is one page-level external snapshot in markdown `.ext.md` format.",
+    "----",
+    "",
+  ].join("\n");
+}
+
+function buildIndexMarkdown(
+  artifacts: PageArtifact[],
+  capturedAt: string,
+  outputDirRelative: string,
+): string {
+  const successCount = artifacts.filter((artifact) => artifact.ok).length;
+  const failureCount = artifacts.length - successCount;
+
+  const pageList = artifacts
+    .map((artifact) => {
+      const status = artifact.ok ? "ok" : "failed";
+      const mode = artifact.mode ?? "unknown";
+      return `- [${artifact.fileName}](./${artifact.fileName}) - ${artifact.sourcePath} (${status},mode=${mode})`;
+    })
+    .join("\n");
+
+  return [
+    "----",
+    "## External Docs Index // moonrepo",
+    "",
+    `- Captured: ${capturedAt}`,
+    `- Source root: ${DOCS_ROOT}`,
+    `- Output directory: ${outputDirRelative}`,
+    `- Scope: ${artifacts.length} pages under /docs (excluding /docs/tags)`,
+    "- Keywords: moon, moonrepo, docs index, monorepo, build system, toolchain, proto",
+    "- Summary: This index links one `.ext.md` file per docs page snapshot for moonrepo.",
+    "----",
+    "",
+    "## Pages",
+    "",
+    pageList,
+    "",
+    "----",
+    "## Notes / Comments / Lessons",
+    "",
+    "- Per-page files are flattened in this directory and prefixed with `docs` in the filename stem.",
+    "- Regenerate by re-running the scraper script; old `.ext.md` files in this directory are replaced.",
+    `- Capture results: success=${successCount}, failed=${failureCount}.`,
+    "----",
+    "",
+  ].join("\n");
 }
 
 async function fetchText(url: string): Promise<string> {
@@ -190,14 +360,15 @@ async function scrapeDocsPage(url: string, count: number, total: number): Promis
 
   try {
     console.log(`Docs // Scrape // ${count}/${total} ${url}`);
+
     try {
       const markdown = stripJinaEnvelope(await fetchText(jinaUrl));
-
       if (markdown) {
         return {
           url,
           ok: true,
           markdown,
+          mode: "jina",
         };
       }
     } catch {
@@ -219,6 +390,7 @@ async function scrapeDocsPage(url: string, count: number, total: number): Promis
       url,
       ok: true,
       markdown,
+      mode: "html",
     };
   } catch (error) {
     return {
@@ -229,61 +401,46 @@ async function scrapeDocsPage(url: string, count: number, total: number): Promis
   }
 }
 
-function buildHeader(urlCount: number, capturedAt: string): string {
-  return [
-    "----",
-    "## External Docs Snapshot // moonrepo",
-    "",
-    `- Captured: ${capturedAt}`,
-    `- Source root: ${DOCS_ROOT}`,
-    `- Scope: ${urlCount} pages under /docs (excluding /docs/tags)`,
-    "- Keywords: moon, monorepo, task graph, hashing, cache, toolchain, proto, workspace, codegen, query, migration, CI",
-    "- Summary: moonrepo documentation centers on deterministic task orchestration, project/dependency graphs, and reproducible toolchains with proto-backed version pinning.",
-    "----",
-    "",
-  ].join("\n");
-}
-
-function buildFooter(successCount: number, failureCount: number): string {
-  return [
-    "",
-    "----",
-    "## Notes / Comments / Lessons",
-    "",
-    "- Collection method: sitemap URL discovery + markdown conversion (r.jina.ai primary, direct HTML fallback parser secondary).",
-    "- Most docs pages are content-rich and command-oriented; command reference and config schemas are the highest-density sections.",
-    "- For ongoing updates, re-run this script to refresh snapshots and compare diffs over time.",
-    `- Capture results: success=${successCount}, failed=${failureCount}.`,
-    "----",
-    "",
-  ].join("\n");
-}
-
-function buildPageSection(result: ScrapeResult): string {
-  if (!result.ok) {
-    return [
-      `## ${result.url.replace("https://moonrepo.dev", "")}`,
-      "",
-      `Source: ${result.url}`,
-      "",
-      `> Scrape failed: ${result.error ?? "unknown error"}`,
-      "",
-    ].join("\n");
+function resolveOutputDirectory(repoRoot: string, outputArg?: string): string {
+  if (!outputArg) {
+    return resolve(repoRoot, DEFAULT_OUTPUT_DIR_RELATIVE);
   }
 
-  return [
-    `## ${result.url.replace("https://moonrepo.dev", "")}`,
-    "",
-    `Source: ${result.url}`,
-    "",
-    result.markdown?.trim() ?? "",
-    "",
-  ].join("\n");
+  const resolved = resolve(repoRoot, outputArg);
+  if (resolved.endsWith(".md")) {
+    return dirname(resolved);
+  }
+
+  return resolved;
+}
+
+function clearExistingExtFiles(outputDir: string): void {
+  if (!existsSync(outputDir)) {
+    return;
+  }
+
+  for (const entry of readdirSync(outputDir, { withFileTypes: true })) {
+    if (!entry.isFile()) {
+      continue;
+    }
+
+    if (!entry.name.endsWith(".ext.md")) {
+      continue;
+    }
+
+    rmSync(resolve(outputDir, entry.name));
+  }
 }
 
 const repoRoot = findRepoRoot(import.meta.dir);
 const outputArg = Bun.argv[2];
-const outputPath = resolve(repoRoot, outputArg ?? DEFAULT_OUTPUT_RELATIVE);
+const outputDir = resolveOutputDirectory(repoRoot, outputArg);
+const outputDirRelative = outputDir.startsWith(repoRoot)
+  ? outputDir.slice(repoRoot.length + 1)
+  : outputDir;
+
+mkdirSync(outputDir, { recursive: true });
+clearExistingExtFiles(outputDir);
 
 const sitemapXml = await fetchText(SITEMAP_URL);
 const docsUrls = extractDocsUrls(sitemapXml);
@@ -292,23 +449,40 @@ if (docsUrls.length === 0) {
   throw new Error("No docs URLs found in moonrepo sitemap");
 }
 
-const results = await mapConcurrent(docsUrls, CONCURRENCY, (url, index) =>
+const scrapeResults = await mapConcurrent(docsUrls, CONCURRENCY, (url, index) =>
   scrapeDocsPage(url, index + 1, docsUrls.length),
 );
 
-const successCount = results.filter((result) => result.ok).length;
-const failureCount = results.length - successCount;
+const usedNames = new Map<string, number>();
+const artifacts: PageArtifact[] = scrapeResults.map((result) => {
+  const stem = fileStemFromUrl(result.url);
+  const seen = usedNames.get(stem) ?? 0;
+  usedNames.set(stem, seen + 1);
+
+  const suffix = seen === 0 ? "" : `__${seen + 1}`;
+  const fileName = `${stem}${suffix}.ext.md`;
+
+  return {
+    ...result,
+    fileName,
+    sourcePath: sourcePathFromUrl(result.url),
+  };
+});
+
 const capturedAt = new Date().toISOString();
 
-const content = [
-  buildHeader(docsUrls.length, capturedAt),
-  ...results.map(buildPageSection),
-  buildFooter(successCount, failureCount),
-].join("\n");
+for (const artifact of artifacts) {
+  const pagePath = resolve(outputDir, artifact.fileName);
+  const pageContent = buildPageMarkdown(artifact, capturedAt);
+  await Bun.write(pagePath, pageContent);
+}
 
-mkdirSync(dirname(outputPath), { recursive: true });
-await Bun.write(outputPath, content);
+const indexContent = buildIndexMarkdown(artifacts, capturedAt, outputDirRelative);
+await Bun.write(resolve(outputDir, "index.ext.md"), indexContent);
+
+const successCount = artifacts.filter((artifact) => artifact.ok).length;
+const failureCount = artifacts.length - successCount;
 
 console.log(
-  `Docs // Scrape // Wrote external docs snapshot (pages=${docsUrls.length},ok=${successCount},failed=${failureCount},path=${outputPath})`,
+  `Docs // Scrape // Wrote split external docs (pages=${artifacts.length},ok=${successCount},failed=${failureCount},dir=${outputDir})`,
 );
