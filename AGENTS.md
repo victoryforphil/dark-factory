@@ -60,7 +60,13 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - `.opencode/skills/gitter-commit/SKILL.md` documents when to route commit tasks to `@gitter`.
 - Use `@gitter` when the user asks for commit support or cleanup.
 
-## 7) Keep This File Updated
+## 7) Local Fork Workflow (`elysia-protobuf`)
+
+- `elysia-protobuf` is also cloned locally at `~/repos/vfp/elysia-protobuf`.
+- If Core hits a bug in that dependency, patch it in the local fork repo, push the fork, then update the pinned git ref in `core/package.json` and refresh `core/bun.lock`.
+- Core currently tracks `elysia-protobuf` from the fork `master` branch in `core/package.json`; after pushing fork changes, refresh `core/bun.lock` in this repo.
+
+## 8) Keep This File Updated
 
 - Update this file when real code, tooling, or CI is added.
 - Keep instructions tied to verified repository behavior.
