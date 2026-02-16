@@ -9,7 +9,9 @@
   },
   "dependencies": {
     "adze": "^2.3.0",
-    "elysia": "latest"
+    "elysia": "latest",
+    "elysia-protobuf": "github:victoryforphil/elysia-protobuf#master",
+    "ts-proto": "^2.11.2"
   },
   "devDependencies": {
     "bun-types": "latest"
