@@ -1,0 +1,57 @@
+name: dark-factory
+
+services:
+  run:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: run
+    image: dark-factory/run:local
+    network_mode: host
+    restart: unless-stopped
+    profiles:
+      - run
+
+  agentbox:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: agentbox
+    image: dark-factory/agentbox:local
+    command: ["sleep", "infinity"]
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    volumes:
+      - ../:/workspace
+    profiles:
+      - agent
+      - dev
+
+  ci:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: ci
+    image: dark-factory/ci:local
+    working_dir: /workspace
+    command: ["moon", "run", "dark_core:test"]
+    volumes:
+      - ../:/workspace
+    profiles:
+      - ci
+
+  devcontainer:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: devcontainer
+    image: dark-factory/devcontainer:local
+    command: ["sleep", "infinity"]
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    volumes:
+      - ../:/workspace
+    profiles:
+      - dev

@@ -1,0 +1,20 @@
+{
+  "name": "dark-factory",
+  "dockerComposeFile": [
+    "../docker/compose.devcontainers.yml"
+  ],
+  "service": "devcontainer",
+  "workspaceFolder": "/workspace",
+  "remoteUser": "dark",
+  "shutdownAction": "stopCompose",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-typescript-next",
+        "rust-lang.rust-analyzer",
+        "tamasfe.even-better-toml"
+      ]
+    }
+  }
+}

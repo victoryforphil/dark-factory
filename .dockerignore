@@ -1,0 +1,11 @@
+.git
+.gitignore
+.opencode/runtime
+.vscode
+.idea
+target
+
+**/node_modules
+**/.moon/cache
+
+docs/reflections
