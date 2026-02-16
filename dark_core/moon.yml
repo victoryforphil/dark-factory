@@ -36,6 +36,12 @@ tasks:
     command: "bun run format:check"
     deps:
       - "generated:build"
+      - "typecheck"
+
+  typecheck:
+    command: "bunx -p typescript@latest tsc -p tsconfig.json --noEmit --pretty false"
+    deps:
+      - "generated:build"
 
   test:
     command: "bun test"

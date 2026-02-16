@@ -1,25 +1,39 @@
-# Elysia with Bun runtime
+# dark_core
 
-## Getting Started
+`dark_core` runs on Bun and exposes a small CLI through `src/index.ts`.
 
-To get started with this template, simply paste this command into your terminal:
+## Commands
 
-```bash
-bun create elysia ./elysia-example
-```
-
-## Development
-
-To start the development server run:
+Start server (default behavior):
 
 ```bash
-bun run dev
+bun run src/index.ts
 ```
 
-Open http://localhost:3000/ with your browser to see the result.
+Or via script:
 
-## Runtime Notes
+```bash
+bun run start
+```
 
-- `dark_core` runs on Bun.
-- Prefer Bun-native APIs where possible.
-- Use `Bun.env` for environment variables instead of `process.env`.
+Config command suite:
+
+```bash
+bun run src/index.ts config export [--path <path>]
+bun run src/index.ts config print [--path <path>] [--json|--toml]
+```
+
+Script aliases:
+
+```bash
+bun run config:export
+bun run config:print
+```
+
+## Config behavior
+
+- `config export` writes a TOML file from schema defaults.
+- `config print` loads effective config with normal runtime behavior
+  (defaults -> TOML -> env overrides), then prints redacted values.
+- `--json` prints compact JSON; `--toml` prints TOML.
+- Default config path is `dark_core/config.toml`.
