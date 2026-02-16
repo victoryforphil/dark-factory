@@ -4,18 +4,17 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use dark_rust::types::{
-    OpencodeAttachQuery, OpencodeSessionCommandInput, OpencodeSessionCreateInput,
-    OpencodeSessionDirectoryInput, OpencodeSessionPromptInput, OpencodeSessionStateQuery,
-    ProductCreateInput, ProductIncludeQuery, ProductListQuery, ProductUpdateInput,
-    VariantCreateInput, VariantListQuery, VariantProductConnectInput, VariantProductRelationInput,
-    VariantUpdateInput,
+    ActorAttachQuery, ActorCommandInput, ActorCreateInput, ActorDeleteQuery, ActorListQuery,
+    ActorMessageInput, ActorMessagesQuery, ActorUpdateInput, ProductCreateInput,
+    ProductIncludeQuery, ProductListQuery, ProductUpdateInput, VariantCreateInput,
+    VariantListQuery, VariantProductConnectInput, VariantProductRelationInput, VariantUpdateInput,
 };
 use dark_rust::{DarkCoreClient, DarkRustError, LocatorId, LocatorKind, RawApiResponse};
 use serde_json::{Value, json};
 
 use crate::cli::{
-    Cli, Command, IncludeLevel, OpencodeAction, OpencodeSessionsAction, ProductsAction,
-    ServiceAction, SystemAction, VariantsAction,
+    ActorMessagesAction, ActorsAction, Cli, Command, IncludeLevel, ProductsAction, ServiceAction,
+    SystemAction, VariantsAction,
 };
 
 const PRODUCTS_PAGE_LIMIT: u32 = 100;
@@ -61,6 +60,7 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
             SystemAction::Health => api.system_health().await.map_err(Into::into),
             SystemAction::Info => api.system_info().await.map_err(Into::into),
             SystemAction::Metrics => api.system_metrics().await.map_err(Into::into),
+            SystemAction::Providers => api.system_providers().await.map_err(Into::into),
             SystemAction::ResetDb => api.system_reset_db().await.map_err(Into::into),
         },
         Command::Products(command) => match &command.action {
@@ -176,96 +176,129 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
                 .map_err(Into::into),
             VariantsAction::Delete { id } => api.variants_delete(id).await.map_err(Into::into),
         },
-        Command::Opencode(command) => match &command.action {
-            OpencodeAction::State { directory } => {
-                api.opencode_state(directory).await.map_err(Into::into)
+        Command::Actors(command) => match &command.action {
+            ActorsAction::List {
+                cursor,
+                limit,
+                variant_id,
+                product_id,
+                provider,
+                status,
+            } => api
+                .actors_list(&ActorListQuery {
+                    cursor: cursor.clone(),
+                    limit: *limit,
+                    variant_id: variant_id.clone(),
+                    product_id: product_id.clone(),
+                    provider: provider.clone(),
+                    status: status.clone(),
+                })
+                .await
+                .map_err(Into::into),
+            ActorsAction::Create {
+                variant_id,
+                provider,
+                title,
+                description,
+            } => {
+                let resolved_provider = resolve_provider_for_spawn(api, provider.as_deref()).await?;
+
+                api.actors_create(&ActorCreateInput {
+                    variant_id: variant_id.clone(),
+                    provider: resolved_provider,
+                    title: title.clone(),
+                    description: description.clone(),
+                    metadata: None,
+                })
+                .await
+                .map_err(Into::into)
             }
-            OpencodeAction::Sessions(sessions_command) => match &sessions_command.action {
-                OpencodeSessionsAction::List { directory } => api
-                    .opencode_sessions_list(directory)
-                    .await
-                    .map_err(Into::into),
-                OpencodeSessionsAction::Create { directory, title } => api
-                    .opencode_sessions_create(&OpencodeSessionCreateInput {
-                        directory: directory.clone(),
+            ActorsAction::Get { id } => api.actors_get(id).await.map_err(Into::into),
+            ActorsAction::Update {
+                id,
+                title,
+                description,
+            } => api
+                .actors_update(
+                    id,
+                    &ActorUpdateInput {
                         title: title.clone(),
-                    })
-                    .await
-                    .map_err(Into::into),
-                OpencodeSessionsAction::Get {
+                        description: description.clone(),
+                        metadata: None,
+                    },
+                )
+                .await
+                .map_err(Into::into),
+            ActorsAction::Delete { id, terminate } => api
+                .actors_delete(
                     id,
-                    directory,
-                    include_messages,
-                } => api
-                    .opencode_sessions_get(
-                        id,
-                        &OpencodeSessionStateQuery {
-                            directory: directory.clone(),
-                            include_messages: *include_messages,
-                        },
-                    )
-                    .await
-                    .map_err(Into::into),
-                OpencodeSessionsAction::Attach {
+                    &ActorDeleteQuery {
+                        terminate: *terminate,
+                    },
+                )
+                .await
+                .map_err(Into::into),
+            ActorsAction::Poll { id } => api.actors_poll(id).await.map_err(Into::into),
+            ActorsAction::Attach { id, model, agent } => api
+                .actors_attach(
                     id,
-                    directory,
+                    &ActorAttachQuery {
+                        model: model.clone(),
+                        agent: agent.clone(),
+                    },
+                )
+                .await
+                .map_err(Into::into),
+            ActorsAction::Messages { action } => match action {
+                ActorMessagesAction::Send {
+                    id,
+                    prompt,
+                    no_reply,
                     model,
                     agent,
                 } => api
-                    .opencode_sessions_attach(
+                    .actors_send_message(
                         id,
-                        &OpencodeAttachQuery {
-                            directory: directory.clone(),
+                        &ActorMessageInput {
+                            prompt: prompt.clone(),
+                            no_reply: if *no_reply { Some(true) } else { None },
                             model: model.clone(),
                             agent: agent.clone(),
                         },
                     )
                     .await
                     .map_err(Into::into),
-                OpencodeSessionsAction::Command {
+                ActorMessagesAction::List {
                     id,
-                    directory,
-                    command,
+                    n_last_messages,
                 } => api
-                    .opencode_sessions_command(
+                    .actors_list_messages(
                         id,
-                        &OpencodeSessionCommandInput {
-                            directory: directory.clone(),
-                            command: command.clone(),
+                        &ActorMessagesQuery {
+                            n_last_messages: *n_last_messages,
                         },
                     )
-                    .await
-                    .map_err(Into::into),
-                OpencodeSessionsAction::Prompt {
-                    id,
-                    directory,
-                    prompt,
-                    no_reply,
-                } => api
-                    .opencode_sessions_prompt(
-                        id,
-                        &OpencodeSessionPromptInput {
-                            directory: directory.clone(),
-                            prompt: prompt.clone(),
-                            no_reply: if *no_reply { Some(true) } else { None },
-                        },
-                    )
-                    .await
-                    .map_err(Into::into),
-                OpencodeSessionsAction::Abort { id, directory } => api
-                    .opencode_sessions_abort(
-                        id,
-                        &OpencodeSessionDirectoryInput {
-                            directory: directory.clone(),
-                        },
-                    )
-                    .await
-                    .map_err(Into::into),
-                OpencodeSessionsAction::Delete { id, directory } => api
-                    .opencode_sessions_delete(id, directory)
                     .await
                     .map_err(Into::into),
             },
+            ActorsAction::Commands {
+                id,
+                command,
+                args,
+                model,
+                agent,
+            } => api
+                .actors_run_command(
+                    id,
+                    &ActorCommandInput {
+                        command: command.clone(),
+                        args: args.clone(),
+                        model: model.clone(),
+                        agent: agent.clone(),
+                    },
+                )
+                .await
+                .map_err(Into::into),
         },
     }
 }
@@ -450,4 +483,48 @@ fn extract_data_rows(body: &Value) -> Vec<Value> {
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default()
+}
+
+async fn resolve_provider_for_spawn(
+    api: &DarkCoreClient,
+    provider: Option<&str>,
+) -> Result<String> {
+    if let Some(value) = provider {
+        return Ok(value.to_string());
+    }
+
+    let response = api.system_providers().await?;
+    if !(200..300).contains(&response.status) {
+        return Err(
+            DarkRustError::ApiStatus {
+                status: response.status,
+                path: response.path,
+                body: response.body,
+            }
+            .into(),
+        );
+    }
+
+    let default_provider = response
+        .body
+        .get("data")
+        .and_then(|value| value.get("defaultProvider"))
+        .and_then(Value::as_str)
+        .map(ToString::to_string);
+
+    if let Some(default_provider) = default_provider {
+        return Ok(default_provider);
+    }
+
+    let first_enabled = response
+        .body
+        .get("data")
+        .and_then(|value| value.get("enabledProviders"))
+        .and_then(Value::as_array)
+        .and_then(|providers| providers.first())
+        .and_then(Value::as_str)
+        .map(ToString::to_string);
+
+    first_enabled
+        .context("Dark CLI // Actors // No configured providers available for spawn")
 }

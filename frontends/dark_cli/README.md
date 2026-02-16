@@ -57,6 +57,7 @@ Commands:
 | `system health` | `GET /system/health` | System health payload |
 | `system info` | `GET /system/info` | Service info payload |
 | `system metrics` | `GET /system/metrics` | Runtime metrics payload |
+| `system providers` | `GET /system/providers` | Active provider configuration and availability |
 | `system reset-db` | `POST /system/reset-db` | Back up local DB and clear products/variants |
 | `products list [--cursor <id>] [--limit <n>]` | `GET /products/` | List products; without `cursor/limit`, CLI fetches all pages |
 | `products create --locator <path> [--display-name <name>]` | `POST /products/` | Create a product directly |
@@ -69,15 +70,16 @@ Commands:
 | `variants poll --id <id>` | `POST /variants/:id/poll` | Refresh git metadata/status for one variant |
 | `variants update --id <id> [--locator <path>] [--name <name>]` | `PATCH /variants/:id` | Update variant fields |
 | `variants delete --id <id>` | `DELETE /variants/:id` | Delete variant |
-| `opencode state --directory <path>` | `GET /opencode/state` | OpenCode directory runtime state |
-| `opencode sessions list --directory <path>` | `GET /opencode/sessions` | List OpenCode sessions |
-| `opencode sessions create --directory <path> [--title <title>]` | `POST /opencode/sessions` | Create OpenCode session |
-| `opencode sessions get --id <id> --directory <path> [--include-messages]` | `GET /opencode/sessions/:id` | Get session state |
-| `opencode sessions attach --id <id> --directory <path> [--model <model>] [--agent <agent>]` | `GET /opencode/sessions/:id/attach` | Build attach command payload |
-| `opencode sessions command --id <id> --directory <path> --command <command>` | `POST /opencode/sessions/:id/command` | Send command to session |
-| `opencode sessions prompt --id <id> --directory <path> --prompt <prompt> [--no-reply]` | `POST /opencode/sessions/:id/prompt` | Send prompt to session |
-| `opencode sessions abort --id <id> --directory <path>` | `POST /opencode/sessions/:id/abort` | Abort running session operation |
-| `opencode sessions delete --id <id> --directory <path>` | `DELETE /opencode/sessions/:id` | Delete session |
+| `actors list [--cursor <id>] [--limit <n>] [--variant-id <id>] [--product-id <id>] [--provider <name>] [--status <label>]` | `GET /actors/` | List actors with optional filters |
+| `actors create --variant-id <id> [--provider <name>] [--title <title>] [--description <text>]` | `POST /actors/` | Spawn actor attached to variant (provider defaults from core config) |
+| `actors get --id <id>` | `GET /actors/:id` | Get actor state |
+| `actors update --id <id> [--title <title>] [--description <text>]` | `PATCH /actors/:id` | Update actor metadata |
+| `actors delete --id <id> [--terminate]` | `DELETE /actors/:id` | Delete actor (optionally terminate provider runtime) |
+| `actors poll --id <id>` | `POST /actors/:id/poll` | Refresh actor runtime status |
+| `actors attach --id <id> [--model <model>] [--agent <agent>]` | `GET /actors/:id/attach` | Build provider attach command |
+| `actors messages send --id <id> --prompt <prompt> [--no-reply]` | `POST /actors/:id/messages` | Send provider-backed prompt |
+| `actors messages list --id <id> [--n-last-messages <n>]` | `GET /actors/:id/messages` | Read provider-backed messages |
+| `actors commands --id <id> --command <command> [--args <args>]` | `POST /actors/:id/commands` | Run provider command |
 
 Pretty rendering defaults:
 
@@ -150,17 +152,20 @@ dcli variants update --id <variant-id> --name updated
 dcli variants delete --id <variant-id>
 ```
 
-OpenCode sessions:
+Actors:
 
 ```bash
-# List sessions for a directory (pretty table)
-dcli opencode sessions list --directory /Users/alex/repos/vfp/dark-factory
+# List actors for a provider
+dcli actors list --provider mock
 
-# Create a session
-dcli opencode sessions create --directory /Users/alex/repos/vfp/dark-factory --title "My Session"
+# Inspect configured providers/default
+dcli system providers
 
-# Send prompt to a session
-dcli opencode sessions prompt --id <session-id> --directory /Users/alex/repos/vfp/dark-factory --prompt "status"
+# Spawn actor on a variant
+dcli actors create --variant-id <variant-id> --title "My Actor"
+
+# Send prompt to actor
+dcli actors messages send --id <actor-id> --prompt "status"
 ```
 
 ## API Reference Endpoints (Optional)

@@ -3,8 +3,8 @@ use serde_json::Value;
 
 use crate::error::DarkRustError;
 use crate::types::{
-    OpencodeAttachQuery, OpencodeSessionCommandInput, OpencodeSessionCreateInput,
-    OpencodeSessionDirectoryInput, OpencodeSessionPromptInput, OpencodeSessionStateQuery,
+    ActorAttachQuery, ActorCommandInput, ActorCreateInput, ActorDeleteQuery, ActorListQuery,
+    ActorMessageInput, ActorMessagesQuery, ActorUpdateInput,
     ProductCreateInput, ProductIncludeQuery, ProductListQuery, ProductUpdateInput,
     VariantCreateInput, VariantListQuery, VariantUpdateInput,
 };
@@ -44,6 +44,10 @@ impl DarkCoreClient {
 
     pub async fn system_metrics(&self) -> Result<RawApiResponse, DarkRustError> {
         self.get("/system/metrics", None).await
+    }
+
+    pub async fn system_providers(&self) -> Result<RawApiResponse, DarkRustError> {
+        self.get("/system/providers", None).await
     }
 
     pub async fn system_reset_db(&self) -> Result<RawApiResponse, DarkRustError> {
@@ -216,51 +220,92 @@ impl DarkCoreClient {
         self.delete(&format!("/variants/{variant_id}"), None).await
     }
 
-    pub async fn opencode_state(&self, directory: &str) -> Result<RawApiResponse, DarkRustError> {
-        let query = [("directory".to_string(), directory.to_string())];
-        self.get("/opencode/state", Some(&query)).await
+    pub async fn actors_list(&self, query: &ActorListQuery) -> Result<RawApiResponse, DarkRustError> {
+        let mut query_parts = Vec::new();
+
+        if let Some(cursor) = &query.cursor {
+            query_parts.push(("cursor".to_string(), cursor.clone()));
+        }
+
+        if let Some(limit) = query.limit {
+            query_parts.push(("limit".to_string(), limit.to_string()));
+        }
+
+        if let Some(variant_id) = &query.variant_id {
+            query_parts.push(("variantId".to_string(), variant_id.clone()));
+        }
+
+        if let Some(product_id) = &query.product_id {
+            query_parts.push(("productId".to_string(), product_id.clone()));
+        }
+
+        if let Some(provider) = &query.provider {
+            query_parts.push(("provider".to_string(), provider.clone()));
+        }
+
+        if let Some(status) = &query.status {
+            query_parts.push(("status".to_string(), status.clone()));
+        }
+
+        let query = if query_parts.is_empty() {
+            None
+        } else {
+            Some(query_parts.as_slice())
+        };
+
+        self.get("/actors/", query).await
     }
 
-    pub async fn opencode_sessions_list(
+    pub async fn actors_create(
         &self,
-        directory: &str,
+        input: &ActorCreateInput,
     ) -> Result<RawApiResponse, DarkRustError> {
-        let query = [("directory".to_string(), directory.to_string())];
-        self.get("/opencode/sessions", Some(&query)).await
+        self.post("/actors/", serde_json::to_value(input)?).await
     }
 
-    pub async fn opencode_sessions_create(
+    pub async fn actors_get(&self, actor_id: &str) -> Result<RawApiResponse, DarkRustError> {
+        self.get(&format!("/actors/{actor_id}"), None).await
+    }
+
+    pub async fn actors_update(
         &self,
-        input: &OpencodeSessionCreateInput,
+        actor_id: &str,
+        input: &ActorUpdateInput,
     ) -> Result<RawApiResponse, DarkRustError> {
-        self.post("/opencode/sessions", serde_json::to_value(input)?)
+        self.patch(&format!("/actors/{actor_id}"), serde_json::to_value(input)?)
             .await
     }
 
-    pub async fn opencode_sessions_get(
+    pub async fn actors_delete(
         &self,
-        session_id: &str,
-        query: &OpencodeSessionStateQuery,
+        actor_id: &str,
+        query: &ActorDeleteQuery,
     ) -> Result<RawApiResponse, DarkRustError> {
-        let mut query_parts = vec![("directory".to_string(), query.directory.clone())];
+        let mut query_parts = Vec::new();
 
-        if query.include_messages {
-            query_parts.push(("includeMessages".to_string(), "true".to_string()));
+        if query.terminate {
+            query_parts.push(("terminate".to_string(), "true".to_string()));
         }
 
-        self.get(
-            &format!("/opencode/sessions/{session_id}"),
-            Some(query_parts.as_slice()),
-        )
-        .await
+        let query = if query_parts.is_empty() {
+            None
+        } else {
+            Some(query_parts.as_slice())
+        };
+
+        self.delete(&format!("/actors/{actor_id}"), query).await
     }
 
-    pub async fn opencode_sessions_attach(
+    pub async fn actors_poll(&self, actor_id: &str) -> Result<RawApiResponse, DarkRustError> {
+        self.post(&format!("/actors/{actor_id}/poll"), Value::Null).await
+    }
+
+    pub async fn actors_attach(
         &self,
-        session_id: &str,
-        query: &OpencodeAttachQuery,
+        actor_id: &str,
+        query: &ActorAttachQuery,
     ) -> Result<RawApiResponse, DarkRustError> {
-        let mut query_parts = vec![("directory".to_string(), query.directory.clone())];
+        let mut query_parts = Vec::new();
 
         if let Some(model) = &query.model {
             query_parts.push(("model".to_string(), model.clone()));
@@ -270,58 +315,60 @@ impl DarkCoreClient {
             query_parts.push(("agent".to_string(), agent.clone()));
         }
 
-        self.get(
-            &format!("/opencode/sessions/{session_id}/attach"),
-            Some(query_parts.as_slice()),
-        )
-        .await
+        let query = if query_parts.is_empty() {
+            None
+        } else {
+            Some(query_parts.as_slice())
+        };
+
+        self.get(&format!("/actors/{actor_id}/attach"), query).await
     }
 
-    pub async fn opencode_sessions_command(
+    pub async fn actors_send_message(
         &self,
-        session_id: &str,
-        input: &OpencodeSessionCommandInput,
+        actor_id: &str,
+        input: &ActorMessageInput,
     ) -> Result<RawApiResponse, DarkRustError> {
         self.post(
-            &format!("/opencode/sessions/{session_id}/command"),
+            &format!("/actors/{actor_id}/messages"),
             serde_json::to_value(input)?,
         )
         .await
     }
 
-    pub async fn opencode_sessions_prompt(
+    pub async fn actors_list_messages(
         &self,
-        session_id: &str,
-        input: &OpencodeSessionPromptInput,
+        actor_id: &str,
+        query: &ActorMessagesQuery,
+    ) -> Result<RawApiResponse, DarkRustError> {
+        let mut query_parts = Vec::new();
+
+        if let Some(n_last_messages) = query.n_last_messages {
+            query_parts.push((
+                "nLastMessages".to_string(),
+                n_last_messages.to_string(),
+            ));
+        }
+
+        let query = if query_parts.is_empty() {
+            None
+        } else {
+            Some(query_parts.as_slice())
+        };
+
+        self.get(&format!("/actors/{actor_id}/messages"), query).await
+    }
+
+    pub async fn actors_run_command(
+        &self,
+        actor_id: &str,
+        input: &ActorCommandInput,
     ) -> Result<RawApiResponse, DarkRustError> {
         self.post(
-            &format!("/opencode/sessions/{session_id}/prompt"),
+            &format!("/actors/{actor_id}/commands"),
             serde_json::to_value(input)?,
         )
         .await
-    }
-
-    pub async fn opencode_sessions_abort(
-        &self,
-        session_id: &str,
-        input: &OpencodeSessionDirectoryInput,
-    ) -> Result<RawApiResponse, DarkRustError> {
-        self.post(
-            &format!("/opencode/sessions/{session_id}/abort"),
-            serde_json::to_value(input)?,
-        )
-        .await
-    }
-
-    pub async fn opencode_sessions_delete(
-        &self,
-        session_id: &str,
-        directory: &str,
-    ) -> Result<RawApiResponse, DarkRustError> {
-        let query = [("directory".to_string(), directory.to_string())];
-
-        self.delete(&format!("/opencode/sessions/{session_id}"), Some(&query))
-            .await
     }
 
     async fn get(

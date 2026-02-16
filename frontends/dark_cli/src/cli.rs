@@ -38,7 +38,7 @@ pub enum Command {
     System(SystemCommand),
     Products(ProductsCommand),
     Variants(VariantsCommand),
-    Opencode(OpencodeCommand),
+    Actors(ActorsCommand),
 }
 
 #[derive(Debug, Args)]
@@ -63,6 +63,7 @@ pub enum SystemAction {
     Health,
     Info,
     Metrics,
+    Providers,
     ResetDb,
 }
 
@@ -165,84 +166,103 @@ pub enum VariantsAction {
 }
 
 #[derive(Debug, Args)]
-pub struct OpencodeCommand {
+pub struct ActorsCommand {
     #[command(subcommand)]
-    pub action: OpencodeAction,
+    pub action: ActorsAction,
 }
 
 #[derive(Debug, Subcommand)]
-pub enum OpencodeAction {
-    State {
-        #[arg(long)]
-        directory: String,
-    },
-    Sessions(OpencodeSessionsCommand),
-}
-
-#[derive(Debug, Args)]
-pub struct OpencodeSessionsCommand {
-    #[command(subcommand)]
-    pub action: OpencodeSessionsAction,
-}
-
-#[derive(Debug, Subcommand)]
-pub enum OpencodeSessionsAction {
+pub enum ActorsAction {
     List {
         #[arg(long)]
-        directory: String,
+        cursor: Option<String>,
+        #[arg(long)]
+        limit: Option<u32>,
+        #[arg(long)]
+        variant_id: Option<String>,
+        #[arg(long)]
+        product_id: Option<String>,
+        #[arg(long)]
+        provider: Option<String>,
+        #[arg(long)]
+        status: Option<String>,
     },
     Create {
         #[arg(long)]
-        directory: String,
+        variant_id: String,
+        #[arg(long)]
+        provider: Option<String>,
         #[arg(long)]
         title: Option<String>,
+        #[arg(long)]
+        description: Option<String>,
     },
     Get {
         #[arg(long)]
         id: String,
+    },
+    Update {
         #[arg(long)]
-        directory: String,
+        id: String,
         #[arg(long)]
-        include_messages: bool,
+        title: Option<String>,
+        #[arg(long)]
+        description: Option<String>,
+    },
+    Delete {
+        #[arg(long)]
+        id: String,
+        #[arg(long, default_value_t = false)]
+        terminate: bool,
+    },
+    Poll {
+        #[arg(long)]
+        id: String,
     },
     Attach {
         #[arg(long)]
         id: String,
         #[arg(long)]
-        directory: String,
+        model: Option<String>,
+        #[arg(long)]
+        agent: Option<String>,
+    },
+    Messages {
+        #[command(subcommand)]
+        action: ActorMessagesAction,
+    },
+    Commands {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        command: String,
+        #[arg(long)]
+        args: Option<String>,
         #[arg(long)]
         model: Option<String>,
         #[arg(long)]
         agent: Option<String>,
     },
-    Command {
+}
+
+#[derive(Debug, Subcommand)]
+pub enum ActorMessagesAction {
+    Send {
         #[arg(long)]
         id: String,
-        #[arg(long)]
-        directory: String,
-        #[arg(long)]
-        command: String,
-    },
-    Prompt {
-        #[arg(long)]
-        id: String,
-        #[arg(long)]
-        directory: String,
         #[arg(long)]
         prompt: String,
         #[arg(long)]
         no_reply: bool,
+        #[arg(long)]
+        model: Option<String>,
+        #[arg(long)]
+        agent: Option<String>,
     },
-    Abort {
+    List {
         #[arg(long)]
         id: String,
         #[arg(long)]
-        directory: String,
-    },
-    Delete {
-        #[arg(long)]
-        id: String,
-        #[arg(long)]
-        directory: String,
+        n_last_messages: Option<u32>,
     },
 }

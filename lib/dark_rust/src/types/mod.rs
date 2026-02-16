@@ -1,11 +1,11 @@
-pub mod opencode;
+pub mod actors;
 pub mod products;
 pub mod system;
 pub mod variants;
 
-pub use opencode::{
-    OpencodeAttachQuery, OpencodeSessionCommandInput, OpencodeSessionCreateInput,
-    OpencodeSessionDirectoryInput, OpencodeSessionPromptInput, OpencodeSessionStateQuery,
+pub use actors::{
+    ActorAttachQuery, ActorCommandInput, ActorCreateInput, ActorDeleteQuery, ActorListQuery,
+    ActorMessageInput, ActorMessagesQuery, ActorUpdateInput,
 };
 pub use products::{
     ProductCreateInput, ProductGitInfo, ProductIncludeQuery, ProductListQuery, ProductUpdateInput,
