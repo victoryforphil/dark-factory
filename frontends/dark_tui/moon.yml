@@ -4,6 +4,7 @@ language: "rust"
 stack: "backend"
 type: "application"
 dependsOn:
+  - "dark_chat"
   - "dark_rust"
   - "dark_tui_components"
 

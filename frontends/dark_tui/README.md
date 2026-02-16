@@ -9,7 +9,7 @@ Ratatui-based TUI frontend for monitoring and operating `dark_core`.
 - Viz mode supports click-to-select product/variant cards plus drag/scroll panning.
 - `n` opens a `Spawn in TUI` popup with provider selection and an initial prompt field.
 - Selecting an actor opens a dedicated chat panel between catalog and details panes.
-- Chat panel supports compose/send and can be toggled visible/hidden.
+- Chat panel supports compose/send, can be toggled visible/hidden, and is rendered via shared `dark_chat` framework components.
 - Action keys support refresh, variant poll, product init, spawn, and attach command generation.
 - Dashboard prefers shared websocket RPC transport from `lib/dark_rust` and falls back to REST when websocket is unavailable.
 - Realtime route mutation events from `dark_core` trigger immediate refreshes between interval ticks.
