@@ -9,7 +9,6 @@ pub enum LoopAction {
     SelectNextSession,
     SelectPreviousSession,
     SelectNextAgent,
-    SelectNextModel,
     CreateSession,
     OpenCompose,
     SendPrompt,
@@ -18,11 +17,16 @@ pub enum LoopAction {
     ScrollRuntimeUp,
     ScrollRuntimeDown,
     ToggleHelp,
+    OpenModelSelector,
 }
 
 pub fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
     if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
         return LoopAction::Quit;
+    }
+
+    if app.is_model_selector_open() {
+        return handle_model_selector_key(app, key);
     }
 
     if app.is_composing() {
@@ -54,7 +58,7 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
         KeyCode::Char('r') => LoopAction::Refresh,
         KeyCode::Char('n') => LoopAction::CreateSession,
         KeyCode::Char('a') => LoopAction::SelectNextAgent,
-        KeyCode::Char('m') => LoopAction::SelectNextModel,
+        KeyCode::Char('m') => LoopAction::OpenModelSelector,
         KeyCode::Char('c') => LoopAction::OpenCompose,
         KeyCode::Esc => {
             app.set_focus(FocusPane::Chat);
@@ -67,7 +71,80 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
     }
 }
 
+fn handle_model_selector_key(app: &mut App, key: KeyEvent) -> LoopAction {
+    match key.code {
+        KeyCode::Esc => {
+            app.close_model_selector();
+            app.set_status_message("Model selector closed.");
+            LoopAction::None
+        }
+        KeyCode::Tab => {
+            app.model_selector_toggle_mode();
+            if app.model_selector_raw_mode() {
+                app.set_status_message("Model selector: raw input mode.");
+            } else {
+                app.set_status_message("Model selector: filter mode.");
+            }
+            LoopAction::None
+        }
+        KeyCode::Up | KeyCode::Char('k') => {
+            app.model_selector_move_up();
+            LoopAction::None
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            app.model_selector_move_down();
+            LoopAction::None
+        }
+        KeyCode::Enter => {
+            if let Some(model) = app.confirm_model_selector() {
+                app.set_status_message(format!("Model selected: {model}"));
+            } else {
+                app.set_status_message("No model selected.");
+            }
+            LoopAction::None
+        }
+        KeyCode::Backspace => {
+            app.model_selector_backspace();
+            LoopAction::None
+        }
+        KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.model_selector_clear();
+            LoopAction::None
+        }
+        KeyCode::Char(value)
+            if !key.modifiers.contains(KeyModifiers::CONTROL)
+                && !key.modifiers.contains(KeyModifiers::ALT) =>
+        {
+            app.model_selector_insert_char(value);
+            LoopAction::None
+        }
+        _ => LoopAction::None,
+    }
+}
+
 fn handle_compose_key(app: &mut App, key: KeyEvent) -> LoopAction {
+    if app.composer_autocomplete_open() {
+        match key.code {
+            KeyCode::Esc => {
+                app.close_composer_autocomplete();
+                return LoopAction::None;
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                app.composer_autocomplete_move_up();
+                return LoopAction::None;
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                app.composer_autocomplete_move_down();
+                return LoopAction::None;
+            }
+            KeyCode::Tab | KeyCode::Enter => {
+                let _ = app.apply_composer_autocomplete_selection();
+                return LoopAction::None;
+            }
+            _ => {}
+        }
+    }
+
     match key.code {
         KeyCode::Esc => {
             app.cancel_composer();

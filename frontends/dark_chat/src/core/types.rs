@@ -10,6 +10,7 @@ pub struct ChatSession {
     pub title: String,
     pub status: String,
     pub updated_at: Option<String>,
+    pub updated_unix: Option<i64>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -31,4 +32,5 @@ pub struct ProviderRuntimeStatus {
     pub mcp: Vec<String>,
     pub lsp: Vec<String>,
     pub formatter: Vec<String>,
+    pub config_path: Option<String>,
 }

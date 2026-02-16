@@ -11,7 +11,7 @@ Ratatui-based OpenCode chat frontend with reusable provider/core layers.
 - Session list, conversation history, and composer are all keyboard-driven.
 - Compose mode now uses `tui-textarea` for multiline editing with built-in cursor and undo behavior.
 - Runtime panel now uses `tui-scrollview` for focused scrolling of status/help content.
-- Conversation panel includes a live `ratatui-code-editor` preview of draft or latest message content.
+- Conversation messages render Markdown structure (headings, emphasis, lists, blockquotes, and code fences).
 - Realtime event syncing uses OpenCode `/event` stream with reconnect attempts.
 - Agent/model options are loaded from OpenCode config routes and can be cycled at runtime.
 - Local slash commands are available (`/help`, `/refresh`, `/new`, `/sessions`, `/agent`, `/model`, `/grep`, `/clear`).
@@ -38,7 +38,7 @@ Ratatui-based OpenCode chat frontend with reusable provider/core layers.
 - `r`: refresh sessions and messages
 - `n`: create a new session
 - `a`: cycle selected agent
-- `m`: cycle selected model
+- `m`: open model picker (search + raw key)
 - `c`: open compose mode
 - `Enter` (compose mode): send prompt
 - `Shift+Enter` (compose mode): insert newline

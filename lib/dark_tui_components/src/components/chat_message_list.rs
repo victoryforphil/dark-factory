@@ -1,3 +1,4 @@
+use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
@@ -156,67 +157,597 @@ fn render_message_body(
     max_body_lines: usize,
     theme: &impl ComponentThemeLike,
 ) -> Vec<Line<'static>> {
-    let mut lines = Vec::new();
-    let mut in_code_block = false;
-    let mut blank_streak = 0usize;
-    let mut rendered = 0usize;
+    let normalized = message.text.replace("\r\n", "\n");
+    let mut lines = render_markdown_lines(&normalized, palette, theme);
 
-    let cap = max_body_lines.max(1);
+    if lines.is_empty() {
+        return lines;
+    }
 
-    for raw_line in message.text.replace("\r\n", "\n").lines() {
-        if rendered >= cap {
-            lines.push(Line::from(Span::styled(
-                "  ...",
-                Style::default().fg(theme.text_muted()),
-            )));
-            break;
-        }
+    trim_blank_edges(&mut lines);
+    compact_blank_lines(lines, max_body_lines.max(1), theme)
+}
 
-        let trimmed = raw_line.trim_end();
+fn render_markdown_lines(
+    text: &str,
+    palette: ChatPalette,
+    theme: &impl ComponentThemeLike,
+) -> Vec<Line<'static>> {
+    let parser = Parser::new_ext(text, markdown_options());
+    let mut state = MarkdownState::default();
+    let mut lines = Vec::<Line<'static>>::new();
+    let mut current = Vec::<Span<'static>>::new();
 
-        if trimmed.starts_with("```") {
-            in_code_block = !in_code_block;
-            lines.push(Line::from(Span::styled(
-                if in_code_block {
-                    "  [code:start]"
-                } else {
-                    "  [code:end]"
-                },
-                Style::default().fg(theme.text_secondary()),
-            )));
-            rendered += 1;
-            blank_streak = 0;
-            continue;
-        }
-
-        if trimmed.is_empty() {
-            blank_streak += 1;
-            if blank_streak > 1 {
-                continue;
+    for event in parser {
+        match event {
+            Event::Start(tag) => {
+                handle_start_tag(tag, &mut state, &mut current, &mut lines, theme);
             }
-
-            lines.push(Line::raw(""));
-            rendered += 1;
-            continue;
+            Event::End(tag) => {
+                handle_end_tag(tag, &mut state, &mut current, &mut lines, theme);
+            }
+            Event::Text(value) => {
+                push_text(
+                    value.as_ref(),
+                    &mut state,
+                    &mut current,
+                    &mut lines,
+                    palette,
+                    theme,
+                    None,
+                );
+            }
+            Event::Code(value) => {
+                state.inline_code_depth += 1;
+                push_text(
+                    value.as_ref(),
+                    &mut state,
+                    &mut current,
+                    &mut lines,
+                    palette,
+                    theme,
+                    None,
+                );
+                state.inline_code_depth = state.inline_code_depth.saturating_sub(1);
+            }
+            Event::Html(value) | Event::InlineHtml(value) => {
+                push_text(
+                    value.as_ref(),
+                    &mut state,
+                    &mut current,
+                    &mut lines,
+                    palette,
+                    theme,
+                    Some(Style::default().fg(theme.text_secondary())),
+                );
+            }
+            Event::SoftBreak => {
+                if state.code_block_depth > 0 {
+                    finish_line(&mut current, &mut lines);
+                } else {
+                    push_text(
+                        " ",
+                        &mut state,
+                        &mut current,
+                        &mut lines,
+                        palette,
+                        theme,
+                        None,
+                    );
+                }
+            }
+            Event::HardBreak => {
+                finish_line(&mut current, &mut lines);
+            }
+            Event::Rule => {
+                push_block_break(&mut current, &mut lines);
+                lines.push(Line::from(Span::styled(
+                    "  --------------------",
+                    Style::default().fg(theme.text_muted()),
+                )));
+                push_block_break(&mut current, &mut lines);
+            }
+            Event::TaskListMarker(checked) => {
+                let marker = if checked { "[x] " } else { "[ ] " };
+                push_text(
+                    marker,
+                    &mut state,
+                    &mut current,
+                    &mut lines,
+                    palette,
+                    theme,
+                    Some(Style::default().fg(theme.text_secondary())),
+                );
+            }
+            Event::FootnoteReference(label) => {
+                push_text(
+                    &format!("[^{label}]"),
+                    &mut state,
+                    &mut current,
+                    &mut lines,
+                    palette,
+                    theme,
+                    Some(Style::default().fg(theme.text_secondary())),
+                );
+            }
+            _ => {}
         }
+    }
 
-        blank_streak = 0;
-
-        let body_style = if in_code_block {
-            Style::default().fg(theme.text_secondary())
-        } else {
-            Style::default().fg(palette.text_primary)
-        };
-
-        let prefix = if in_code_block { "  | " } else { "  " };
-        lines.push(Line::from(Span::styled(
-            format!("{prefix}{trimmed}"),
-            body_style,
-        )));
-        rendered += 1;
+    if !current.is_empty() {
+        lines.push(Line::from(current));
     }
 
     lines
+}
+
+fn handle_start_tag(
+    tag: Tag<'_>,
+    state: &mut MarkdownState,
+    current: &mut Vec<Span<'static>>,
+    lines: &mut Vec<Line<'static>>,
+    theme: &impl ComponentThemeLike,
+) {
+    match tag {
+        Tag::Paragraph => {}
+        Tag::Heading { level, .. } => {
+            push_block_break(current, lines);
+            state.heading_level = Some(level);
+        }
+        Tag::BlockQuote(_) => {
+            push_block_break(current, lines);
+            state.blockquote_depth += 1;
+        }
+        Tag::CodeBlock(kind) => {
+            push_block_break(current, lines);
+            state.code_block_depth += 1;
+
+            if let CodeBlockKind::Fenced(language) = kind {
+                let language = language.trim();
+                if !language.is_empty() {
+                    lines.push(Line::from(Span::styled(
+                        format!("  [code:{language}]"),
+                        Style::default().fg(theme.text_secondary()),
+                    )));
+                }
+            }
+        }
+        Tag::List(start_index) => {
+            push_block_break(current, lines);
+            state.list_stack.push(ListState::new(start_index));
+        }
+        Tag::Item => {
+            finish_line(current, lines);
+
+            let depth = state.list_stack.len();
+            let marker = state
+                .list_stack
+                .last_mut()
+                .map(|list| list.next_marker(depth))
+                .unwrap_or_else(|| "- ".to_string());
+            state.pending_item_prefix = Some(marker);
+        }
+        Tag::Emphasis => {
+            state.emphasis_depth += 1;
+        }
+        Tag::Strong => {
+            state.strong_depth += 1;
+        }
+        Tag::Strikethrough => {
+            state.strikethrough_depth += 1;
+        }
+        Tag::Link { .. } => {
+            state.link_depth += 1;
+        }
+        _ => {}
+    }
+}
+
+fn handle_end_tag(
+    tag: TagEnd,
+    state: &mut MarkdownState,
+    current: &mut Vec<Span<'static>>,
+    lines: &mut Vec<Line<'static>>,
+    _theme: &impl ComponentThemeLike,
+) {
+    match tag {
+        TagEnd::Paragraph => {
+            push_block_break(current, lines);
+        }
+        TagEnd::Heading(_) => {
+            state.heading_level = None;
+            push_block_break(current, lines);
+        }
+        TagEnd::BlockQuote(_) => {
+            state.blockquote_depth = state.blockquote_depth.saturating_sub(1);
+            push_block_break(current, lines);
+        }
+        TagEnd::CodeBlock => {
+            state.code_block_depth = state.code_block_depth.saturating_sub(1);
+            push_block_break(current, lines);
+        }
+        TagEnd::List(_) => {
+            state.list_stack.pop();
+            push_block_break(current, lines);
+        }
+        TagEnd::Item => {
+            finish_line(current, lines);
+        }
+        TagEnd::Emphasis => {
+            state.emphasis_depth = state.emphasis_depth.saturating_sub(1);
+        }
+        TagEnd::Strong => {
+            state.strong_depth = state.strong_depth.saturating_sub(1);
+        }
+        TagEnd::Strikethrough => {
+            state.strikethrough_depth = state.strikethrough_depth.saturating_sub(1);
+        }
+        TagEnd::Link => {
+            state.link_depth = state.link_depth.saturating_sub(1);
+        }
+        _ => {}
+    }
+}
+
+fn push_text(
+    value: &str,
+    state: &mut MarkdownState,
+    current: &mut Vec<Span<'static>>,
+    lines: &mut Vec<Line<'static>>,
+    palette: ChatPalette,
+    theme: &impl ComponentThemeLike,
+    style_override: Option<Style>,
+) {
+    let style = style_override.unwrap_or_else(|| active_text_style(state, palette, theme));
+
+    for (index, chunk) in value.split('\n').enumerate() {
+        if index > 0 {
+            finish_line(current, lines);
+        }
+
+        if chunk.is_empty() {
+            continue;
+        }
+
+        ensure_line_prefix(state, current, theme);
+        current.push(Span::styled(chunk.to_string(), style));
+    }
+}
+
+fn ensure_line_prefix(
+    state: &mut MarkdownState,
+    current: &mut Vec<Span<'static>>,
+    theme: &impl ComponentThemeLike,
+) {
+    if !current.is_empty() {
+        return;
+    }
+
+    if state.blockquote_depth > 0 {
+        current.push(Span::styled(
+            "│ ".repeat(state.blockquote_depth),
+            Style::default().fg(theme.text_secondary()),
+        ));
+    }
+
+    if let Some(marker) = state.pending_item_prefix.take() {
+        current.push(Span::styled(
+            marker,
+            Style::default().fg(theme.text_secondary()),
+        ));
+    } else if !state.list_stack.is_empty() {
+        current.push(Span::styled(
+            "  ".repeat(state.list_stack.len()),
+            Style::default().fg(theme.text_muted()),
+        ));
+    } else if state.code_block_depth > 0 {
+        current.push(Span::styled(
+            "| ".to_string(),
+            Style::default().fg(theme.text_secondary()),
+        ));
+    } else {
+        current.push(Span::raw("  "));
+    }
+}
+
+fn active_text_style(
+    state: &MarkdownState,
+    palette: ChatPalette,
+    theme: &impl ComponentThemeLike,
+) -> Style {
+    let mut style = if state.code_block_depth > 0 {
+        Style::default().fg(theme.text_secondary())
+    } else {
+        Style::default().fg(palette.text_primary)
+    };
+
+    if let Some(level) = state.heading_level {
+        style = style
+            .fg(heading_color(level, theme))
+            .add_modifier(Modifier::BOLD);
+    }
+
+    if state.strong_depth > 0 {
+        style = style.add_modifier(Modifier::BOLD);
+    }
+
+    if state.emphasis_depth > 0 {
+        style = style.add_modifier(Modifier::ITALIC);
+    }
+
+    if state.strikethrough_depth > 0 {
+        style = style.add_modifier(Modifier::CROSSED_OUT);
+    }
+
+    if state.inline_code_depth > 0 {
+        style = style
+            .fg(theme.pill_warn_fg())
+            .bg(theme.pill_muted_bg())
+            .add_modifier(Modifier::BOLD);
+    }
+
+    if state.link_depth > 0 {
+        style = style
+            .fg(theme.pill_info_fg())
+            .add_modifier(Modifier::UNDERLINED);
+    }
+
+    style
+}
+
+fn heading_color(level: HeadingLevel, theme: &impl ComponentThemeLike) -> Color {
+    match level {
+        HeadingLevel::H1 | HeadingLevel::H2 => theme.pill_accent_fg(),
+        HeadingLevel::H3 | HeadingLevel::H4 => theme.pill_info_fg(),
+        HeadingLevel::H5 | HeadingLevel::H6 => theme.text_secondary(),
+    }
+}
+
+fn finish_line(current: &mut Vec<Span<'static>>, lines: &mut Vec<Line<'static>>) {
+    if current.is_empty() {
+        lines.push(Line::raw(""));
+    } else {
+        lines.push(Line::from(std::mem::take(current)));
+    }
+}
+
+fn push_block_break(current: &mut Vec<Span<'static>>, lines: &mut Vec<Line<'static>>) {
+    if !current.is_empty() {
+        lines.push(Line::from(std::mem::take(current)));
+    }
+
+    if let Some(last) = lines.last() {
+        if !is_blank_line(last) {
+            lines.push(Line::raw(""));
+        }
+    }
+}
+
+fn trim_blank_edges(lines: &mut Vec<Line<'static>>) {
+    while matches!(lines.first(), Some(line) if is_blank_line(line)) {
+        lines.remove(0);
+    }
+
+    while matches!(lines.last(), Some(line) if is_blank_line(line)) {
+        lines.pop();
+    }
+}
+
+fn compact_blank_lines(
+    lines: Vec<Line<'static>>,
+    max_body_lines: usize,
+    theme: &impl ComponentThemeLike,
+) -> Vec<Line<'static>> {
+    let mut compacted = Vec::new();
+    let mut previous_was_blank = false;
+
+    for line in lines {
+        let blank = is_blank_line(&line);
+        if blank && previous_was_blank {
+            continue;
+        }
+        previous_was_blank = blank;
+        compacted.push(line);
+    }
+
+    if compacted.len() <= max_body_lines {
+        return compacted;
+    }
+
+    if max_body_lines == 1 {
+        return vec![Line::from(Span::styled(
+            "  ...",
+            Style::default().fg(theme.text_muted()),
+        ))];
+    }
+
+    compacted.truncate(max_body_lines - 1);
+    compacted.push(Line::from(Span::styled(
+        "  ...",
+        Style::default().fg(theme.text_muted()),
+    )));
+    compacted
+}
+
+fn is_blank_line(line: &Line<'_>) -> bool {
+    line.spans.iter().all(|span| span.content.trim().is_empty())
+}
+
+fn markdown_options() -> Options {
+    let mut options = Options::empty();
+    options.insert(Options::ENABLE_STRIKETHROUGH);
+    options.insert(Options::ENABLE_TASKLISTS);
+    options
+}
+
+#[derive(Debug, Default)]
+struct MarkdownState {
+    strong_depth: usize,
+    emphasis_depth: usize,
+    strikethrough_depth: usize,
+    heading_level: Option<HeadingLevel>,
+    inline_code_depth: usize,
+    code_block_depth: usize,
+    blockquote_depth: usize,
+    link_depth: usize,
+    list_stack: Vec<ListState>,
+    pending_item_prefix: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ListState {
+    kind: ListKind,
+}
+
+impl ListState {
+    fn new(start_index: Option<u64>) -> Self {
+        let kind = match start_index {
+            Some(index) => ListKind::Ordered { next: index },
+            None => ListKind::Unordered,
+        };
+
+        Self { kind }
+    }
+
+    fn next_marker(&mut self, depth: usize) -> String {
+        let indent = "  ".repeat(depth.saturating_sub(1));
+
+        match &mut self.kind {
+            ListKind::Unordered => format!("{indent}- "),
+            ListKind::Ordered { next } => {
+                let marker = format!("{indent}{}. ", *next);
+                *next += 1;
+                marker
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ListKind {
+    Unordered,
+    Ordered { next: u64 },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ChatMessageEntry, ChatMessageListProps, ChatMessageRole, ChatPalette};
+    use crate::components::chat_message_list::ChatMessageListComponent;
+    use crate::theme::ComponentTheme;
+
+    #[test]
+    fn markdown_content_renders_structural_markers() {
+        let theme = ComponentTheme::default();
+        let message = ChatMessageEntry::new(
+            ChatMessageRole::Assistant,
+            "# Title\n\n- item one\n- item two\n\n```rust\nlet x = 1;\n```\n",
+            None,
+        );
+        let props = ChatMessageListProps {
+            messages: &[message],
+            empty_label: "No messages",
+            max_messages: 10,
+            max_body_lines_per_message: 20,
+            scroll_offset_lines: 0,
+            palette: ChatPalette::from_theme(&theme),
+        };
+
+        let lines = ChatMessageListComponent::lines(&theme, &props);
+        let rendered = lines
+            .iter()
+            .map(|line| {
+                line.spans
+                    .iter()
+                    .map(|span| span.content.as_ref())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(rendered.contains("Title"));
+        assert!(rendered.contains("- item one"));
+        assert!(rendered.contains("[code:rust]"));
+        assert!(rendered.contains("let x = 1;"));
+    }
+
+    #[test]
+    fn markdown_body_obeys_line_cap() {
+        let theme = ComponentTheme::default();
+        let message = ChatMessageEntry::new(
+            ChatMessageRole::Assistant,
+            "line1\n\nline2\n\nline3\n\nline4\n\nline5",
+            None,
+        );
+        let props = ChatMessageListProps {
+            messages: &[message],
+            empty_label: "No messages",
+            max_messages: 10,
+            max_body_lines_per_message: 3,
+            scroll_offset_lines: 0,
+            palette: ChatPalette::from_theme(&theme),
+        };
+
+        let lines = ChatMessageListComponent::lines(&theme, &props);
+        let rendered = lines
+            .iter()
+            .map(|line| {
+                line.spans
+                    .iter()
+                    .map(|span| span.content.as_ref())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(rendered.contains("line1"));
+        assert!(rendered.contains("..."));
+        assert!(!rendered.contains("line5"));
+    }
+
+    #[test]
+    fn markdown_list_continuation_does_not_repeat_marker() {
+        let theme = ComponentTheme::default();
+        let message = ChatMessageEntry::new(
+            ChatMessageRole::Assistant,
+            "- first line  \ncontinuation line",
+            None,
+        );
+        let props = ChatMessageListProps {
+            messages: &[message],
+            empty_label: "No messages",
+            max_messages: 10,
+            max_body_lines_per_message: 20,
+            scroll_offset_lines: 0,
+            palette: ChatPalette::from_theme(&theme),
+        };
+
+        let lines = ChatMessageListComponent::lines(&theme, &props);
+        let rendered_lines = lines
+            .iter()
+            .map(|line| {
+                line.spans
+                    .iter()
+                    .map(|span| span.content.as_ref())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>();
+
+        assert!(
+            rendered_lines
+                .iter()
+                .any(|line| line.contains("- first line"))
+        );
+        assert!(
+            rendered_lines
+                .iter()
+                .any(|line| line.contains("  continuation line"))
+        );
+        assert!(
+            !rendered_lines
+                .iter()
+                .any(|line| line.contains("- continuation line"))
+        );
+    }
 }
 
 fn role_label(role: &ChatMessageRole) -> &str {

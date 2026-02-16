@@ -1,8 +1,8 @@
+use std::fs;
+use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use dark_tui_components::ComponentTheme;
-use ratatui_code_editor::editor::Editor;
-use ratatui_code_editor::theme::vesper;
 use tui_textarea::{CursorMove, TextArea};
 
 use crate::core::{ChatMessage, ChatSession, ChatSnapshot, ProviderHealth, ProviderRuntimeStatus};
@@ -13,6 +13,19 @@ pub enum FocusPane {
     Chat,
     Runtime,
     Composer,
+}
+
+#[derive(Debug, Clone)]
+pub struct ComposerAutocompleteItem {
+    pub label: String,
+    pub insert: String,
+    pub tag: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ComposerAutocompleteMode {
+    Slash,
+    File,
 }
 
 pub struct App {
@@ -28,6 +41,7 @@ pub struct App {
     selected_agent: usize,
     models: Vec<String>,
     selected_model: usize,
+    active_model_override: Option<String>,
     messages: Vec<ChatMessage>,
     runtime_status: ProviderRuntimeStatus,
     focus: FocusPane,
@@ -36,11 +50,22 @@ pub struct App {
     draft_cursor: usize,
     composer: TextArea<'static>,
     composing: bool,
+    composer_autocomplete_open: bool,
+    composer_autocomplete_mode: Option<ComposerAutocompleteMode>,
+    composer_autocomplete_query: String,
+    composer_autocomplete_selected: usize,
+    composer_autocomplete_token_start: usize,
+    composer_autocomplete_items: Vec<ComposerAutocompleteItem>,
+    workspace_file_cache: Vec<String>,
+    workspace_file_cache_loaded: bool,
+    model_selector_open: bool,
+    model_selector_raw_mode: bool,
+    model_selector_query: String,
+    model_selector_raw_input: String,
+    model_selector_selected: usize,
+    sessions_scroll_index: usize,
     chat_scroll_lines: u16,
     runtime_scroll_lines: u16,
-    code_preview_editor: Editor,
-    code_preview_source: String,
-    code_preview_last_content: String,
     refresh_in_flight: bool,
     send_in_flight: bool,
     create_in_flight: bool,
@@ -62,7 +87,6 @@ impl App {
         let draft = String::new();
         let draft_cursor = 0;
         let composer = build_composer_textarea(&draft, draft_cursor);
-        let code_preview_editor = Editor::new("markdown", "", vesper());
 
         Self {
             base_url,
@@ -80,6 +104,7 @@ impl App {
             selected_agent: 0,
             models: Vec::new(),
             selected_model: 0,
+            active_model_override: None,
             messages: Vec::new(),
             runtime_status: ProviderRuntimeStatus::default(),
             focus: FocusPane::Chat,
@@ -88,11 +113,22 @@ impl App {
             draft_cursor,
             composer,
             composing: false,
+            composer_autocomplete_open: false,
+            composer_autocomplete_mode: None,
+            composer_autocomplete_query: String::new(),
+            composer_autocomplete_selected: 0,
+            composer_autocomplete_token_start: 0,
+            composer_autocomplete_items: Vec::new(),
+            workspace_file_cache: Vec::new(),
+            workspace_file_cache_loaded: false,
+            model_selector_open: false,
+            model_selector_raw_mode: false,
+            model_selector_query: String::new(),
+            model_selector_raw_input: String::new(),
+            model_selector_selected: 0,
+            sessions_scroll_index: 0,
             chat_scroll_lines: 0,
             runtime_scroll_lines: 0,
-            code_preview_editor,
-            code_preview_source: "none".to_string(),
-            code_preview_last_content: String::new(),
             refresh_in_flight: false,
             send_in_flight: false,
             create_in_flight: false,
@@ -161,6 +197,10 @@ impl App {
         self.chat_scroll_lines
     }
 
+    pub fn sessions_scroll_index(&self) -> usize {
+        self.sessions_scroll_index
+    }
+
     pub fn runtime_scroll_lines(&self) -> u16 {
         self.runtime_scroll_lines
     }
@@ -169,12 +209,35 @@ impl App {
         &self.composer
     }
 
-    pub fn code_preview_editor(&self) -> &Editor {
-        &self.code_preview_editor
+    pub fn composer_autocomplete_open(&self) -> bool {
+        self.composer_autocomplete_open
     }
 
-    pub fn code_preview_source(&self) -> &str {
-        &self.code_preview_source
+    pub fn composer_autocomplete_mode(&self) -> Option<ComposerAutocompleteMode> {
+        self.composer_autocomplete_mode
+    }
+
+    pub fn composer_autocomplete_query(&self) -> &str {
+        &self.composer_autocomplete_query
+    }
+
+    pub fn composer_autocomplete_selected(&self) -> usize {
+        self.composer_autocomplete_selected
+    }
+
+    pub fn composer_autocomplete_items(&self) -> &[ComposerAutocompleteItem] {
+        &self.composer_autocomplete_items
+    }
+
+    pub fn composer_autocomplete_anchor_position(&self) -> Option<(usize, usize)> {
+        if !self.composer_autocomplete_open {
+            return None;
+        }
+
+        Some(row_col_from_cursor_index(
+            &self.draft,
+            self.composer_autocomplete_token_start,
+        ))
     }
 
     pub fn active_agent(&self) -> Option<&str> {
@@ -182,7 +245,9 @@ impl App {
     }
 
     pub fn active_model(&self) -> Option<&str> {
-        self.models.get(self.selected_model).map(String::as_str)
+        self.active_model_override
+            .as_deref()
+            .or_else(|| self.models.get(self.selected_model).map(String::as_str))
     }
 
     pub fn active_session(&self) -> Option<&ChatSession> {
@@ -208,6 +273,13 @@ impl App {
 
         self.health = snapshot.health;
         self.sessions = snapshot.sessions;
+        self.sessions.sort_by(|left, right| {
+            right
+                .updated_unix
+                .unwrap_or_default()
+                .cmp(&left.updated_unix.unwrap_or_default())
+                .then_with(|| left.title.cmp(&right.title))
+        });
         self.messages = snapshot.messages;
         self.runtime_status = snapshot.runtime_status;
         self.agents = normalize_options(snapshot.agents);
@@ -223,7 +295,12 @@ impl App {
         );
         self.selected_agent = resolve_option_index(&self.agents, previous_agent.as_deref());
         self.selected_model = resolve_option_index(&self.models, previous_model.as_deref());
-        self.sync_preview_editor();
+        self.active_model_override =
+            previous_model.filter(|value| self.models.iter().all(|model| model != value));
+        self.sessions_scroll_index = self
+            .sessions_scroll_index
+            .min(self.sessions.len().saturating_sub(1));
+        self.model_selector_selected = 0;
     }
 
     pub fn select_next_session(&mut self) {
@@ -243,12 +320,19 @@ impl App {
         }
     }
 
-    pub fn select_next_agent(&mut self) {
-        self.selected_agent = next_index(self.selected_agent, self.agents.len());
+    pub fn set_selected_session_index(&mut self, index: usize) -> bool {
+        if index >= self.sessions.len() {
+            return false;
+        }
+
+        let changed = self.selected_session != index;
+        self.selected_session = index;
+        self.chat_scroll_lines = 0;
+        changed
     }
 
-    pub fn select_next_model(&mut self) {
-        self.selected_model = next_index(self.selected_model, self.models.len());
+    pub fn select_next_agent(&mut self) {
+        self.selected_agent = next_index(self.selected_agent, self.agents.len());
     }
 
     pub fn set_active_agent_by_name(&mut self, value: &str) -> bool {
@@ -273,16 +357,208 @@ impl App {
 
         if let Some(index) = self.models.iter().position(|model| model == target) {
             self.selected_model = index;
+            self.active_model_override = None;
             return true;
         }
 
-        false
+        self.active_model_override = Some(target.to_string());
+        true
+    }
+
+    pub fn is_model_selector_open(&self) -> bool {
+        self.model_selector_open
+    }
+
+    pub fn model_selector_raw_mode(&self) -> bool {
+        self.model_selector_raw_mode
+    }
+
+    pub fn model_selector_query(&self) -> &str {
+        &self.model_selector_query
+    }
+
+    pub fn model_selector_raw_input(&self) -> &str {
+        &self.model_selector_raw_input
+    }
+
+    pub fn model_selector_selected(&self) -> usize {
+        self.model_selector_selected
+    }
+
+    pub fn open_model_selector(&mut self) {
+        self.model_selector_open = true;
+        self.model_selector_raw_mode = false;
+        self.model_selector_query.clear();
+        self.model_selector_raw_input = self.active_model().unwrap_or_default().to_string();
+        self.model_selector_selected = 0;
+    }
+
+    pub fn close_model_selector(&mut self) {
+        self.model_selector_open = false;
+        self.model_selector_raw_mode = false;
+        self.model_selector_query.clear();
+        self.model_selector_raw_input.clear();
+        self.model_selector_selected = 0;
+    }
+
+    pub fn model_selector_toggle_mode(&mut self) {
+        self.model_selector_raw_mode = !self.model_selector_raw_mode;
+        if self.model_selector_raw_mode && self.model_selector_raw_input.is_empty() {
+            self.model_selector_raw_input = self.model_selector_query.clone();
+        }
+    }
+
+    pub fn model_selector_insert_char(&mut self, value: char) {
+        if self.model_selector_raw_mode {
+            self.model_selector_raw_input.push(value);
+            return;
+        }
+
+        self.model_selector_query.push(value);
+        self.model_selector_selected = 0;
+    }
+
+    pub fn model_selector_backspace(&mut self) {
+        if self.model_selector_raw_mode {
+            self.model_selector_raw_input.pop();
+            return;
+        }
+
+        self.model_selector_query.pop();
+        self.model_selector_selected = 0;
+    }
+
+    pub fn model_selector_clear(&mut self) {
+        if self.model_selector_raw_mode {
+            self.model_selector_raw_input.clear();
+            return;
+        }
+
+        self.model_selector_query.clear();
+        self.model_selector_selected = 0;
+    }
+
+    pub fn model_selector_move_up(&mut self) {
+        let len = self.model_selector_items().len();
+        if len == 0 {
+            self.model_selector_selected = 0;
+            return;
+        }
+
+        self.model_selector_selected = previous_index(self.model_selector_selected, len);
+    }
+
+    pub fn model_selector_move_down(&mut self) {
+        let len = self.model_selector_items().len();
+        if len == 0 {
+            self.model_selector_selected = 0;
+            return;
+        }
+
+        self.model_selector_selected = next_index(self.model_selector_selected, len);
+    }
+
+    pub fn model_selector_set_selected(&mut self, index: usize) {
+        let len = self.model_selector_items().len();
+        if len == 0 {
+            self.model_selector_selected = 0;
+            return;
+        }
+
+        self.model_selector_selected = index.min(len.saturating_sub(1));
+    }
+
+    pub fn model_selector_items(&self) -> Vec<String> {
+        let filter = self.model_selector_query.trim().to_ascii_lowercase();
+        let mut items = self.models.clone();
+        if filter.is_empty() {
+            return items;
+        }
+
+        items.retain(|model| model.to_ascii_lowercase().contains(&filter));
+        items
+    }
+
+    pub fn confirm_model_selector(&mut self) -> Option<String> {
+        if self.model_selector_raw_mode {
+            let value = self.model_selector_raw_input.trim();
+            if value.is_empty() {
+                return None;
+            }
+
+            let selected = value.to_string();
+            self.set_active_model_by_name(&selected);
+            self.close_model_selector();
+            return Some(selected);
+        }
+
+        let items = self.model_selector_items();
+        let selected = items.get(self.model_selector_selected)?.clone();
+        self.set_active_model_by_name(&selected);
+        self.close_model_selector();
+        Some(selected)
     }
 
     pub fn clear_messages(&mut self) {
         self.messages.clear();
         self.chat_scroll_lines = 0;
-        self.sync_preview_editor();
+    }
+
+    pub fn close_composer_autocomplete(&mut self) {
+        self.composer_autocomplete_open = false;
+        self.composer_autocomplete_mode = None;
+        self.composer_autocomplete_query.clear();
+        self.composer_autocomplete_selected = 0;
+        self.composer_autocomplete_token_start = 0;
+        self.composer_autocomplete_items.clear();
+    }
+
+    pub fn composer_autocomplete_move_up(&mut self) {
+        let len = self.composer_autocomplete_items.len();
+        if len == 0 {
+            self.composer_autocomplete_selected = 0;
+            return;
+        }
+
+        self.composer_autocomplete_selected =
+            previous_index(self.composer_autocomplete_selected, len);
+    }
+
+    pub fn composer_autocomplete_move_down(&mut self) {
+        let len = self.composer_autocomplete_items.len();
+        if len == 0 {
+            self.composer_autocomplete_selected = 0;
+            return;
+        }
+
+        self.composer_autocomplete_selected = next_index(self.composer_autocomplete_selected, len);
+    }
+
+    pub fn composer_autocomplete_set_selected(&mut self, index: usize) {
+        let len = self.composer_autocomplete_items.len();
+        if len == 0 {
+            self.composer_autocomplete_selected = 0;
+            return;
+        }
+
+        self.composer_autocomplete_selected = index.min(len.saturating_sub(1));
+    }
+
+    pub fn apply_composer_autocomplete_selection(&mut self) -> Option<String> {
+        let index = self
+            .composer_autocomplete_selected
+            .min(self.composer_autocomplete_items.len().saturating_sub(1));
+        let selected = self.composer_autocomplete_items.get(index)?.clone();
+
+        let mut chars = self.draft.chars().collect::<Vec<_>>();
+        let start = self.composer_autocomplete_token_start.min(chars.len());
+        let end = self.draft_cursor.min(chars.len());
+        chars.splice(start..end, selected.insert.chars());
+        self.draft = chars.into_iter().collect();
+        self.draft_cursor = start + selected.insert.chars().count();
+        self.sync_composer_from_draft();
+        self.close_composer_autocomplete();
+        Some(selected.label)
     }
 
     pub fn is_composing(&self) -> bool {
@@ -294,21 +570,17 @@ impl App {
             return;
         }
 
+        self.ensure_workspace_file_cache();
         self.focus = FocusPane::Composer;
         self.composing = true;
         self.draft_cursor = self.draft.chars().count();
         self.sync_composer_from_draft();
-        self.sync_preview_editor();
     }
 
     pub fn cancel_composer(&mut self) {
         self.composing = false;
         self.focus = FocusPane::Chat;
-        self.sync_preview_editor();
-    }
-
-    pub fn draft(&self) -> &str {
-        &self.draft
+        self.close_composer_autocomplete();
     }
 
     pub fn insert_draft_char(&mut self, value: char) {
@@ -319,7 +591,6 @@ impl App {
         insert_char_at_cursor(&mut self.draft, self.draft_cursor, value);
         self.draft_cursor = self.draft_cursor.saturating_add(1);
         self.sync_composer_from_draft();
-        self.sync_preview_editor();
     }
 
     pub fn backspace_draft(&mut self) {
@@ -334,7 +605,6 @@ impl App {
         self.draft_cursor = self.draft_cursor.saturating_sub(1);
         remove_char_at_cursor(&mut self.draft, self.draft_cursor);
         self.sync_composer_from_draft();
-        self.sync_preview_editor();
     }
 
     pub fn delete_draft_char(&mut self) {
@@ -344,7 +614,6 @@ impl App {
 
         remove_char_at_cursor(&mut self.draft, self.draft_cursor);
         self.sync_composer_from_draft();
-        self.sync_preview_editor();
     }
 
     pub fn move_draft_cursor_left(&mut self) {
@@ -392,11 +661,6 @@ impl App {
         self.draft.clear();
         self.draft_cursor = 0;
         self.sync_composer_from_draft();
-        self.sync_preview_editor();
-    }
-
-    pub fn draft_cursor(&self) -> usize {
-        self.draft_cursor
     }
 
     pub fn scroll_chat_up(&mut self, amount: u16) {
@@ -409,6 +673,20 @@ impl App {
 
     pub fn reset_chat_scroll(&mut self) {
         self.chat_scroll_lines = 0;
+    }
+
+    pub fn scroll_sessions_up(&mut self, amount: usize) {
+        self.sessions_scroll_index = self.sessions_scroll_index.saturating_sub(amount.max(1));
+    }
+
+    pub fn scroll_sessions_down(&mut self, amount: usize) {
+        if self.sessions.is_empty() {
+            self.sessions_scroll_index = 0;
+            return;
+        }
+
+        let max_index = self.sessions.len().saturating_sub(1);
+        self.sessions_scroll_index = (self.sessions_scroll_index + amount.max(1)).min(max_index);
     }
 
     pub fn scroll_runtime_up(&mut self, amount: u16) {
@@ -443,7 +721,7 @@ impl App {
         self.composing = false;
         self.focus = FocusPane::Chat;
         self.chat_scroll_lines = 0;
-        self.sync_preview_editor();
+        self.close_composer_autocomplete();
     }
 
     pub fn set_refresh_in_flight(&mut self, value: bool) {
@@ -508,35 +786,58 @@ impl App {
     }
 
     fn sync_composer_from_draft(&mut self) {
+        self.refresh_composer_autocomplete();
         self.composer = build_composer_textarea(&self.draft, self.draft_cursor);
     }
 
-    fn sync_preview_editor(&mut self) {
-        let (source, content) = if self.composing && !self.draft.trim().is_empty() {
-            ("draft".to_string(), clip_preview_content(&self.draft, 5000))
-        } else if let Some(message) = self
-            .messages
-            .iter()
-            .rev()
-            .find(|entry| !entry.text.trim().is_empty())
-        {
-            (
-                format!("message:{}", normalize_role(&message.role)),
-                clip_preview_content(&message.text, 5000),
-            )
-        } else {
-            (
-                "none".to_string(),
-                "No prompt draft or message content available yet.".to_string(),
-            )
-        };
-
-        if content != self.code_preview_last_content {
-            self.code_preview_editor.set_content(&content);
-            self.code_preview_last_content = content;
+    fn refresh_composer_autocomplete(&mut self) {
+        if !self.composing {
+            self.close_composer_autocomplete();
+            return;
         }
 
-        self.code_preview_source = source;
+        let Some((trigger, query, token_start)) =
+            current_composer_trigger(&self.draft, self.draft_cursor)
+        else {
+            self.close_composer_autocomplete();
+            return;
+        };
+
+        let items = match trigger {
+            '/' => slash_autocomplete_items(&query),
+            '@' => {
+                self.ensure_workspace_file_cache();
+                file_autocomplete_items(&self.workspace_file_cache, &query)
+            }
+            _ => Vec::new(),
+        };
+
+        if items.is_empty() {
+            self.close_composer_autocomplete();
+            return;
+        }
+
+        self.composer_autocomplete_open = true;
+        self.composer_autocomplete_mode = match trigger {
+            '/' => Some(ComposerAutocompleteMode::Slash),
+            '@' => Some(ComposerAutocompleteMode::File),
+            _ => None,
+        };
+        self.composer_autocomplete_query = query;
+        self.composer_autocomplete_token_start = token_start;
+        self.composer_autocomplete_items = items;
+        self.composer_autocomplete_selected = self
+            .composer_autocomplete_selected
+            .min(self.composer_autocomplete_items.len().saturating_sub(1));
+    }
+
+    fn ensure_workspace_file_cache(&mut self) {
+        if self.workspace_file_cache_loaded {
+            return;
+        }
+
+        self.workspace_file_cache = collect_workspace_files(&self.directory, 2000, 6);
+        self.workspace_file_cache_loaded = true;
     }
 
     pub fn toggle_help(&mut self) {
@@ -624,24 +925,131 @@ fn row_col_from_cursor_index(value: &str, cursor_index: usize) -> (usize, usize)
     (row, col)
 }
 
-fn normalize_role(value: &str) -> &str {
-    match value.trim().to_ascii_lowercase().as_str() {
-        "user" => "user",
-        "assistant" => "assistant",
-        "tool" => "tool",
-        "system" => "system",
-        _ => "other",
+fn current_composer_trigger(value: &str, cursor_index: usize) -> Option<(char, String, usize)> {
+    let mut cursor_byte = value.len();
+    if cursor_index < value.chars().count() {
+        cursor_byte = value
+            .char_indices()
+            .nth(cursor_index)
+            .map(|(byte, _)| byte)
+            .unwrap_or(value.len());
     }
+
+    let prefix = &value[..cursor_byte];
+    let token_start_byte = prefix
+        .rfind(char::is_whitespace)
+        .map(|index| index + 1)
+        .unwrap_or(0);
+    let token = &prefix[token_start_byte..];
+
+    let (trigger, query) = if let Some(query) = token.strip_prefix('/') {
+        ('/', query)
+    } else if let Some(query) = token.strip_prefix('@') {
+        ('@', query)
+    } else {
+        return None;
+    };
+
+    let token_start = value[..token_start_byte].chars().count();
+    Some((trigger, query.to_string(), token_start))
 }
 
-fn clip_preview_content(value: &str, max_chars: usize) -> String {
-    let trimmed = value.trim();
-    if trimmed.chars().count() <= max_chars {
-        return trimmed.to_string();
+fn slash_autocomplete_items(query: &str) -> Vec<ComposerAutocompleteItem> {
+    const COMMANDS: [(&str, &str); 8] = [
+        ("help", "toggle help"),
+        ("refresh", "refresh snapshot"),
+        ("new", "create session"),
+        ("clear", "clear messages"),
+        ("sessions", "session summary"),
+        ("agent", "set agent"),
+        ("model", "set model"),
+        ("grep", "search workspace"),
+    ];
+
+    let needle = query.trim().to_ascii_lowercase();
+    let mut items = COMMANDS
+        .into_iter()
+        .filter(|(name, _)| needle.is_empty() || name.contains(&needle))
+        .map(|(name, desc)| ComposerAutocompleteItem {
+            label: format!("/{name}"),
+            insert: if matches!(name, "agent" | "model" | "grep") {
+                format!("/{name} ")
+            } else {
+                format!("/{name}")
+            },
+            tag: desc.to_string(),
+        })
+        .collect::<Vec<_>>();
+
+    items.sort_by(|left, right| left.label.cmp(&right.label));
+    items
+}
+
+fn file_autocomplete_items(paths: &[String], query: &str) -> Vec<ComposerAutocompleteItem> {
+    let needle = query.trim().to_ascii_lowercase();
+    paths
+        .iter()
+        .filter(|path| needle.is_empty() || path.to_ascii_lowercase().contains(&needle))
+        .take(80)
+        .map(|path| ComposerAutocompleteItem {
+            label: format!("@{path}"),
+            insert: format!("@{path}"),
+            tag: "file".to_string(),
+        })
+        .collect()
+}
+
+fn collect_workspace_files(root: &str, limit: usize, max_depth: usize) -> Vec<String> {
+    let mut output = Vec::new();
+    let root_path = Path::new(root);
+    collect_workspace_files_recursive(root_path, root_path, 0, max_depth, limit, &mut output);
+    output.sort();
+    output
+}
+
+fn collect_workspace_files_recursive(
+    root: &Path,
+    current: &Path,
+    depth: usize,
+    max_depth: usize,
+    limit: usize,
+    output: &mut Vec<String>,
+) {
+    if output.len() >= limit || depth > max_depth {
+        return;
     }
 
-    let clipped = trimmed.chars().take(max_chars).collect::<String>();
-    format!("{clipped}\n... [preview truncated]")
+    let Ok(entries) = fs::read_dir(current) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        if output.len() >= limit {
+            break;
+        }
+
+        let path = entry.path();
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+
+        if name.starts_with('.') || matches!(name.as_ref(), "target" | "node_modules" | "generated")
+        {
+            continue;
+        }
+
+        if path.is_dir() {
+            collect_workspace_files_recursive(root, &path, depth + 1, max_depth, limit, output);
+            continue;
+        }
+
+        if !path.is_file() {
+            continue;
+        }
+
+        if let Ok(relative) = path.strip_prefix(root) {
+            output.push(relative.to_string_lossy().replace('\\', "/"));
+        }
+    }
 }
 
 fn insert_char_at_cursor(buffer: &mut String, cursor: usize, value: char) {

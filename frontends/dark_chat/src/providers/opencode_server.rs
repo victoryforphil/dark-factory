@@ -213,6 +213,7 @@ impl ChatProvider for OpenCodeProvider {
                         .as_deref()
                         .map(compact_timestamp)
                         .or_else(|| session.time.updated.and_then(format_unix_timestamp)),
+                    updated_unix: session.time.updated.map(normalize_unix_timestamp),
                 }
             })
             .collect();
@@ -253,6 +254,7 @@ impl ChatProvider for OpenCodeProvider {
                 .as_deref()
                 .map(compact_timestamp)
                 .or_else(|| record.time.updated.and_then(format_unix_timestamp)),
+            updated_unix: record.time.updated.map(normalize_unix_timestamp),
         })
     }
 
@@ -413,10 +415,18 @@ impl ChatProvider for OpenCodeProvider {
             .map(|value| extract_mcp_status(&value))
             .unwrap_or_default();
 
+        let config_path = self
+            .request_json_with_fallback(Method::GET, &["/config", "/config/"], &query, None)
+            .await
+            .ok()
+            .map(unwrap_data)
+            .and_then(|value| extract_config_path(&value));
+
         Ok(ProviderRuntimeStatus {
             mcp,
             lsp,
             formatter,
+            config_path,
         })
     }
 
@@ -910,6 +920,65 @@ fn format_unix_timestamp(value: i64) -> Option<String> {
     };
 
     Some(format!("unix:{seconds}"))
+}
+
+fn normalize_unix_timestamp(value: i64) -> i64 {
+    if value <= 0 {
+        return 0;
+    }
+
+    if value > 1_000_000_000_000 {
+        value / 1_000
+    } else {
+        value
+    }
+}
+
+fn extract_config_path(value: &Value) -> Option<String> {
+    fn looks_like_config_path(candidate: &str) -> bool {
+        let trimmed = candidate.trim();
+        if trimmed.is_empty() {
+            return false;
+        }
+
+        trimmed.contains("/")
+            && (trimmed.contains("config")
+                || trimmed.ends_with(".json")
+                || trimmed.ends_with(".toml")
+                || trimmed.ends_with(".yaml")
+                || trimmed.ends_with(".yml"))
+    }
+
+    fn walk(value: &Value, depth: usize) -> Option<String> {
+        if depth > 6 {
+            return None;
+        }
+
+        match value {
+            Value::String(text) => looks_like_config_path(text).then(|| text.trim().to_string()),
+            Value::Object(map) => {
+                for key in [
+                    "path",
+                    "configPath",
+                    "config_path",
+                    "file",
+                    "configFile",
+                    "config_file",
+                    "location",
+                ] {
+                    if let Some(found) = map.get(key).and_then(|entry| walk(entry, depth + 1)) {
+                        return Some(found);
+                    }
+                }
+
+                map.values().find_map(|entry| walk(entry, depth + 1))
+            }
+            Value::Array(items) => items.iter().find_map(|entry| walk(entry, depth + 1)),
+            _ => None,
+        }
+    }
+
+    walk(value, 0)
 }
 
 fn extract_message_text(parts: &[Value]) -> String {

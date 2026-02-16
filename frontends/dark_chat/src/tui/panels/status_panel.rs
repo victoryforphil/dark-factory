@@ -1,10 +1,10 @@
 use ratatui::layout::Rect;
 use ratatui::style::Style;
-use ratatui::text::Line;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::Frame;
 
-use dark_tui_components::PaneBlockComponent;
+use dark_tui_components::{PaneBlockComponent, StatusPill};
 
 use crate::tui::app::{App, FocusPane};
 
@@ -17,93 +17,40 @@ impl StatusPanel {
         let inner = block.inner(area);
         frame.render_widget(block, area);
 
-        let health = if app.health().healthy {
-            "healthy"
-        } else {
-            "unhealthy"
-        };
+        if inner.width == 0 || inner.height == 0 {
+            return;
+        }
 
         let mut lines = vec![
-            Line::from(format!("health: {health}")),
-            Line::from(format!(
-                "version: {}",
-                app.health().version.as_deref().unwrap_or("-")
-            )),
-            Line::from(format!(
-                "realtime: {} ({})",
-                if app.realtime_supported() {
-                    if app.realtime_connected() {
-                        "connected"
-                    } else {
-                        "disconnected"
-                    }
-                } else {
-                    "disabled"
-                },
-                app.realtime_event_count()
-            )),
-            Line::from(format!(
-                "last-event: {}",
-                app.realtime_last_event().unwrap_or("-")
-            )),
-            Line::from(format!(
-                "lsp: {}",
-                join_statuses(app.runtime_status().lsp.as_slice(), 2)
-            )),
-            Line::from(format!(
-                "formatter: {}",
-                join_statuses(app.runtime_status().formatter.as_slice(), 2)
-            )),
-            Line::from(format!(
-                "mcp: {}",
-                join_statuses(app.runtime_status().mcp.as_slice(), 2)
-            )),
-            Line::from(format!(
-                "directory: {}",
-                compact_locator(app.directory(), 34)
-            )),
-            Line::from(""),
+            health_line(app, theme),
+            selection_line(app, theme),
+            realtime_line(app, theme),
+            service_line("lsp", app.runtime_status().lsp.as_slice(), theme),
+            service_line("fmt", app.runtime_status().formatter.as_slice(), theme),
+            service_line("mcp", app.runtime_status().mcp.as_slice(), theme),
+            config_line(app, theme),
+            directory_line(app, theme),
+            Line::raw(""),
         ];
 
         if app.show_help() {
-            lines.extend(vec![
-                Line::styled("help", Style::default().fg(theme.text_secondary)),
-                Line::styled(
-                    "- j/k: sessions or scroll focus",
-                    Style::default().fg(theme.text_muted),
-                ),
-                Line::styled("- n: new session", Style::default().fg(theme.text_muted)),
-                Line::styled(
-                    "- a/m: cycle agent/model",
-                    Style::default().fg(theme.text_muted),
-                ),
-                Line::styled("- c: compose mode", Style::default().fg(theme.text_muted)),
-                Line::styled(
-                    "- Enter send, Shift+Enter newline",
-                    Style::default().fg(theme.text_muted),
-                ),
-                Line::styled(
-                    "- /help /refresh /agent /model",
-                    Style::default().fg(theme.text_muted),
-                ),
-                Line::styled(
-                    "- /grep <pattern> and @file refs",
-                    Style::default().fg(theme.text_muted),
-                ),
-                Line::styled(
-                    "- h: toggle this panel",
-                    Style::default().fg(theme.text_muted),
-                ),
-            ]);
+            lines.push(Line::from(vec![
+                StatusPill::muted("keys", theme).span_compact(),
+                Span::raw(" "),
+                Span::styled("navigation", Style::default().fg(theme.text_secondary)),
+            ]));
+            lines.push(help_line("j/k", "sessions or scroll focus", theme));
+            lines.push(help_line("n", "new session", theme));
+            lines.push(help_line("a/m", "cycle agent/model", theme));
+            lines.push(help_line("c", "open composer", theme));
+            lines.push(help_line("Enter", "send prompt", theme));
+            lines.push(help_line("h", "toggle help", theme));
         } else {
-            lines.push(Line::styled(
-                "Press h to show help.",
-                Style::default().fg(theme.text_muted),
-            ));
-        }
-
-        if inner.width == 0 || inner.height == 0 {
-            return;
+            lines.push(Line::from(vec![
+                StatusPill::muted("help", theme).span_compact(),
+                Span::raw(" "),
+                Span::styled("press h", Style::default().fg(theme.text_muted)),
+            ]));
         }
 
         let paragraph = Paragraph::new(lines)
@@ -113,9 +60,141 @@ impl StatusPanel {
     }
 }
 
-fn compact_locator(value: &str, max_len: usize) -> String {
+fn health_line(app: &App, theme: &dark_tui_components::ComponentTheme) -> Line<'static> {
+    let health = if app.health().healthy {
+        StatusPill::ok("healthy", theme)
+    } else {
+        StatusPill::error("unhealthy", theme)
+    };
+
+    let version = app.health().version.as_deref().unwrap_or("-");
+    Line::from(vec![
+        health.span_compact(),
+        Span::raw(" "),
+        StatusPill::muted(format!("v:{version}"), theme).span_compact(),
+    ])
+}
+
+fn realtime_line(app: &App, theme: &dark_tui_components::ComponentTheme) -> Line<'static> {
+    let realtime = if !app.realtime_supported() {
+        StatusPill::muted("realtime:off", theme)
+    } else if app.realtime_connected() {
+        StatusPill::ok("realtime:on", theme)
+    } else {
+        StatusPill::warn("realtime:down", theme)
+    };
+
+    let mut spans = vec![
+        realtime.span_compact(),
+        Span::raw(" "),
+        StatusPill::muted(format!("events:{}", app.realtime_event_count()), theme).span_compact(),
+    ];
+
+    if let Some(last_event) = app.realtime_last_event() {
+        spans.push(Span::raw(" "));
+        spans.push(StatusPill::info(compact_text(last_event, 22), theme).span_compact());
+    }
+
+    Line::from(spans)
+}
+
+fn selection_line(app: &App, theme: &dark_tui_components::ComponentTheme) -> Line<'static> {
+    Line::from(vec![
+        StatusPill::accent("model", theme).span_compact(),
+        Span::raw(" "),
+        StatusPill::info(compact_text(app.active_model().unwrap_or("-"), 24), theme).span_compact(),
+        Span::raw(" "),
+        StatusPill::accent("agent", theme).span_compact(),
+        Span::raw(" "),
+        StatusPill::muted(compact_text(app.active_agent().unwrap_or("-"), 14), theme)
+            .span_compact(),
+    ])
+}
+
+fn service_line(
+    label: &str,
+    entries: &[String],
+    theme: &dark_tui_components::ComponentTheme,
+) -> Line<'static> {
+    let mut spans = vec![
+        StatusPill::accent(label, theme).span_compact(),
+        Span::raw(" "),
+    ];
+
+    if entries.is_empty() {
+        spans.push(StatusPill::muted("none", theme).span_compact());
+        return Line::from(spans);
+    }
+
+    for (index, entry) in entries.iter().take(2).enumerate() {
+        if index > 0 {
+            spans.push(Span::raw(" "));
+        }
+        spans.push(StatusPill::info(compact_text(entry, 18), theme).span_compact());
+    }
+
+    if entries.len() > 2 {
+        spans.push(Span::raw(" "));
+        spans.push(StatusPill::muted(format!("+{}", entries.len() - 2), theme).span_compact());
+    }
+
+    Line::from(spans)
+}
+
+fn directory_line(app: &App, theme: &dark_tui_components::ComponentTheme) -> Line<'static> {
+    Line::from(vec![
+        StatusPill::muted("dir", theme).span_compact(),
+        Span::raw(" "),
+        Span::styled(
+            compact_tail(app.directory(), 34),
+            Style::default().fg(theme.text_secondary),
+        ),
+    ])
+}
+
+fn config_line(app: &App, theme: &dark_tui_components::ComponentTheme) -> Line<'static> {
+    let config_path = app
+        .runtime_status()
+        .config_path
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or("-");
+
+    Line::from(vec![
+        StatusPill::muted("config", theme).span_compact(),
+        Span::raw(" "),
+        Span::styled(
+            compact_tail(config_path, 34),
+            Style::default().fg(theme.text_secondary),
+        ),
+    ])
+}
+
+fn help_line(
+    key: &str,
+    action: &str,
+    theme: &dark_tui_components::ComponentTheme,
+) -> Line<'static> {
+    Line::from(vec![
+        StatusPill::muted(key, theme).span_compact(),
+        Span::raw(" "),
+        Span::styled(action.to_string(), Style::default().fg(theme.text_muted)),
+    ])
+}
+
+fn compact_text(value: &str, max_len: usize) -> String {
+    if value.chars().count() <= max_len {
+        return value.to_string();
+    }
+
+    let visible = max_len.saturating_sub(3);
+    let head = value.chars().take(visible).collect::<String>();
+    format!("{head}...")
+}
+
+fn compact_tail(value: &str, max_len: usize) -> String {
     let trimmed = value.trim();
-    if trimmed.len() <= max_len {
+    if trimmed.chars().count() <= max_len {
         return trimmed.to_string();
     }
 
@@ -123,21 +202,14 @@ fn compact_locator(value: &str, max_len: usize) -> String {
         return ".".repeat(max_len);
     }
 
-    let suffix_len = max_len.saturating_sub(3);
-    format!("...{}", &trimmed[trimmed.len() - suffix_len..])
-}
-
-fn join_statuses(entries: &[String], max_count: usize) -> String {
-    if entries.is_empty() {
-        return "-".to_string();
-    }
-
-    let shown = entries.iter().take(max_count).cloned().collect::<Vec<_>>();
-    let mut joined = shown.join(", ");
-
-    if entries.len() > max_count {
-        joined.push_str(&format!(" +{}", entries.len() - max_count));
-    }
-
-    joined
+    let keep = max_len - 3;
+    let tail = trimmed
+        .chars()
+        .rev()
+        .take(keep)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect::<String>();
+    format!("...{tail}")
 }

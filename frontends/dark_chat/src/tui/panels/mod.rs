@@ -5,7 +5,7 @@ mod key_bar_panel;
 mod sessions_panel;
 mod status_panel;
 
-pub use chat_panel::ChatPanel;
+pub use chat_panel::{ChatPanel, ComposerAutocompleteHit, ModelSelectorHit};
 pub use footer_panel::FooterPanel;
 pub use header_panel::HeaderPanel;
 pub use key_bar_panel::KeyBarPanel;

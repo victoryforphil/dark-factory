@@ -1,5 +1,5 @@
-use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::Frame;
 
 use crate::tui::app::App;
 use crate::tui::panels::{
@@ -66,7 +66,7 @@ impl MainView {
 
             let top = Layout::default()
                 .direction(Direction::Horizontal)
-                .constraints([Constraint::Percentage(30), Constraint::Percentage(70)])
+                .constraints([Constraint::Percentage(36), Constraint::Percentage(64)])
                 .split(vertical[0]);
 
             return ViewLayout {
@@ -81,8 +81,8 @@ impl MainView {
         let columns = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(18),
-                Constraint::Percentage(60),
+                Constraint::Percentage(24),
+                Constraint::Percentage(54),
                 Constraint::Percentage(22),
             ])
             .split(body);
@@ -143,7 +143,7 @@ fn chat_composer_area(chat_area: Rect) -> Rect {
         .constraints([
             Constraint::Length(3),
             Constraint::Min(4),
-            Constraint::Length(3),
+            Constraint::Length(5),
         ])
         .split(inner);
 

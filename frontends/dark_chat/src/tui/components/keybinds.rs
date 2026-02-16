@@ -7,7 +7,7 @@ pub const KEY_BINDS: [KeyBind; 11] = [
     KeyBind::new("r", "refresh"),
     KeyBind::new("n", "new session"),
     KeyBind::new("a", "agent"),
-    KeyBind::new("m", "model"),
+    KeyBind::new("m", "model picker"),
     KeyBind::new("c", "compose"),
     KeyBind::new("enter", "send; S-enter nl"),
     KeyBind::new("esc", "cancel"),

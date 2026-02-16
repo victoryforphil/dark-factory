@@ -34,6 +34,7 @@ use crate::tui::commands::{
     parse_remote_slash_command, run_local_grep_summary,
 };
 use crate::tui::input::{LoopAction, handle_key};
+use crate::tui::panels::{ComposerAutocompleteHit, ModelSelectorHit, SessionsPanel};
 use crate::tui::realtime::event_requires_refresh;
 use crate::tui::views::{MainView, PanelHit};
 
@@ -225,12 +226,111 @@ async fn run_loop(terminal: &mut TuiTerminal, backend: &ChatBackend, app: &mut A
                 height: size.height,
             });
 
+            if app.is_model_selector_open() {
+                let hit = crate::tui::panels::ChatPanel::model_selector_hit(
+                    layout.chat,
+                    layout.chat_composer,
+                    app,
+                    mouse.column,
+                    mouse.row,
+                );
+
+                match mouse.kind {
+                    MouseEventKind::Down(MouseButton::Left) => match hit {
+                        ModelSelectorHit::ListItem(index) => {
+                            app.model_selector_set_selected(index);
+                            if let Some(model) = app.confirm_model_selector() {
+                                app.set_status_message(format!("Model selected: {model}"));
+                            }
+                        }
+                        ModelSelectorHit::Query => {
+                            if !app.model_selector_raw_mode() {
+                                app.model_selector_toggle_mode();
+                                app.set_status_message("Model selector: raw input mode.");
+                            }
+                        }
+                        ModelSelectorHit::Popup => {}
+                        ModelSelectorHit::Outside => {
+                            app.close_model_selector();
+                            app.set_status_message("Model selector closed.");
+                        }
+                    },
+                    MouseEventKind::ScrollUp => {
+                        if hit != ModelSelectorHit::Outside {
+                            app.model_selector_move_up();
+                        }
+                    }
+                    MouseEventKind::ScrollDown => {
+                        if hit != ModelSelectorHit::Outside {
+                            app.model_selector_move_down();
+                        }
+                    }
+                    _ => {}
+                }
+
+                continue;
+            }
+
+            if app.composer_autocomplete_open() {
+                let hit = crate::tui::panels::ChatPanel::composer_autocomplete_hit(
+                    layout.chat,
+                    layout.chat_composer,
+                    app,
+                    mouse.column,
+                    mouse.row,
+                );
+
+                match mouse.kind {
+                    MouseEventKind::Down(MouseButton::Left) => match hit {
+                        ComposerAutocompleteHit::ListItem(index) => {
+                            app.composer_autocomplete_set_selected(index);
+                            let _ = app.apply_composer_autocomplete_selection();
+                        }
+                        ComposerAutocompleteHit::Outside => {
+                            app.close_composer_autocomplete();
+                        }
+                        ComposerAutocompleteHit::Popup => {}
+                    },
+                    MouseEventKind::ScrollUp => {
+                        if hit != ComposerAutocompleteHit::Outside {
+                            app.composer_autocomplete_move_up();
+                        }
+                    }
+                    MouseEventKind::ScrollDown => {
+                        if hit != ComposerAutocompleteHit::Outside {
+                            app.composer_autocomplete_move_down();
+                        }
+                    }
+                    _ => {}
+                }
+
+                continue;
+            }
+
             match mouse.kind {
                 MouseEventKind::Down(MouseButton::Left) => {
                     match MainView::hit_test(layout, mouse.column, mouse.row) {
                         PanelHit::Sessions => {
                             app.set_focus(FocusPane::Sessions);
-                            app.set_status_message("Focused sessions panel.");
+
+                            if let Some(index) =
+                                SessionsPanel::session_index_at(layout.sessions, app, mouse.row)
+                            {
+                                let changed = app.set_selected_session_index(index);
+                                if changed {
+                                    app.clear_messages();
+                                    force_refresh = true;
+                                }
+
+                                if let Some(session) = app.active_session() {
+                                    app.set_status_message(format!(
+                                        "Selected session: {}",
+                                        session.title
+                                    ));
+                                }
+                            } else {
+                                app.set_status_message("Focused sessions panel.");
+                            }
                         }
                         PanelHit::Chat => {
                             app.set_focus(FocusPane::Chat);
@@ -249,6 +349,10 @@ async fn run_loop(terminal: &mut TuiTerminal, backend: &ChatBackend, app: &mut A
                 }
                 MouseEventKind::ScrollUp => {
                     match MainView::hit_test(layout, mouse.column, mouse.row) {
+                        PanelHit::Sessions => {
+                            app.set_focus(FocusPane::Sessions);
+                            app.scroll_sessions_up(1);
+                        }
                         PanelHit::Chat | PanelHit::ChatComposer => {
                             app.set_focus(FocusPane::Chat);
                             app.scroll_chat_up(2);
@@ -262,6 +366,10 @@ async fn run_loop(terminal: &mut TuiTerminal, backend: &ChatBackend, app: &mut A
                 }
                 MouseEventKind::ScrollDown => {
                     match MainView::hit_test(layout, mouse.column, mouse.row) {
+                        PanelHit::Sessions => {
+                            app.set_focus(FocusPane::Sessions);
+                            app.scroll_sessions_down(1);
+                        }
                         PanelHit::Chat | PanelHit::ChatComposer => {
                             app.set_focus(FocusPane::Chat);
                             app.scroll_chat_down(2);
@@ -324,12 +432,9 @@ async fn run_loop(terminal: &mut TuiTerminal, backend: &ChatBackend, app: &mut A
                     app.active_agent().unwrap_or("-")
                 ));
             }
-            LoopAction::SelectNextModel => {
-                app.select_next_model();
-                app.set_status_message(format!(
-                    "Model selected: {}",
-                    app.active_model().unwrap_or("-")
-                ));
+            LoopAction::OpenModelSelector => {
+                app.open_model_selector();
+                app.set_status_message("Model selector opened. Type to filter, Tab for raw.");
             }
             LoopAction::OpenCompose => {
                 if app.active_session().is_none() {
