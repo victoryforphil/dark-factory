@@ -1,0 +1,9 @@
+$schema: "https://moonrepo.dev/schemas/toolchain.json"
+
+# Enable JavaScript ecosystem support and tell moon we use Bun packages.
+javascript:
+  packageManager: "bun"
+
+# Turn on Bun toolchain integration for task execution.
+# Version is currently managed by .prototools (bun = "latest").
+bun: {}

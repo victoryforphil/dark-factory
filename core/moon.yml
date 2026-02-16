@@ -1,0 +1,46 @@
+$schema: "https://moonrepo.dev/schemas/project.json"
+
+# Metadata helps moon inheritance/query features as the workspace grows.
+language: "typescript"
+stack: "backend"
+type: "application"
+
+tasks:
+  # Install dependencies in core before codegen/start tasks.
+  install:
+    command: "bun install"
+    options:
+      cache: false
+
+  # Generate protobuf TS files used by the Elysia API layer.
+  # Runs from workspace root because schemas live at /schemas.
+  codegen-proto:
+    command: "bun scripts/proto_codegen_core.sh.ts"
+    deps:
+      - "install"
+    inputs:
+      - "/schemas/**/*.proto"
+      - "package.json"
+      - "bun.lock"
+    outputs:
+      - "src/gen/proto/"
+    options:
+      cache: false
+      runFromWorkspaceRoot: true
+
+  # Production-style startup (single run).
+  start:
+    command: "bun run start"
+    deps:
+      - "codegen-proto"
+    options:
+      cache: false
+
+  # Local watch mode, marked persistent for moon task graph behavior.
+  dev:
+    command: "bun run dev"
+    deps:
+      - "codegen-proto"
+    options:
+      cache: false
+      persistent: true

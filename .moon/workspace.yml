@@ -1,0 +1,10 @@
+$schema: "https://moonrepo.dev/schemas/workspace.json"
+
+# Register workspace projects by ID -> relative path.
+projects:
+  core: "core"
+
+# Keep VCS settings explicit for deterministic affected-file behavior.
+vcs:
+  manager: "git"
+  defaultBranch: "main"

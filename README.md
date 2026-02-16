@@ -35,6 +35,8 @@
 - Shared helpers live in `scripts/helpers/`.
 - `scripts/install.sh.ts` runs an ordered array of install steps from repository root.
 - `scripts/proto_install.sh.ts` runs `proto install` from repository root.
+- `scripts/proto_codegen_core.sh.ts` generates TypeScript protobuf files for `schemas/core/**/*.proto` into `core/src/gen/proto/` and writes `schemas/core/core.pb`.
+- `scripts/moon_core.sh.ts` runs moon targets for Core (`start` by default, or `dev`).
 - `scripts/scrape_moon_docs.sh.ts` captures moonrepo docs as split per-page `docs/external/moonrepo/*.ext.md` files plus `docs/external/moonrepo/index.ext.md`.
 - `scripts/scrape_opencode_docs.sh.ts` captures OpenCode docs as split per-page `docs/external/opencode/*.ext.md` files plus `docs/external/opencode/index.ext.md`.
   - Defaults to English docs only (`DOCS_LANGUAGE=en`), with optional override via `DOCS_LANGUAGE`.
@@ -42,6 +44,7 @@
 - OpenCode skill reference: `.opencode/skills/proto-install/SKILL.md`.
 - OpenCode skill reference: `.opencode/skills/script-authoring/SKILL.md`.
 - OpenCode skill reference: `.opencode/skills/docs-scraping/SKILL.md`.
+- OpenCode skill reference: `.opencode/skills/moon-core-workflow/SKILL.md`.
 
 # Components
 
@@ -51,6 +54,8 @@
   - TBD: will either be stateless w/ DB and route all commands just to the agents
     - OR: a background API service (REST even) we can query from frontends
 - Currently looks like it will be Bun + Elysia JS
+- Moon support is configured for Core via `.moon/workspace.yml`, `.moon/toolchains.yml`, and `core/moon.yml`.
+- Core moon targets run protobuf codegen from `schemas/` before `start`/`dev`.
 
 ## Frontends
 
