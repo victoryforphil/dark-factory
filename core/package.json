@@ -4,13 +4,17 @@
   "private": true,
   "description": "Dark Factory core service (Bun + Elysia)",
   "scripts": {
+    "proto:generate": "bun ../scripts/proto_codegen_core.sh.ts",
     "dev": "bun run --watch src/index.ts",
     "start": "bun run src/index.ts"
   },
   "dependencies": {
-    "adze": "^2.3.0",
+    "@elysiajs/swagger": "^1.3.1",
+    "@grotto/logysia": "^0.1.6",
+    "@opuu/elysia-llms-txt": "^1.1.0",
     "elysia": "latest",
-    "elysia-protobuf": "github:victoryforphil/elysia-protobuf#master",
+    "elysia-protobuf": "git+ssh://git@github.com/victoryforphil/elysia-protobuf.git#66d61c6",
+    "logestic": "^1.2.2",
     "ts-proto": "^2.11.2"
   },
   "devDependencies": {
