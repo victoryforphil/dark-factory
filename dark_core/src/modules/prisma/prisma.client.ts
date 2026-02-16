@@ -1,8 +1,8 @@
-import { PrismaClient } from '../../../generated/prisma/client';
+import { PrismaClient } from '../../../../generated/prisma/client';
 import { PrismaLibSql } from '@prisma/adapter-libsql';
 
-import { getConfig } from '../config';
-import Log, { formatLogMetadata } from '../utils/logging';
+import { getConfig } from '../../config';
+import Log, { formatLogMetadata } from '../../utils/logging';
 
 let prismaClient: PrismaClient | undefined;
 

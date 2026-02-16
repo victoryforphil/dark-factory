@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { ConfigSubsystemDefinition } from '../config/lib/types';
+import type { ConfigSubsystemDefinition } from '../../config/lib/types';
 
 /** Server config owned by the system controller domain. */
 export const serverConfigSection = {

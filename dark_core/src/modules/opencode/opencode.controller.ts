@@ -3,8 +3,8 @@ import { basename, resolve } from 'node:path';
 
 import type { Message, Part, Session } from '@opencode-ai/sdk';
 
-import { getOpencodeClient } from '../clients';
-import { getConfig } from '../config';
+import { getConfig } from '../../config';
+import { getOpencodeClient } from './opencode.client';
 
 export interface OpencodeDirectoryInput {
   directory: string;

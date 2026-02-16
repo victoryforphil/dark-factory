@@ -1,7 +1,7 @@
 import { Elysia, t } from 'elysia';
 
-import { getApiInfo, getHealth, getMetrics, resetLocalDatabase } from '../controllers';
-import { failure, success, toErrorMessage } from '../utils/api-response';
+import { getApiInfo, getHealth, getMetrics, resetLocalDatabase } from './system.controller';
+import { failure, success, toErrorMessage } from '../../utils/api-response';
 
 export interface SystemRoutesDependencies {
   getApiInfo: typeof getApiInfo;

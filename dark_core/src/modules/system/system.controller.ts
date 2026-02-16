@@ -1,9 +1,9 @@
 import { mkdir } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 
-import { getConfig } from '../config';
-import { getPrismaClient } from '../clients';
-import Log, { formatLogMetadata } from '../utils/logging';
+import { getConfig } from '../../config';
+import { getPrismaClient } from '../prisma/prisma.client';
+import Log, { formatLogMetadata } from '../../utils/logging';
 
 export interface ServiceInfo {
   name: string;

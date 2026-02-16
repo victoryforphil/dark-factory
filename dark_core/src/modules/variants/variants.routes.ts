@@ -3,24 +3,26 @@ import {
   VariantInputCreate,
   VariantPlain,
   VariantPlainInputUpdate,
-} from '../../../generated/prismabox/Variant';
+} from '../../../../generated/prismabox/Variant';
 
 import {
   createVariant,
   deleteVariantById,
   getVariantById,
-  isNotFoundError,
   listVariants,
+  syncVariantGitInfo,
   updateVariantById,
-} from '../controllers';
-import { failure, success, toErrorMessage } from '../utils/api-response';
-import Log, { formatLogMetadata } from '../utils/logging';
+} from './variants.controller';
+import { isNotFoundError } from '../common/controller.errors';
+import { failure, success, toErrorMessage } from '../../utils/api-response';
+import Log, { formatLogMetadata } from '../../utils/logging';
 
 export interface VariantsRoutesDependencies {
   createVariant: typeof createVariant;
   deleteVariantById: typeof deleteVariantById;
   getVariantById: typeof getVariantById;
   listVariants: typeof listVariants;
+  syncVariantGitInfo: typeof syncVariantGitInfo;
   updateVariantById: typeof updateVariantById;
 }
 
@@ -49,6 +51,11 @@ const variantDeleteResponse = t.Object({
   data: VariantPlain,
 });
 
+const variantPollResponse = t.Object({
+  ok: t.Literal(true),
+  data: VariantPlain,
+});
+
 const apiFailureResponse = t.Object({
   ok: t.Literal(false),
   error: t.Object({
@@ -71,6 +78,7 @@ export const createVariantsRoutes = (
     deleteVariantById,
     getVariantById,
     listVariants,
+    syncVariantGitInfo,
     updateVariantById,
   },
 ): Elysia => {
@@ -162,6 +170,40 @@ export const createVariantsRoutes = (
         params: t.Object({ id: t.String() }),
         response: {
           200: variantGetResponse,
+          404: notFoundResponse,
+          500: apiFailureResponse,
+        },
+      },
+    )
+    .post(
+      '/:id/poll',
+      async ({ params, set }) => {
+        try {
+          const variant = await dependencies.syncVariantGitInfo(params.id);
+          return success(variant);
+        } catch (error) {
+          if (isNotFoundError(error)) {
+            set.status = 404;
+            Log.warn(
+              `Core // Variants Route // Poll variant not found ${formatLogMetadata({ id: params.id })}`,
+            );
+            return failure('VARIANTS_NOT_FOUND', error.message);
+          }
+
+          Log.error(
+            `Core // Variants Route // Poll failed ${formatLogMetadata({
+              error: toErrorMessage(error),
+              id: params.id,
+            })}`,
+          );
+          set.status = 500;
+          return failure('VARIANTS_POLL_FAILED', toErrorMessage(error));
+        }
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        response: {
+          200: variantPollResponse,
           404: notFoundResponse,
           500: apiFailureResponse,
         },

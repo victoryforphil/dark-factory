@@ -70,21 +70,21 @@ const sha256Hex = (value: string): string => {
   return new Bun.CryptoHasher('sha256').update(value).digest('hex');
 };
 
-export const isLocalProductLocator = (locator: string): boolean => {
+export const isLocalLocator = (locator: string): boolean => {
   return locator.startsWith(LOCAL_LOCATOR_PREFIX);
 };
 
 export const parseLocatorId = (locator: string): LocatorId => {
   const trimmedLocator = locator.trim();
 
-  if (!isLocalProductLocator(trimmedLocator)) {
+  if (!isLocalLocator(trimmedLocator)) {
     return {
       type: 'unknown',
       locator: trimmedLocator,
     };
   }
 
-  const canonicalLocator = canonicalizeLocalProductLocator(trimmedLocator);
+  const canonicalLocator = canonicalizeLocalLocator(trimmedLocator);
   return {
     type: 'local',
     locator: canonicalLocator,
@@ -92,8 +92,8 @@ export const parseLocatorId = (locator: string): LocatorId => {
   };
 };
 
-export const canonicalizeLocalProductLocator = (locator: string): string => {
-  if (!isLocalProductLocator(locator)) {
+export const canonicalizeLocalLocator = (locator: string): string => {
+  if (!isLocalLocator(locator)) {
     throw new Error(`Products // Locator // Expected @local:// locator (locator=${locator})`);
   }
 
@@ -109,11 +109,11 @@ export const canonicalizeLocalProductLocator = (locator: string): string => {
   return `${LOCAL_LOCATOR_PREFIX}${canonicalLocalPath}`;
 };
 
-export const normalizeProductLocator = (locator: string): string => {
+export const normalizeLocator = (locator: string): string => {
   const trimmedLocator = locator.trim();
 
-  if (isLocalProductLocator(trimmedLocator)) {
-    return canonicalizeLocalProductLocator(trimmedLocator);
+  if (isLocalLocator(trimmedLocator)) {
+    return canonicalizeLocalLocator(trimmedLocator);
   }
 
   if (isAbsoluteLocalPath(trimmedLocator)) {
@@ -150,6 +150,6 @@ export const hostAbsolutePathToLocatorId = (absolutePath: string): string => {
   return `${LOCAL_LOCATOR_PREFIX}${canonicalLocalPath}`;
 };
 
-export const buildDeterministicProductId = (canonicalLocator: string): string => {
+export const buildDeterministicIdFromLocator = (canonicalLocator: string): string => {
   return `${PRODUCT_ID_PREFIX}${sha256Hex(canonicalLocator)}`;
 };

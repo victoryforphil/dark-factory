@@ -1,14 +1,15 @@
-import type { Product } from '../../../generated/prisma/client';
+import { Prisma, type Product } from '../../../../generated/prisma/client';
 
-import { getPrismaClient } from '../clients';
+import { getPrismaClient } from '../prisma/prisma.client';
 import {
-  buildDeterministicProductId,
-  isLocalProductLocator,
-  normalizeProductLocator,
-} from '../utils/product-locator';
-import Log, { formatLogMetadata } from '../utils/logging';
-import { IdCollisionDetectedError, NotFoundError } from './controller.errors';
-import type { CursorListQuery } from './controller.types';
+  buildDeterministicIdFromLocator,
+  isLocalLocator,
+  normalizeLocator,
+} from '../../utils/locator';
+import { scanProductGitInfo } from '../git/git.scan';
+import Log, { formatLogMetadata } from '../../utils/logging';
+import { IdCollisionDetectedError, NotFoundError } from '../common/controller.errors';
+import type { CursorListQuery } from '../common/controller.types';
 
 export type ListProductsQuery = CursorListQuery;
 
@@ -70,8 +71,9 @@ export const getProductById = async (id: string): Promise<Product> => {
 
 export const createProduct = async (input: CreateProductInput): Promise<Product> => {
   const prisma = getPrismaClient();
-  const canonicalLocator = normalizeProductLocator(input.locator);
-  const productId = buildDeterministicProductId(canonicalLocator);
+  const canonicalLocator = normalizeLocator(input.locator);
+  const productId = buildDeterministicIdFromLocator(canonicalLocator);
+  const gitInfo = await scanProductGitInfo(canonicalLocator);
 
   const product = await prisma.$transaction(async (tx) => {
     const existingProductById = await tx.product.findUnique({
@@ -105,10 +107,11 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
         id: productId,
         locator: canonicalLocator,
         displayName: input.displayName ?? null,
+        gitInfo: gitInfo ?? Prisma.DbNull,
       },
     });
 
-    if (isLocalProductLocator(createdProduct.locator)) {
+    if (isLocalLocator(createdProduct.locator)) {
       await tx.variant.create({
         data: {
           id: crypto.randomUUID(),
@@ -129,7 +132,7 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
     })}`,
   );
 
-  if (isLocalProductLocator(product.locator)) {
+  if (isLocalLocator(product.locator)) {
     Log.debug(
       `Core // Products Controller // Default variant created ${formatLogMetadata({
         locator: product.locator,
@@ -160,7 +163,7 @@ export const updateProductById = async (
   const updatedProduct = await prisma.product.update({
     where: { id },
     data: {
-      ...(input.locator !== undefined ? { locator: normalizeProductLocator(input.locator) } : {}),
+      ...(input.locator !== undefined ? { locator: normalizeLocator(input.locator) } : {}),
       ...(input.displayName !== undefined ? { displayName: input.displayName } : {}),
     },
   });

@@ -19,6 +19,7 @@ model Product {
   id          String    @id
   locator     String    @unique
   displayName String?   @map("display_name")
+  gitInfo     Json?     @map("git_info")
   variants    Variant[]
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
@@ -28,13 +29,16 @@ model Product {
 }
 
 model Variant {
-  id        String   @id
-  productId String   @map("product_id")
-  name      String   @default("default")
-  locator   String
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                  String    @id
+  productId           String    @map("product_id")
+  name                String    @default("default")
+  locator             String
+  gitInfo             Json?     @map("git_info")
+  gitInfoUpdatedAt    DateTime? @map("git_info_updated_at")
+  gitInfoLastPolledAt DateTime? @map("git_info_last_polled_at")
+  product             Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
   @@unique([productId, name])
   @@index([productId])

@@ -1,7 +1,7 @@
 import { mkdirSync, rmSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 
-import { resetPrismaClientForTests } from '../../clients';
+import { resetPrismaClientForTests } from '../../modules/prisma/prisma.client';
 import { resetConfigCache } from '../../config';
 
 const REPO_ROOT = resolve(import.meta.dir, '../../../../');

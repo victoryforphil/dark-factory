@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
-import { opencodeConfigSection } from '../clients/opencode.config';
-import { prismaConfigSection } from '../clients/prisma.config';
-import { serverConfigSection } from '../controllers/system.config';
+import { opencodeConfigSection } from '../modules/opencode/opencode.config';
+import { prismaConfigSection } from '../modules/prisma/prisma.config';
+import { serverConfigSection } from '../modules/system/system.config';
 import { coreEnvironmentConfigValue, coreEnvironmentEnvBinding } from './env.config';
 import { createSubsystemSchema } from './lib/subsystem';
 import type { EnvBinding } from './lib/types';

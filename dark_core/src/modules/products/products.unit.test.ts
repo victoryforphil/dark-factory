@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { Elysia } from 'elysia';
 
-import { IdCollisionDetectedError, NotFoundError } from '../controllers';
+import { IdCollisionDetectedError, NotFoundError } from '../common/controller.errors';
 import { createProductsRoutes } from './products.routes';
 
 const unusedDependencies = {
@@ -16,7 +16,7 @@ const unusedDependencies = {
   },
 };
 
-describe('products routes unit', () => {
+describe('products module unit', () => {
   it('maps list controller errors into API failure response', async () => {
     const app = new Elysia().use(
       createProductsRoutes({

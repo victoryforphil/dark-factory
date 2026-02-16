@@ -1,13 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
-import { buildApp } from '../app';
-import { createSqliteTestDatabase, type SqliteTestDatabase } from '../test/helpers/sqlite-test-db';
+import { buildApp } from '../../app';
+import { createSqliteTestDatabase, type SqliteTestDatabase } from '../../test/helpers/sqlite-test-db';
+import { createProduct } from '../products/products.controller';
+import {
+  createVariant,
+  deleteVariantById,
+  getVariantById,
+  listVariants,
+  syncVariantGitInfo,
+  updateVariantById,
+} from './variants.controller';
 
-describe('variants routes integration', () => {
+describe('variants module integration', () => {
   let testDatabase: SqliteTestDatabase;
 
   beforeEach(async () => {
-    testDatabase = createSqliteTestDatabase('variants-routes');
+    testDatabase = createSqliteTestDatabase('variants-module');
     await testDatabase.setup();
   });
 
@@ -86,6 +95,13 @@ describe('variants routes integration', () => {
     );
     expect(getVariantResponse.status).toBe(200);
 
+    const pollVariantResponse = await app.handle(
+      new Request(`http://localhost/variants/${createdVariant.data.id}/poll`, {
+        method: 'POST',
+      }),
+    );
+    expect(pollVariantResponse.status).toBe(200);
+
     const updateVariantResponse = await app.handle(
       new Request(`http://localhost/variants/${createdVariant.data.id}`, {
         method: 'PATCH',
@@ -117,5 +133,44 @@ describe('variants routes integration', () => {
       new Request(`http://localhost/variants/${createdVariant.data.id}`),
     );
     expect(getDeletedVariantResponse.status).toBe(404);
+  });
+
+  it('supports variant CRUD operations', async () => {
+    const product = await createProduct({ locator: '@local:///tmp/variants-controller-product' });
+
+    const createdVariant = await createVariant({
+      product: {
+        connect: {
+          id: product.id,
+        },
+      },
+      name: 'variant-a',
+      locator: product.locator,
+    });
+
+    expect(createdVariant.productId).toBe(product.id);
+    expect(createdVariant.name).toBe('variant-a');
+    expect(createdVariant.locator).toBe(product.locator);
+
+    const fetchedVariant = await getVariantById(createdVariant.id);
+    expect(fetchedVariant.id).toBe(createdVariant.id);
+
+    const updatedVariant = await updateVariantById(createdVariant.id, {
+      name: 'variant-a-updated',
+    });
+    expect(updatedVariant.name).toBe('variant-a-updated');
+
+    const polledVariant = await syncVariantGitInfo(createdVariant.id);
+    expect(polledVariant.gitInfoLastPolledAt).toBeTruthy();
+
+    const variants = await listVariants({ productId: product.id, locator: product.locator });
+    expect(variants.length).toBe(2);
+
+    const deletedVariant = await deleteVariantById(createdVariant.id);
+    expect(deletedVariant.id).toBe(createdVariant.id);
+
+    const afterDelete = await listVariants({ productId: product.id });
+    expect(afterDelete.length).toBe(1);
+    expect(afterDelete[0]?.name).toBe('default');
   });
 });

@@ -1,9 +1,10 @@
-import type { Variant } from '../../../generated/prisma/client';
+import { Prisma, type Variant } from '../../../../generated/prisma/client';
 
-import { getPrismaClient } from '../clients';
-import Log, { formatLogMetadata } from '../utils/logging';
-import { NotFoundError } from './controller.errors';
-import type { CursorListQuery } from './controller.types';
+import { getPrismaClient } from '../prisma/prisma.client';
+import Log, { formatLogMetadata } from '../../utils/logging';
+import { NotFoundError } from '../common/controller.errors';
+import type { CursorListQuery } from '../common/controller.types';
+import { scanVariantGitInfo } from '../git/git.scan';
 
 const DEFAULT_LIST_LIMIT = 25;
 const MAX_LIST_LIMIT = 100;
@@ -103,7 +104,42 @@ export const createVariant = async (input: CreateVariantInput): Promise<Variant>
     })}`,
   );
 
-  return createdVariant;
+  return syncVariantGitInfo(createdVariant.id);
+};
+
+export const syncVariantGitInfo = async (id: string): Promise<Variant> => {
+  const prisma = getPrismaClient();
+
+  const existingVariant = await prisma.variant.findUnique({ where: { id } });
+
+  if (!existingVariant) {
+    Log.warn(
+      `Core // Variants Controller // Git sync skipped, variant not found ${formatLogMetadata({ id })}`,
+    );
+    throw new NotFoundError(`Variant ${id} was not found`);
+  }
+
+  const gitInfo = await scanVariantGitInfo(existingVariant.locator);
+  const now = new Date();
+
+  const updatedVariant = await prisma.variant.update({
+    where: { id },
+    data: {
+      gitInfo: gitInfo ?? Prisma.DbNull,
+      gitInfoLastPolledAt: now,
+      gitInfoUpdatedAt: gitInfo ? now : null,
+    },
+  });
+
+  Log.debug(
+    `Core // Variants Controller // Git info synchronized ${formatLogMetadata({
+      hasGitInfo: Boolean(gitInfo),
+      id,
+      locator: existingVariant.locator,
+    })}`,
+  );
+
+  return updatedVariant;
 };
 
 export const updateVariantById = async (

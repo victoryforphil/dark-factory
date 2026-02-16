@@ -1,35 +1,35 @@
 import { describe, expect, it } from 'bun:test';
 
 import {
-  buildDeterministicProductId,
-  canonicalizeLocalProductLocator,
+  buildDeterministicIdFromLocator,
+  canonicalizeLocalLocator,
   hostAbsolutePathToLocatorId,
   locatorIdToHostPath,
-  normalizeProductLocator,
+  normalizeLocator,
   parseLocatorId,
-} from './product-locator';
+} from './locator';
 
-describe('product locator utilities', () => {
+describe('locator utilities', () => {
   it('canonicalizes local locator strings', () => {
-    const locator = canonicalizeLocalProductLocator('@local:///tmp/./demo/../project/');
+    const locator = canonicalizeLocalLocator('@local:///tmp/./demo/../project/');
 
     expect(locator).toBe('@local:///tmp/project');
   });
 
   it('normalizes raw absolute filesystem paths into local locators', () => {
-    const locator = normalizeProductLocator('/tmp/../tmp/project/');
+    const locator = normalizeLocator('/tmp/../tmp/project/');
 
     expect(locator).toBe('@local:///tmp/project');
   });
 
   it('keeps non-local locators unchanged', () => {
-    const locator = normalizeProductLocator('repo://dark-factory/product-a');
+    const locator = normalizeLocator('repo://dark-factory/product-a');
 
     expect(locator).toBe('repo://dark-factory/product-a');
   });
 
   it('builds deterministic SHA-256 product IDs', () => {
-    const productId = buildDeterministicProductId('@local:///tmp/project');
+    const productId = buildDeterministicIdFromLocator('@local:///tmp/project');
 
     expect(productId).toBe(
       'prd_81036082e52d34e8648e2fe87d1ce252ad2679c89be825aa93faa6dc2133c670',

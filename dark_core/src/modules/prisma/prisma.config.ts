@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { ConfigSubsystemDefinition } from '../config/lib/types';
+import type { ConfigSubsystemDefinition } from '../../config/lib/types';
 
 /** Prisma config owned by the prisma client domain. */
 export const prismaConfigSection = {

@@ -10,8 +10,8 @@ import {
   listOpencodeSessions,
   sendOpencodeSessionCommand,
   sendOpencodeSessionPrompt,
-} from '../controllers';
-import { failure, success, toErrorMessage } from '../utils/api-response';
+} from './opencode.controller';
+import { failure, success, toErrorMessage } from '../../utils/api-response';
 
 export interface OpencodeRoutesDependencies {
   abortOpencodeSession: typeof abortOpencodeSession;

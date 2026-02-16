@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { Elysia } from 'elysia';
 
-import { NotFoundError } from '../controllers';
+import { NotFoundError } from '../common/controller.errors';
 import { createVariantsRoutes } from './variants.routes';
 
 const dependenciesBase = {
@@ -17,12 +17,15 @@ const dependenciesBase = {
   listVariants: async () => {
     throw new Error('not used in this test');
   },
+  syncVariantGitInfo: async () => {
+    throw new Error('not used in this test');
+  },
   updateVariantById: async () => {
     throw new Error('not used in this test');
   },
 };
 
-describe('variants routes unit', () => {
+describe('variants module unit', () => {
   it('maps list controller errors into API failure response', async () => {
     const app = new Elysia().use(
       createVariantsRoutes({
@@ -63,6 +66,41 @@ describe('variants routes unit', () => {
       error: {
         code: 'VARIANTS_NOT_FOUND',
         message: 'Variant missing-variant was not found',
+      },
+    });
+  });
+
+  it('maps poll requests to the git sync controller dependency', async () => {
+    const app = new Elysia().use(
+      createVariantsRoutes({
+        ...dependenciesBase,
+        syncVariantGitInfo: async () => {
+          return {
+            id: 'v_1',
+            productId: 'p_1',
+            name: 'default',
+            locator: '@local:///tmp/demo',
+            gitInfo: null,
+            gitInfoUpdatedAt: null,
+            gitInfoLastPolledAt: null,
+            createdAt: new Date('2026-01-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          };
+        },
+      }),
+    );
+
+    const response = await app.handle(
+      new Request('http://localhost/variants/v_1/poll', {
+        method: 'POST',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      data: {
+        id: 'v_1',
       },
     });
   });

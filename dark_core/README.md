@@ -2,6 +2,12 @@
 
 `dark_core` runs on Bun and exposes a small CLI through `src/index.ts`.
 
+## Source layout
+
+- Domain-first modules live under `src/modules/`.
+- Each module groups its route/controller/config/client/tests by type (for example `src/modules/products/products.routes.ts`, `src/modules/products/products.controller.ts`, and colocated tests).
+- Shared cross-module utilities remain in `src/utils/`, while config loader internals stay in `src/config/lib/`.
+
 ## Commands
 
 Start server (default behavior):

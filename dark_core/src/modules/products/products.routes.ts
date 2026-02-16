@@ -3,19 +3,18 @@ import {
   ProductPlain,
   ProductPlainInputCreate,
   ProductPlainInputUpdate,
-} from '../../../generated/prismabox/Product';
+} from '../../../../generated/prismabox/Product';
 
 import {
   createProduct,
   deleteProductById,
   getProductById,
-  isIdCollisionDetectedError,
-  isNotFoundError,
   listProducts,
   updateProductById,
-} from '../controllers';
-import { failure, success, toErrorMessage } from '../utils/api-response';
-import Log, { formatLogMetadata } from '../utils/logging';
+} from './products.controller';
+import { isIdCollisionDetectedError, isNotFoundError } from '../common/controller.errors';
+import { failure, success, toErrorMessage } from '../../utils/api-response';
+import Log, { formatLogMetadata } from '../../utils/logging';
 
 export interface ProductsRoutesDependencies {
   createProduct: typeof createProduct;

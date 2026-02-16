@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { ConfigSubsystemDefinition } from '../config/lib/types';
+import type { ConfigSubsystemDefinition } from '../../config/lib/types';
 
 const opencodeLogLevelSchema = z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR']);
 
