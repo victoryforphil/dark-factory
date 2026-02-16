@@ -1,11 +1,12 @@
 mod render;
 
 use std::env;
+use std::future::Future;
 use std::io::{self, Stdout};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use arboard::Clipboard;
 use crossterm::event::{
     self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind,
@@ -21,10 +22,12 @@ use ratatui::layout::Rect;
 
 use crate::app::{App, ResultsViewMode};
 use crate::cli::Cli;
-use crate::service::DashboardService;
+use crate::models::{ActorChatMessageRow, DashboardSnapshot};
+use crate::service::{DashboardService, SpawnOptions};
 use crate::theme::Theme;
 
 type TuiTerminal = Terminal<CrosstermBackend<Stdout>>;
+const API_TIMEOUT_SECONDS: u64 = 20;
 
 enum LoopAction {
     None,
@@ -39,6 +42,30 @@ enum LoopAction {
     ToggleChat,
     OpenChatCompose,
     SendChatMessage,
+}
+
+enum BackgroundActionResult {
+    PollVariant(Result<String>),
+    ImportVariantActors(Result<String>),
+    InitProduct(Result<String>),
+    SpawnOptions(Result<SpawnOptions>),
+    SpawnSession(Result<String>),
+    BuildAttach(Result<String>),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BackgroundActionKind {
+    PollVariant,
+    ImportVariantActors,
+    InitProduct,
+    SpawnOptions,
+    SpawnSession,
+    BuildAttach,
+}
+
+struct ActionTask {
+    kind: BackgroundActionKind,
+    handle: tokio::task::JoinHandle<BackgroundActionResult>,
 }
 
 pub async fn run(cli: Cli) -> Result<()> {
@@ -88,34 +115,177 @@ async fn run_loop(
     let refresh_interval = Duration::from_secs(app.refresh_seconds().max(2));
     let mut force_refresh = true;
     let mut next_refresh_at = Instant::now();
+    let mut snapshot_task: Option<tokio::task::JoinHandle<Result<DashboardSnapshot>>> = None;
+    let mut chat_refresh_task: Option<
+        tokio::task::JoinHandle<(String, Result<Vec<ActorChatMessageRow>>)>,
+    > = None;
+    let mut chat_send_task: Option<tokio::task::JoinHandle<(String, Result<()>)>> = None;
+    let mut action_tasks: Vec<ActionTask> = Vec::new();
 
     loop {
-        if force_refresh || Instant::now() >= next_refresh_at {
-            match service.fetch_snapshot().await {
-                Ok(snapshot) => {
+        if snapshot_task.as_ref().is_some_and(|task| task.is_finished()) {
+            let Some(task) = snapshot_task.take() else {
+                unreachable!("snapshot task should exist when marked finished");
+            };
+            app.set_snapshot_refresh_in_flight(false);
+            match task.await {
+                Ok(Ok(snapshot)) => {
                     app.apply_snapshot(snapshot);
                     app.set_status(format!(
                         "World state refreshed (directory={})",
                         service.directory()
                     ));
                 }
-                Err(error) => {
+                Ok(Err(error)) => {
                     app.set_status(format!("Refresh failed: {error}"));
+                }
+                Err(error) => {
+                    app.set_status(format!("Refresh task failed: {error}"));
                 }
             }
 
             next_refresh_at = Instant::now() + refresh_interval;
+        }
+
+        if snapshot_task.is_none() && (force_refresh || Instant::now() >= next_refresh_at) {
+            let service = service.clone();
+            app.set_snapshot_refresh_in_flight(true);
+            snapshot_task = Some(tokio::spawn(async move {
+                run_with_api_timeout(service.fetch_snapshot()).await
+            }));
             force_refresh = false;
         }
 
-        if let Some(actor_id) = app.take_chat_refresh_request() {
-            match service.fetch_actor_messages(&actor_id, Some(80)).await {
-                Ok(messages) => {
+        if chat_refresh_task.as_ref().is_some_and(|task| task.is_finished()) {
+            let Some(task) = chat_refresh_task.take() else {
+                unreachable!("chat refresh task should exist when marked finished");
+            };
+            app.set_chat_refresh_in_flight(false);
+            match task.await {
+                Ok((actor_id, Ok(messages))) => {
                     app.apply_chat_messages(&actor_id, messages);
                 }
-                Err(_) => {}
+                Ok((_actor_id, Err(error))) => {
+                    app.set_status(format!("Chat refresh failed: {error}"));
+                }
+                Err(error) => {
+                    app.set_status(format!("Chat refresh task failed: {error}"));
+                }
             }
         }
+
+        if chat_refresh_task.is_none() {
+            if let Some(actor_id) = app.take_chat_refresh_request() {
+                let service = service.clone();
+                app.set_chat_refresh_in_flight(true);
+                chat_refresh_task = Some(tokio::spawn(async move {
+                    let result =
+                        run_with_api_timeout(service.fetch_actor_messages(&actor_id, Some(80)))
+                            .await;
+                    (actor_id, result)
+                }));
+            }
+        }
+
+        if chat_send_task.as_ref().is_some_and(|task| task.is_finished()) {
+            let Some(task) = chat_send_task.take() else {
+                unreachable!("chat send task should exist when marked finished");
+            };
+            app.set_chat_send_in_flight(false);
+            match task.await {
+                Ok((actor_id, Ok(()))) => {
+                    app.commit_sent_chat_prompt();
+                    app.request_chat_refresh();
+                    app.set_status(format!("Message sent to {actor_id}."));
+                }
+                Ok((_actor_id, Err(error))) => {
+                    app.set_status(format!("Chat send failed: {error}"));
+                }
+                Err(error) => {
+                    app.set_status(format!("Chat send task failed: {error}"));
+                }
+            }
+        }
+
+        let mut action_index = 0;
+        while action_index < action_tasks.len() {
+            if !action_tasks[action_index].handle.is_finished() {
+                action_index += 1;
+                continue;
+            }
+
+            let task = action_tasks.swap_remove(action_index);
+            match task.handle.await {
+                Ok(BackgroundActionResult::PollVariant(result)) => match result {
+                    Ok(message) => {
+                        app.set_status(message);
+                        force_refresh = true;
+                    }
+                    Err(error) => {
+                        app.set_status(format!("Variant poll failed: {error}"));
+                    }
+                },
+                Ok(BackgroundActionResult::ImportVariantActors(result)) => match result {
+                    Ok(message) => {
+                        app.set_status(message);
+                        force_refresh = true;
+                    }
+                    Err(error) => {
+                        app.set_status(format!("Import failed: {error}"));
+                    }
+                },
+                Ok(BackgroundActionResult::InitProduct(result)) => match result {
+                    Ok(message) => {
+                        app.set_status(message);
+                        force_refresh = true;
+                    }
+                    Err(error) => {
+                        app.set_status(format!("Init failed: {error}"));
+                    }
+                },
+                Ok(BackgroundActionResult::SpawnOptions(result)) => match result {
+                    Ok(options) => {
+                        app.open_spawn_form(options.providers, options.default_provider.as_deref());
+                        app.set_status("Spawn form open. Choose provider and prompt.");
+                    }
+                    Err(error) => {
+                        app.set_status(format!("Spawn options failed: {error}"));
+                    }
+                },
+                Ok(BackgroundActionResult::SpawnSession(result)) => match result {
+                    Ok(actor_id) => {
+                        app.set_status(format!("Spawned in TUI: {actor_id}"));
+                        force_refresh = true;
+                    }
+                    Err(error) => {
+                        app.set_status(format!("Spawn failed: {error}"));
+                    }
+                },
+                Ok(BackgroundActionResult::BuildAttach(result)) => match result {
+                    Ok(command) => {
+                        let status = match copy_to_clipboard(&command) {
+                            Ok(()) => "Attach command copied to clipboard.",
+                            Err(error) => {
+                                app.set_command_message(command.clone());
+                                app.set_status(format!(
+                                    "Attach command ready (clipboard failed: {error})"
+                                ));
+                                continue;
+                            }
+                        };
+                        app.set_command_message(command);
+                        app.set_status(status);
+                    }
+                    Err(error) => {
+                        app.set_status(format!("Attach command failed: {error}"));
+                    }
+                },
+                Err(error) => {
+                    app.set_status(format!("Action task failed: {error}"));
+                }
+            }
+        }
+        app.set_action_requests_in_flight(action_tasks.len());
 
         terminal.draw(|frame| render::render_dashboard(frame, app))?;
 
@@ -180,15 +350,22 @@ async fn run_loop(
                     continue;
                 };
 
-                match service.poll_variant(&variant_id).await {
-                    Ok(message) => {
-                        app.set_status(message);
-                        force_refresh = true;
-                    }
-                    Err(error) => {
-                        app.set_status(format!("Variant poll failed: {error}"));
-                    }
+                if has_action_in_flight(&action_tasks, BackgroundActionKind::PollVariant) {
+                    app.set_status("Variant poll already in progress.");
+                    continue;
                 }
+
+                app.set_status(format!("Polling variant {variant_id}..."));
+                let service = service.clone();
+                action_tasks.push(ActionTask {
+                    kind: BackgroundActionKind::PollVariant,
+                    handle: tokio::spawn(async move {
+                        BackgroundActionResult::PollVariant(
+                            run_with_api_timeout(service.poll_variant(&variant_id)).await,
+                        )
+                    }),
+                });
+                app.set_action_requests_in_flight(action_tasks.len());
             }
             LoopAction::ImportVariantActors => {
                 let Some(variant_id) = app.selected_variant_id().map(ToString::to_string) else {
@@ -196,52 +373,88 @@ async fn run_loop(
                     continue;
                 };
 
-                match service.import_variant_actors(&variant_id, None).await {
-                    Ok(message) => {
-                        app.set_status(message);
-                        force_refresh = true;
-                    }
-                    Err(error) => {
-                        app.set_status(format!("Import failed: {error}"));
-                    }
+                if has_action_in_flight(&action_tasks, BackgroundActionKind::ImportVariantActors) {
+                    app.set_status("Actor import already in progress.");
+                    continue;
                 }
+
+                app.set_status(format!("Importing provider actors for {variant_id}..."));
+                let service = service.clone();
+                action_tasks.push(ActionTask {
+                    kind: BackgroundActionKind::ImportVariantActors,
+                    handle: tokio::spawn(async move {
+                        BackgroundActionResult::ImportVariantActors(
+                            run_with_api_timeout(service.import_variant_actors(&variant_id, None))
+                                .await,
+                        )
+                    }),
+                });
+                app.set_action_requests_in_flight(action_tasks.len());
             }
-            LoopAction::InitProduct => match service.init_product().await {
-                Ok(message) => {
-                    app.set_status(message);
-                    force_refresh = true;
+            LoopAction::InitProduct => {
+                if has_action_in_flight(&action_tasks, BackgroundActionKind::InitProduct) {
+                    app.set_status("Product init already in progress.");
+                    continue;
                 }
-                Err(error) => {
-                    app.set_status(format!("Init failed: {error}"));
+
+                app.set_status("Initializing product from current directory...");
+                let service = service.clone();
+                action_tasks.push(ActionTask {
+                    kind: BackgroundActionKind::InitProduct,
+                    handle: tokio::spawn(async move {
+                        BackgroundActionResult::InitProduct(
+                            run_with_api_timeout(service.init_product()).await,
+                        )
+                    }),
+                });
+                app.set_action_requests_in_flight(action_tasks.len());
+            }
+            LoopAction::OpenSpawnForm => {
+                if has_action_in_flight(&action_tasks, BackgroundActionKind::SpawnOptions) {
+                    app.set_status("Spawn options request already in progress.");
+                    continue;
                 }
-            },
-            LoopAction::OpenSpawnForm => match service.fetch_spawn_options().await {
-                Ok(options) => {
-                    app.open_spawn_form(options.providers, options.default_provider.as_deref());
-                    app.set_status("Spawn form open. Choose provider and prompt.");
-                }
-                Err(error) => {
-                    app.set_status(format!("Spawn options failed: {error}"));
-                }
-            },
+
+                app.set_status("Loading spawn provider options...");
+                let service = service.clone();
+                action_tasks.push(ActionTask {
+                    kind: BackgroundActionKind::SpawnOptions,
+                    handle: tokio::spawn(async move {
+                        BackgroundActionResult::SpawnOptions(
+                            run_with_api_timeout(service.fetch_spawn_options()).await,
+                        )
+                    }),
+                });
+                app.set_action_requests_in_flight(action_tasks.len());
+            }
             LoopAction::SpawnSession => {
+                if has_action_in_flight(&action_tasks, BackgroundActionKind::SpawnSession) {
+                    app.set_status("Spawn session already in progress.");
+                    continue;
+                }
+
                 let Some(request) = app.take_spawn_request() else {
                     app.set_status("Spawn skipped: form is not open.");
                     continue;
                 };
 
-                match service
-                    .create_session(&request.provider, request.initial_prompt.as_deref())
-                    .await
-                {
-                    Ok(actor_id) => {
-                        app.set_status(format!("Spawned in TUI: {actor_id}"));
-                        force_refresh = true;
-                    }
-                    Err(error) => {
-                        app.set_status(format!("Spawn failed: {error}"));
-                    }
-                }
+                app.set_status("Spawning actor session...");
+                let service = service.clone();
+                action_tasks.push(ActionTask {
+                    kind: BackgroundActionKind::SpawnSession,
+                    handle: tokio::spawn(async move {
+                        BackgroundActionResult::SpawnSession(
+                            run_with_api_timeout(
+                                service.create_session(
+                                    &request.provider,
+                                    request.initial_prompt.as_deref(),
+                                ),
+                            )
+                            .await,
+                        )
+                    }),
+                });
+                app.set_action_requests_in_flight(action_tasks.len());
             }
             LoopAction::BuildAttach => {
                 let Some(actor_id) = app.selected_actor_id().map(ToString::to_string) else {
@@ -249,25 +462,22 @@ async fn run_loop(
                     continue;
                 };
 
-                match service.build_attach_command(&actor_id).await {
-                    Ok(command) => {
-                        let status = match copy_to_clipboard(&command) {
-                            Ok(()) => "Attach command copied to clipboard.",
-                            Err(error) => {
-                                app.set_command_message(command.clone());
-                                app.set_status(format!(
-                                    "Attach command ready (clipboard failed: {error})"
-                                ));
-                                continue;
-                            }
-                        };
-                        app.set_command_message(command);
-                        app.set_status(status);
-                    }
-                    Err(error) => {
-                        app.set_status(format!("Attach command failed: {error}"));
-                    }
+                if has_action_in_flight(&action_tasks, BackgroundActionKind::BuildAttach) {
+                    app.set_status("Attach build already in progress.");
+                    continue;
                 }
+
+                app.set_status(format!("Building attach command for {actor_id}..."));
+                let service = service.clone();
+                action_tasks.push(ActionTask {
+                    kind: BackgroundActionKind::BuildAttach,
+                    handle: tokio::spawn(async move {
+                        BackgroundActionResult::BuildAttach(
+                            run_with_api_timeout(service.build_attach_command(&actor_id)).await,
+                        )
+                    }),
+                });
+                app.set_action_requests_in_flight(action_tasks.len());
             }
             LoopAction::ToggleChat => {
                 app.toggle_chat_visibility();
@@ -296,21 +506,38 @@ async fn run_loop(
                     continue;
                 };
 
-                match service.send_actor_prompt(&actor_id, &prompt).await {
-                    Ok(()) => {
-                        app.commit_sent_chat_prompt();
-                        app.request_chat_refresh();
-                        app.set_status(format!("Message sent to {actor_id}."));
-                    }
-                    Err(error) => {
-                        app.set_status(format!("Chat send failed: {error}"));
-                    }
+                if chat_send_task.is_some() {
+                    app.set_status("Chat send already in progress.");
+                    continue;
                 }
+
+                app.set_status(format!("Sending message to {actor_id}..."));
+                let service = service.clone();
+                app.set_chat_send_in_flight(true);
+                chat_send_task = Some(tokio::spawn(async move {
+                    let result = run_with_api_timeout(service.send_actor_prompt(&actor_id, &prompt))
+                        .await;
+                    (actor_id, result)
+                }));
             }
         }
     }
 
     Ok(())
+}
+
+async fn run_with_api_timeout<T>(future: impl Future<Output = Result<T>>) -> Result<T> {
+    match tokio::time::timeout(Duration::from_secs(API_TIMEOUT_SECONDS), future).await {
+        Ok(result) => result,
+        Err(_) => Err(anyhow!(
+            "request timed out after {}s",
+            API_TIMEOUT_SECONDS
+        )),
+    }
+}
+
+fn has_action_in_flight(tasks: &[ActionTask], kind: BackgroundActionKind) -> bool {
+    tasks.iter().any(|task| task.kind == kind)
 }
 
 fn setup_terminal() -> Result<TuiTerminal> {

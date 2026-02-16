@@ -1,12 +1,12 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::Frame;
 
 use crate::app::App;
 
-use super::super::components::StatusPill;
+use super::super::components::{LoadingSpinner, StatusPill};
 
 pub(crate) struct FooterPanel;
 
@@ -46,6 +46,21 @@ impl FooterPanel {
             _ => StatusPill::warn(runtime, theme),
         };
 
+        let activity_label = if app.has_background_activity() {
+            format!(
+                "{} net:{}",
+                LoadingSpinner::glyph(),
+                app.background_activity_label()
+            )
+        } else {
+            format!("net:{}", app.background_activity_label())
+        };
+        let activity_pill = if app.has_background_activity() {
+            StatusPill::accent(activity_label, theme)
+        } else {
+            StatusPill::muted(activity_label, theme)
+        };
+
         // --- Status message ---
         let status_text = app.status_message();
         let status_span = if status_text.contains("failed") || status_text.contains("error") {
@@ -74,6 +89,8 @@ impl FooterPanel {
             actors_pill.span(),
             Span::raw(" "),
             runtime_pill.span(),
+            Span::raw(" "),
+            activity_pill.span(),
             Span::raw("  "),
             status_span,
         ]);

@@ -1,8 +1,8 @@
-use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::theme::Theme;
 
@@ -150,6 +150,10 @@ impl CardGridComponent {
     }
 
     fn card_height(height: u16) -> u16 {
-        if height >= 14 { 7 } else { 6 }
+        if height >= 14 {
+            7
+        } else {
+            6
+        }
     }
 }

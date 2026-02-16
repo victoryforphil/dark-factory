@@ -125,6 +125,10 @@ pub struct App {
     chat_draft: String,
     chat_composing: bool,
     chat_needs_refresh: bool,
+    snapshot_refresh_in_flight: bool,
+    chat_refresh_in_flight: bool,
+    chat_send_in_flight: bool,
+    action_requests_in_flight: usize,
 }
 
 impl App {
@@ -157,6 +161,10 @@ impl App {
             chat_draft: String::new(),
             chat_composing: false,
             chat_needs_refresh: false,
+            snapshot_refresh_in_flight: false,
+            chat_refresh_in_flight: false,
+            chat_send_in_flight: false,
+            action_requests_in_flight: 0,
         }
     }
 
@@ -413,6 +421,52 @@ impl App {
     pub fn request_chat_refresh(&mut self) {
         if self.chat_actor_id.is_some() {
             self.chat_needs_refresh = true;
+        }
+    }
+
+    pub fn set_snapshot_refresh_in_flight(&mut self, in_flight: bool) {
+        self.snapshot_refresh_in_flight = in_flight;
+    }
+
+    pub fn set_chat_refresh_in_flight(&mut self, in_flight: bool) {
+        self.chat_refresh_in_flight = in_flight;
+    }
+
+    pub fn set_chat_send_in_flight(&mut self, in_flight: bool) {
+        self.chat_send_in_flight = in_flight;
+    }
+
+    pub fn set_action_requests_in_flight(&mut self, count: usize) {
+        self.action_requests_in_flight = count;
+    }
+
+    pub fn has_background_activity(&self) -> bool {
+        self.snapshot_refresh_in_flight
+            || self.chat_refresh_in_flight
+            || self.chat_send_in_flight
+            || self.action_requests_in_flight > 0
+    }
+
+    pub fn background_activity_label(&self) -> String {
+        let mut tags: Vec<String> = Vec::new();
+
+        if self.snapshot_refresh_in_flight {
+            tags.push("refresh".to_string());
+        }
+        if self.chat_refresh_in_flight {
+            tags.push("chat:sync".to_string());
+        }
+        if self.chat_send_in_flight {
+            tags.push("chat:send".to_string());
+        }
+        if self.action_requests_in_flight > 0 {
+            tags.push(format!("actions:{}", self.action_requests_in_flight));
+        }
+
+        if tags.is_empty() {
+            "idle".to_string()
+        } else {
+            tags.join("+")
         }
     }
 
@@ -876,6 +930,7 @@ impl App {
         vec![
             format!("Actor: {}", compact_id(&actor.id)),
             format!("Title: {}", actor.title),
+            format!("Description: {}", compact_locator(&actor.description, 58)),
             format!("Provider: {}", actor.provider),
             format!("Status: {}", actor.status),
             format!("Variant: {}", compact_id(&actor.variant_id)),
