@@ -64,13 +64,41 @@ Each finding must include:
 
 Report structure:
 
-- Scope (mode, depth, areas scanned)
-- Metrics (counts by severity and category)
-- Top risks
-- Detailed findings
-- Auto-fixes applied (if any)
-- Prioritized backlog (next 3-10 actions)
-- Blockers/unknowns
+- Write the main report to `docs/reports/sweeper_<YYYY-MM-DD_HHMM>.report.md`.
+- Separate major sections with a literal divider line: `----`.
+- For each section, include a frontmatter-style header block before body content:
+  - `---`
+  - `section: <scope|metrics|top-risks|findings|auto-fixes|backlog|blockers>`
+  - `title: <human readable title>`
+  - `---`
+- Include sections in this order:
+  - Scope (mode, depth, areas scanned)
+  - Metrics (counts by severity and category)
+  - Top risks
+  - Detailed findings
+  - Auto-fixes applied (if any)
+  - Prioritized backlog (next 3-10 actions)
+  - Blockers/unknowns
+
+Rolling report structure:
+
+- Maintain a rolling suggestions report at `docs/reports/sweeper_rolling.report.md`.
+- Append only; do not replace prior entries.
+- Each appended entry should be compact but self-contained (10-90 lines).
+- Separate entries with `----` and include a frontmatter-style header block:
+  - `---`
+  - `entry_id: <timestamp_or_slug>`
+  - `category: <style|dead-code|docs|process|dry>`
+  - `severity: <critical|high|medium|low>`
+  - `risk: <small-adjustment|bigger-design-change>`
+  - `effort: <S|M|L>`
+  - `location: <path[:line]>`
+  - `---`
+- Each entry must include:
+  - offense snippet (short quote)
+  - why it matters
+  - suggested fix(es)
+  - notes/constraints
 
 Guardrails:
 
