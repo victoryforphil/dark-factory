@@ -39,6 +39,8 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - Keep naming consistent (`PascalCase` types, `camelCase` values/functions, `UPPER_SNAKE_CASE` constants).
 - Handle errors with context; do not swallow exceptions silently.
 - Never log secrets or credentials.
+- Log messages should follow: `System // Optional Sub system // Message (Metadata)`.
+  - Example: `Core // HTTP // Listening (env=development,host=127.0.0.1,port=4150)`.
 
 ## 5) Git Workflow
 

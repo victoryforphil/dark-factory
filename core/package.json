@@ -1,0 +1,18 @@
+{
+  "name": "@dark-factory/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dark Factory core service (Bun + Elysia)",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "adze": "^2.3.0",
+    "elysia": "latest"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  },
+  "module": "src/index.js"
+}
