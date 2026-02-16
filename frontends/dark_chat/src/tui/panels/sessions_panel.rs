@@ -1,9 +1,9 @@
 use std::collections::{HashMap, HashSet};
 
+use ratatui::Frame;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 
 use dark_tui_components::{PaneBlockComponent, StatusPill};
 

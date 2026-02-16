@@ -136,8 +136,9 @@ async fn run_loop(
         tokio::task::JoinHandle<(String, Result<Vec<ActorChatMessageRow>>)>,
     > = None;
     let mut chat_send_task: Option<tokio::task::JoinHandle<(String, Result<()>)>> = None;
-    let mut chat_options_task: Option<tokio::task::JoinHandle<(String, Result<(Vec<String>, Vec<String>)>)>> =
-        None;
+    let mut chat_options_task: Option<
+        tokio::task::JoinHandle<(String, Result<(Vec<String>, Vec<String>)>)>,
+    > = None;
     let mut action_tasks: Vec<ActionTask> = Vec::new();
 
     loop {
@@ -217,7 +218,8 @@ async fn run_loop(
                 let service = service.clone();
                 app.set_chat_refresh_in_flight(true);
                 chat_refresh_task = Some(tokio::spawn(async move {
-                    let result = run_with_api_timeout(service.fetch_actor_messages(&actor, Some(80))).await;
+                    let result =
+                        run_with_api_timeout(service.fetch_actor_messages(&actor, Some(80))).await;
                     (actor_id, result)
                 }));
             }
@@ -235,7 +237,9 @@ async fn run_loop(
                 Ok((actor_id, Ok(()))) => {
                     app.commit_sent_chat_prompt();
                     app.request_chat_refresh();
-                    app.set_status(format!("OpenCode response completed for {actor_id}; syncing chat..."));
+                    app.set_status(format!(
+                        "OpenCode response completed for {actor_id}; syncing chat..."
+                    ));
                 }
                 Ok((_actor_id, Err(error))) => {
                     app.set_status(format!("Chat send failed: {error}"));
@@ -604,7 +608,9 @@ async fn run_loop(
                         if let Some(actor) = app.chat_actor().cloned() {
                             let service = service.clone();
                             chat_options_task = Some(tokio::spawn(async move {
-                                let result = run_with_api_timeout(service.fetch_actor_chat_options(&actor)).await;
+                                let result =
+                                    run_with_api_timeout(service.fetch_actor_chat_options(&actor))
+                                        .await;
                                 (actor.id.clone(), result)
                             }));
                         }
@@ -621,7 +627,9 @@ async fn run_loop(
                         if let Some(actor) = app.chat_actor().cloned() {
                             let service = service.clone();
                             chat_options_task = Some(tokio::spawn(async move {
-                                let result = run_with_api_timeout(service.fetch_actor_chat_options(&actor)).await;
+                                let result =
+                                    run_with_api_timeout(service.fetch_actor_chat_options(&actor))
+                                        .await;
                                 (actor.id.clone(), result)
                             }));
                         }

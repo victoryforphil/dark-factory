@@ -1,13 +1,14 @@
 use dark_chat::framework::{
-    render_conversation_panel, status_tone_for_status, ConversationComposer, ConversationHeader,
-    ConversationMessage, ConversationPalette, ConversationPanelProps, ConversationStatusTone,
+    ConversationComposer, ConversationHeader, ConversationMessage, ConversationPalette,
+    ConversationPanelProps, ConversationStatusTone, render_conversation_panel,
+    status_tone_for_status,
 };
 use dark_tui_components::{LoadingSpinner, PaneBlockComponent, StatusPill};
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Clear, Paragraph, Wrap};
-use ratatui::Frame;
 use std::borrow::Cow;
 
 use crate::app::{App, ChatPickerKind};

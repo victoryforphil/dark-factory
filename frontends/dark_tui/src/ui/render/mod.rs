@@ -1,9 +1,9 @@
 mod panels;
 mod views;
 
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::layout::{Constraint, Direction, Layout};
-use ratatui::Frame;
 
 use crate::app::{App, ResultsViewMode};
 

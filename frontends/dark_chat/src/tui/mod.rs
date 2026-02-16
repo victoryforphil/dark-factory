@@ -406,7 +406,9 @@ async fn run_loop(terminal: &mut TuiTerminal, backend: &ChatBackend, app: &mut A
                                 }
                                 ComposerMetaHit::Agent => {
                                     app.open_agent_selector_at(mouse.column);
-                                    app.set_status_message("Agent selector opened. Type to filter.");
+                                    app.set_status_message(
+                                        "Agent selector opened. Type to filter.",
+                                    );
                                 }
                                 ComposerMetaHit::None => {
                                     app.open_composer();

@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::models::{
-    compact_id, compact_locator, compact_timestamp, ActorChatMessageRow, ActorRow,
-    DashboardSnapshot, ProductRow, VariantRow,
+    ActorChatMessageRow, ActorRow, DashboardSnapshot, ProductRow, VariantRow, compact_id,
+    compact_locator, compact_timestamp,
 };
 use crate::theme::Theme;
 

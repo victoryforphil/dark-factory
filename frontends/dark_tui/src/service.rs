@@ -327,9 +327,7 @@ impl DashboardService {
     ) -> Result<()> {
         let trimmed = prompt.trim();
         if trimmed.is_empty() {
-            return Err(anyhow!(
-                "Dark TUI // Actors // Prompt cannot be empty"
-            ));
+            return Err(anyhow!("Dark TUI // Actors // Prompt cannot be empty"));
         }
 
         let context = required_actor_opencode_context(actor, "send prompt")?;
@@ -349,7 +347,10 @@ impl DashboardService {
         Ok(())
     }
 
-    pub async fn fetch_actor_chat_options(&self, actor: &ActorRow) -> Result<(Vec<String>, Vec<String>)> {
+    pub async fn fetch_actor_chat_options(
+        &self,
+        actor: &ActorRow,
+    ) -> Result<(Vec<String>, Vec<String>)> {
         if let Some(context) = actor_opencode_context(actor) {
             let provider = OpenCodeProvider::new(context.base_url);
             let models = provider
