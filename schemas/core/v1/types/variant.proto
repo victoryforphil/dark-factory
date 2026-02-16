@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package darkfactory.core.v1;
+
+import "google/protobuf/timestamp.proto";
+
+message Variant {
+  // Deterministic ID: "var_" + sha256_hex(canonical_variant_locator).
+  string id = 1;
+
+  string product_id = 2;
+
+  // Canonical format: @local://{abs_path}#default
+  string locator = 3;
+
+  // Stage 0 invariant: only "default".
+  string name = 4;
+
+  google.protobuf.Timestamp created_at = 5;
+}

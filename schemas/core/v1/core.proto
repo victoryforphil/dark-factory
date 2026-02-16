@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+package darkfactory.core.v1;
+
+import "core/v1/api/actor_api.proto";
+import "core/v1/api/product_api.proto";
+import "core/v1/types/actor.proto";
+import "core/v1/types/common.proto";
+import "core/v1/types/product.proto";
+import "core/v1/types/variant.proto";

@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package darkfactory.core.v1;
+
+import "core/v1/types/actor.proto";
+import "core/v1/types/common.proto";
+
+// POST /actors/spawn
+message SpawnActorRequest {
+  string product_id = 1;
+  string variant_id = 2;
+
+  // Stage 0: ACTOR_KIND_OPENCODE_SESSION
+  ActorKind kind = 3;
+
+  map<string, string> metadata = 4;
+}
+
+message SpawnActorSuccess {
+  Actor actor = 1;
+}
+
+message SpawnActorResponse {
+  oneof result {
+    SpawnActorSuccess ok = 1;
+    ApiError error = 2;
+  }
+}
+
+// GET /actors/:actor_id/state
+message GetActorStateRequest {
+  string actor_id = 1;
+}
+
+message GetActorStateSuccess {
+  Actor actor = 1;
+}
+
+message GetActorStateResponse {
+  oneof result {
+    GetActorStateSuccess ok = 1;
+    ApiError error = 2;
+  }
+}

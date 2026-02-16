@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package darkfactory.core.v1;
+
+import "core/v1/types/common.proto";
+import "google/protobuf/timestamp.proto";
+
+message Actor {
+  string id = 1;
+  string product_id = 2;
+  string variant_id = 3;
+
+  ActorKind kind = 4;
+  ActorStatus status = 5;
+
+  string endpoint = 6;
+  string transport = 7;
+  int64 pid = 8;
+
+  google.protobuf.Timestamp spawned_at = 9;
+  google.protobuf.Timestamp last_heartbeat_at = 10;
+  google.protobuf.Timestamp stopped_at = 11;
+
+  string last_error = 12;
+  map<string, string> metadata = 13;
+}

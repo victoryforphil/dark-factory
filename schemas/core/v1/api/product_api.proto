@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package darkfactory.core.v1;
+
+import "core/v1/types/common.proto";
+import "core/v1/types/product.proto";
+import "core/v1/types/variant.proto";
+
+// POST /products
+message CreateProductRequest {
+  // Required. Format: @local://{abs_path}
+  string product_locator = 1;
+  optional string display_name = 2;
+}
+
+message CreateProductSuccess {
+  Product product = 1;
+
+  // Stage 0 invariant: creation also creates the default variant.
+  Variant default_variant = 2;
+}
+
+message CreateProductResponse {
+  oneof result {
+    CreateProductSuccess ok = 1;
+    ApiError error = 2;
+  }
+}
