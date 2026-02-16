@@ -146,6 +146,11 @@ impl DarkCoreClient {
         self.get(&format!("/variants/{variant_id}"), None).await
     }
 
+    pub async fn variants_poll(&self, variant_id: &str) -> Result<RawApiResponse, DarkRustError> {
+        self.post(&format!("/variants/{variant_id}/poll"), Value::Null)
+            .await
+    }
+
     pub async fn variants_update(
         &self,
         variant_id: &str,

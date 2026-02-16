@@ -143,6 +143,7 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
                 .map_err(Into::into)
             }
             VariantsAction::Get { id } => api.variants_get(id).await.map_err(Into::into),
+            VariantsAction::Poll { id } => api.variants_poll(id).await.map_err(Into::into),
             VariantsAction::Update { id, locator, name } => api
                 .variants_update(
                     id,

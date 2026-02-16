@@ -6,8 +6,8 @@ Rust CLI frontend for interacting with `dark_core`.
 
 - Command routing is active and calls `dark_core` over HTTP.
 - `init` creates a product using the current directory (or a provided path).
-- `products list` defaults to listing all products (paged client-side) and renders a table in pretty format.
-- `opencode sessions list` renders a table in pretty format.
+- `products list` defaults to listing all products (paged client-side).
+- Pretty output now renders table-style output for all responses by default.
 
 ## Scope (Current)
 
@@ -64,6 +64,7 @@ Commands:
 | `variants list [--cursor <id>] [--limit <n>] [--product-id <id>] [--locator <path>] [--name <name>]` | `GET /variants/` | List variants with optional filters |
 | `variants create --locator <path> --product-id <id> [--name <name>]` | `POST /variants/` | Create variant linked to product |
 | `variants get --id <id>` | `GET /variants/:id` | Get variant by id |
+| `variants poll --id <id>` | `POST /variants/:id/poll` | Refresh git metadata/status for one variant |
 | `variants update --id <id> [--locator <path>] [--name <name>]` | `PATCH /variants/:id` | Update variant fields |
 | `variants delete --id <id>` | `DELETE /variants/:id` | Delete variant |
 | `opencode state --directory <path>` | `GET /opencode/state` | OpenCode directory runtime state |
@@ -78,10 +79,10 @@ Commands:
 
 Pretty rendering defaults:
 
-- `products list` renders a `prettytable-rs` table.
-- `variants list` renders a `prettytable-rs` table.
-- `opencode sessions list` renders a `prettytable-rs` table.
-- All other commands render formatted payload output.
+- `pretty` output is the default and renders all responses in a table-oriented format.
+- Product and variant payloads include git metadata fields when the API returns them.
+- Use `--format json` to force JSON output.
+- Use `--format toml` to force TOML output.
 
 ## Quick Examples
 
@@ -133,6 +134,9 @@ dcli variants list --product-id <product-id>
 
 # Get one variant
 dcli variants get --id <variant-id>
+
+# Poll and refresh git metadata
+dcli variants poll --id <variant-id>
 
 # Update one variant
 dcli variants update --id <variant-id> --name updated

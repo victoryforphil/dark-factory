@@ -6,4 +6,7 @@ pub mod types;
 pub use client::{DarkCoreClient, RawApiResponse};
 pub use error::DarkRustError;
 pub use locator_id::{LocalLocator, LocatorId, LocatorKind};
-pub use types::{SystemResetDatabaseData, SystemResetDatabaseDeletedRows};
+pub use types::{
+    ProductGitInfo, SystemResetDatabaseData, SystemResetDatabaseDeletedRows, VariantGitInfo,
+    VariantGitStatus, VariantGitWorktree,
+};

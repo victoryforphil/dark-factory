@@ -129,6 +129,10 @@ pub enum VariantsAction {
         #[arg(long)]
         id: String,
     },
+    Poll {
+        #[arg(long)]
+        id: String,
+    },
     Update {
         #[arg(long)]
         id: String,
