@@ -33,3 +33,66 @@
 - [ ] REST API for querying last known state of spawned agents
 - [ ] Stage 0 invariant: single product - single default variant - single OpenCode actor
 - [ ] Basic Rust-based CLI for interacting with the core service and querying state
+
+
+# ID Generation Spec (Deterministic Hash IDs)
+
+Stage 0 uses deterministic IDs for `Product` and `Variant` derived from canonical locator strings.
+
+## Goals
+- Stable IDs across restarts.
+- No raw absolute path exposure in primary keys.
+- Cross-language deterministic behavior (TS + Rust).
+
+## Algorithms
+- Hash function: `SHA-256`
+- Encoding: lowercase hex
+- Prefixes:
+    - `product_id`: `prd_`
+    - `variant_id`: `var_`
+
+## Canonical Locator Rules
+
+### Product locator input
+- External format: `@local://{abs_path}`
+
+### Canonicalization steps (must be applied in this order)
+1. Ensure prefix is exactly `@local://`.
+2. Extract `{abs_path}`.
+3. Normalize path separators to `/`.
+4. Resolve `.` and `..` path segments.
+5. Remove trailing `/` unless path is filesystem root.
+6. On Windows only: lowercase drive letter (`C:` -> `c:`).
+7. Rebuild canonical locator as: `@local://{canonical_abs_path}`.
+
+> Note: Do not percent-decode/re-encode during canonicalization. Treat locator text as authoritative after separator and segment normalization.
+
+## Product ID
+- `product_id = "prd_" + sha256_hex(canonical_product_locator)`
+
+## Variant Rules
+
+### Variant name
+- Stage 0 invariant: only `default` is valid.
+
+### Canonical variant locator
+- `canonical_variant_locator = canonical_product_locator + "#default"`
+
+### Variant ID
+- `variant_id = "var_" + sha256_hex(canonical_variant_locator)`
+
+## Persistence and Validation
+- Store both `id` and `locator`.
+- `id` is the primary key; `locator` is indexed for lookup/debugging.
+- On create:
+    - Canonicalize locator.
+    - Recompute deterministic `id`.
+    - If `id` already exists, treat as idempotent create and return existing record.
+
+## Collision Policy
+- SHA-256 collisions are treated as practically impossible.
+- If an `id` conflict is detected with mismatched locator, return a server error with code `ID_COLLISION_DETECTED`.
+
+## Versioning
+- This spec is `id_algo_version = 1`.
+- If canonicalization or hash strategy changes later, bump version and migrate explicitly.
