@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../../app';
 import { createSqliteTestDatabase, type SqliteTestDatabase } from '../../test/helpers/sqlite-test-db';
-import { createVariant, listVariants } from '../variants/variants.controller';
+import { createVariant, deleteVariantById, listVariants } from '../variants/variants.controller';
 import { buildDeterministicIdFromLocator } from '../../utils/locator';
 import {
   createProduct,
@@ -80,8 +80,36 @@ describe('products module integration', () => {
     expect(listed.data[0]?.id).toBe(created.data.id);
     expect(listed.data[0]?.locator).toBe('@local:///tmp/route-test-product');
 
+    const listFullResponse = await app.handle(new Request('http://localhost/products/?include=full'));
+    expect(listFullResponse.status).toBe(200);
+
+    const listedFull = (await listFullResponse.json()) as {
+      ok: true;
+      data: Array<{
+        id: string;
+        variants?: Array<{ productId: string; name: string; locator: string }>;
+      }>;
+    };
+
+    expect(Array.isArray(listedFull.data[0]?.variants)).toBe(true);
+    expect(listedFull.data[0]?.variants?.[0]?.productId).toBe(created.data.id);
+    expect(listedFull.data[0]?.variants?.[0]?.name).toBe('default');
+
     const getResponse = await app.handle(new Request(`http://localhost/products/${created.data.id}`));
     expect(getResponse.status).toBe(200);
+
+    const getFullResponse = await app.handle(
+      new Request(`http://localhost/products/${created.data.id}?include=full`),
+    );
+    expect(getFullResponse.status).toBe(200);
+
+    const fetchedFull = (await getFullResponse.json()) as {
+      ok: true;
+      data: { id: string; variants?: Array<{ name: string; locator: string }> };
+    };
+
+    expect(fetchedFull.data.id).toBe(created.data.id);
+    expect(fetchedFull.data.variants?.some((variant) => variant.name === 'default')).toBe(true);
 
     const updateResponse = await app.handle(
       new Request(`http://localhost/products/${created.data.id}`, {
@@ -178,6 +206,27 @@ describe('products module integration', () => {
     const variants = await listVariants({ productId: created.id });
     expect(variants.length).toBe(1);
     expect(variants[0]?.name).toBe('default');
+  });
+
+  it('re-ensures default local variant when creating an existing local product', async () => {
+    const created = await createProduct({
+      locator: '@local:///tmp/recreate-default-variant',
+    });
+
+    const existingVariants = await listVariants({ productId: created.id, poll: false });
+    expect(existingVariants.length).toBe(1);
+    const defaultVariantId = existingVariants[0]?.id;
+    expect(defaultVariantId).toBeTruthy();
+
+    await deleteVariantById(defaultVariantId as string);
+
+    const recreated = await createProduct({
+      locator: '@local:///tmp/recreate-default-variant',
+    });
+
+    const recreatedVariants = await listVariants({ productId: recreated.id, poll: false });
+    expect(recreatedVariants.length).toBe(1);
+    expect(recreatedVariants[0]?.name).toBe('default');
   });
 
   it('allows multiple variants at the same location for one product', async () => {

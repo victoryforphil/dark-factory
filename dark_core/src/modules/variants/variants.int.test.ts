@@ -173,4 +173,34 @@ describe('variants module integration', () => {
     expect(afterDelete.length).toBe(1);
     expect(afterDelete[0]?.name).toBe('default');
   });
+
+  it('honors poll query defaults and overrides on variant read routes', async () => {
+    const app = buildApp();
+    const product = await createProduct({ locator: '@local:///tmp/variants-poll-query-product' });
+    const defaultVariant = (await listVariants({ productId: product.id, poll: false }))[0];
+    const defaultVariantId = defaultVariant?.id;
+
+    expect(defaultVariantId).toBeTruthy();
+    expect(defaultVariant?.gitInfoLastPolledAt).toBeNull();
+
+    const getWithoutPoll = await app.handle(
+      new Request(`http://localhost/variants/${defaultVariantId}?poll=false`),
+    );
+    expect(getWithoutPoll.status).toBe(200);
+
+    const notPolledPayload = (await getWithoutPoll.json()) as {
+      ok: true;
+      data: { gitInfoLastPolledAt: string | null };
+    };
+    expect(notPolledPayload.data.gitInfoLastPolledAt).toBeNull();
+
+    const getWithDefaultPoll = await app.handle(new Request(`http://localhost/variants/${defaultVariantId}`));
+    expect(getWithDefaultPoll.status).toBe(200);
+
+    const polledPayload = (await getWithDefaultPoll.json()) as {
+      ok: true;
+      data: { gitInfoLastPolledAt: string | null };
+    };
+    expect(polledPayload.data.gitInfoLastPolledAt).toBeTruthy();
+  });
 });

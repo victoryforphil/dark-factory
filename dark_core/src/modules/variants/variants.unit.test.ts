@@ -104,4 +104,42 @@ describe('variants module unit', () => {
       },
     });
   });
+
+  it('supports poll=false on poll route by skipping sync', async () => {
+    const app = new Elysia().use(
+      createVariantsRoutes({
+        ...dependenciesBase,
+        getVariantById: async () => {
+          return {
+            id: 'v_1',
+            productId: 'p_1',
+            name: 'default',
+            locator: '@local:///tmp/demo',
+            gitInfo: null,
+            gitInfoUpdatedAt: null,
+            gitInfoLastPolledAt: null,
+            createdAt: new Date('2026-01-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          };
+        },
+        syncVariantGitInfo: async () => {
+          throw new Error('sync should be skipped when poll=false');
+        },
+      }),
+    );
+
+    const response = await app.handle(
+      new Request('http://localhost/variants/v_1/poll?poll=false', {
+        method: 'POST',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      data: {
+        id: 'v_1',
+      },
+    });
+  });
 });
