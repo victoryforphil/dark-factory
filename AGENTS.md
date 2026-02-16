@@ -39,6 +39,8 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - Keep naming consistent (`PascalCase` types, `camelCase` values/functions, `UPPER_SNAKE_CASE` constants).
 - Handle errors with context; do not swallow exceptions silently.
 - Never log secrets or credentials.
+- Log messages should follow: `System // Optional Sub system // Message (Metadata)`.
+  - Example: `Core // HTTP // Listening (env=development,host=127.0.0.1,port=4150)`.
 
 ## 5) Git Workflow
 
@@ -56,9 +58,18 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 
 - `.opencode/agents/gitter.md` is the git-focused subagent.
 - `.opencode/skills/gitter-commit/SKILL.md` documents when to route commit tasks to `@gitter`.
+- `.opencode/skills/proto-install/SKILL.md` documents standardized script-based `proto install` usage.
+- `.opencode/skills/script-authoring/SKILL.md` documents how to build reusable Bun scripts from prompt/example/bash/context.
 - Use `@gitter` when the user asks for commit support or cleanup.
 
-## 7) Keep This File Updated
+## 8) Script Conventions
+
+- Project scripts use shebanged Bun TypeScript files (`#!/usr/bin/env bun`) under `scripts/`.
+- Script naming uses `*.sh.ts` to indicate executable shell-style Bun scripts.
+- Shared script helpers live under `scripts/helpers/`.
+- `scripts/install.sh.ts` runs a reusable ordered list of install steps.
+
+## 9) Keep This File Updated
 
 - Update this file when real code, tooling, or CI is added.
 - Keep instructions tied to verified repository behavior.
