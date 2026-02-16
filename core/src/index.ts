@@ -9,7 +9,7 @@ const app = new Elysia()
     service: serviceName,
     status: "ok",
     message: "Dark Factory core is running",
-    concepts: ["world", "env", "actor"],
+    concepts: ["product", "variant", "actor"],
     env: config.env,
   }))
   .get("/health", () => ({ status: "ok" }))

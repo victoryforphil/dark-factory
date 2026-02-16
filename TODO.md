@@ -9,31 +9,31 @@
 - [x] Setup OpenCode Base MCPs
 - [x] Setup OpenCode Git
 - [x] Setup AGENTS.md
-- [x] ProtoBuff Maker
+- [x] Protobuf Maker
 
 - [x] Script Maker
 - [x] Doc Scrapers
-- [x] Commit All 
+- [x] Commit All
 - [x] Script Capture
 
 # Design TODOs
 
-- [ ] Design / Core / Gen 1 Core Service
-- [ ] Design / Core / World + Env + Actor Tracking
+- [x] Design / Core / Gen 1 Core Service
+- [ ] Design / Core / Product + Variant + Actor Tracking (Stage 0 1-1-1)
 - [ ] Design / Core / Actor -> Agent Interface (OpenCode as reference)
 
 # Infra TODOs
 
-- [x] Build / Setup `proto` w/ tools 
+- [x] Build / Setup `proto` w/ tools
 - [ ] Build / Setup Moon Build MVP
-- [ ] Build / Setup Protobuff 
+- [ ] Build / Setup Protobuf
 
 # Core TODOs
 
-- [ ] Core / Basic Project Creation
-- [ ] Core / Setup Config + Logging + other helpers
+- [x] Core / Basic Project Creation
+- [x] Core / Setup Config + Logging + other helpers
 - [ ] Core / Setup Prisma w/ Local DB
-- [ ] Core / Prisma / World + Env Schemas
-- [ ] Core / Basic CRUD for World and FS based Env
-- [ ] Core / Basic Agenetic Comms with Opencode (POC)
+- [ ] Core / Prisma / Product + Variant Schemas (Locator Key Based)
+- [ ] Core / Basic CRUD for Product and FS-based Variant
+- [ ] Core / Basic Agentic Comms with OpenCode (POC)
 - [ ] Core / Gen 1 API for Agentic Comms

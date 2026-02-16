@@ -4,8 +4,8 @@ This package is the early `core` service for the `dark-factory` project.
 
 It currently provides a small Bun + Elysia HTTP service that acts as a starting point for Core APIs around:
 
-- `world` tracking
-- `env` management
+- `product` tracking
+- `variant` management
 - `actor` orchestration
 
 ## Current Status

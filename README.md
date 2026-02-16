@@ -2,35 +2,32 @@
 
 # Concept
 
-- A central `dark-factory` "core" is used to track `worlds`
-- A `world` is an `env` + `actor`(s)
-- `env` is like a project and represents where an `actor` is spawned.
-  - Similar to `projets` in OpenCode or other agent orchestrators
-  - `env` may be a directory on host (simplest and most common) or later expanded to:
-    - Remote directory on a SSH-connected machine
-    - Dockershell w/ virutal FS
-    - Git Worktree
-- `world` can link multiple `envs` - which assume to all be multiple versions of the same root project
-  - we call this concept `dimensions`
-  - Examples:
-    - Multiple cloned directories of the same root project
-    - Git worktree supportds
-    - Instanced Docker shells
-- When an agent is spawned - it is linked to a given env
-  - Linking can just be spawning the agent at the directory (IE: `opencode .`)
-  - Link in the future can be custom tools/mcps to overwrite default shell and FS tools to ones that understand multi-verses
-- `actor` is a spawned agent that operates on an env.
-  - Can be various agent backends (currently scoped in OpenCode, Codex and a custom agent) - but first iteration is JUST opencode
-  - Currently is 1-1 agent to env but future work will allow multiple agents per world or even env if operations allow.
+- A central `dark-factory` "core" is used to track `products`
+- A `product` is the canonical definition of a code product we want to work on
+  - In Stage 0 this is identified by a local path-based locator key
+  - Locators are path/url-like identifiers, currently using `@local://{abs_path}`
+  - `product` may optionally include a `display_name` for human-friendly rendering
+- A `variant` is a spawned instance of a `product` where work actually runs
+  - In Stage 0 a product immediately gets one default variant on creation
+  - Variant identity follows the same locator pattern with a fragment suffix:
+    - `@local://{abs_path}#default`
+  - Future variants can use other suffixes (example: `#wt-main`) when we support parallel instances
+- Stage 0 topology is intentionally strict and simple:
+  - One product locator
+  - One default variant locator
+  - One actor bound to that variant
+- `actor` is a spawned agent that operates on a variant
+  - Can be various agent backends (currently scoped in OpenCode, Codex and a custom agent), but first iteration is JUST OpenCode
+  - Future work will allow multiple variants per product and multiple actors where operations allow
 
 # Stack + Tools
 
 - Agentic Coding: `opencode`
-- Main languages: `rust` and `bun` / `typscript`
+- Main languages: `rust` and `bun` / `typescript`
 - Scripting: shebanged Bun TypeScript scripts under `scripts/` (`*.sh.ts`)
 - Optional build system: `moon` / `proto`
-- Common Schema Defintion: `prisma`
-  - [ ] TODO: Investigate use of protobuff
+- Common Schema Definition: `prisma`
+  - [ ] TODO: Investigate use of protobuf
 
 # Scripts
 
@@ -46,10 +43,10 @@
 
 ## Core
 
-- Central service that manages tracking of all worlds/envs/settigns etc.
+- Central service that manages tracking of all products/variants/actors/settings, etc.
   - TBD: will either be stateless w/ DB and route all commands just to the agents
-    - OR: a background API service (Rest even) we can query from frontends
-- Currently looking lile will be Bun + Elysia JS
+    - OR: a background API service (REST even) we can query from frontends
+- Currently looks like it will be Bun + Elysia JS
 
 ## Frontends
 
