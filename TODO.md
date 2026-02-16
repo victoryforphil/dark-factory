@@ -24,8 +24,9 @@
 
 # Infra TODOs
 
+- [x] Build / Setup `proto` w/ tools 
 - [ ] Build / Setup Moon Build MVP
-- [ ] Build / Setup Prisma Generation as dep
+- [ ] Build / Setup Protobuff 
 
 # Core TODOs
 
