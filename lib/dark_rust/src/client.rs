@@ -46,6 +46,10 @@ impl DarkCoreClient {
     self.get("/system/metrics", None).await
   }
 
+  pub async fn system_reset_db(&self) -> Result<RawApiResponse, DarkRustError> {
+    self.post("/system/reset-db", Value::Null).await
+  }
+
   pub async fn products_list(&self, query: &ProductListQuery) -> Result<RawApiResponse, DarkRustError> {
     let mut query_parts = Vec::new();
 

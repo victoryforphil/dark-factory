@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { buildApp } from '../app';
 import { createSqliteTestDatabase, type SqliteTestDatabase } from '../test/helpers/sqlite-test-db';
+import { buildDeterministicProductId } from '../utils/product-locator';
 
 describe('products routes integration', () => {
   let testDatabase: SqliteTestDatabase;
@@ -39,7 +40,7 @@ describe('products routes integration', () => {
     };
 
     expect(created.ok).toBe(true);
-    expect(typeof created.data.id).toBe('string');
+    expect(created.data.id).toBe(buildDeterministicProductId('@local:///tmp/route-test-product'));
     expect(created.data.locator).toBe('@local:///tmp/route-test-product');
 
     const variantsResponse = await app.handle(

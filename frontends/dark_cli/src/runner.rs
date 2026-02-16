@@ -58,6 +58,7 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
       SystemAction::Health => api.system_health().await.map_err(Into::into),
       SystemAction::Info => api.system_info().await.map_err(Into::into),
       SystemAction::Metrics => api.system_metrics().await.map_err(Into::into),
+      SystemAction::ResetDb => api.system_reset_db().await.map_err(Into::into),
     },
     Command::Products(command) => match &command.action {
       ProductsAction::List { cursor, limit } => {

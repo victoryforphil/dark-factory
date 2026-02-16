@@ -56,6 +56,7 @@ pub enum SystemAction {
     Health,
     Info,
     Metrics,
+    ResetDb,
 }
 
 #[derive(Debug, Args)]

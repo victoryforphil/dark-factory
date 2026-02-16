@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test';
 import { Elysia } from 'elysia';
 
-import { NotFoundError } from '../controllers';
+import { IdCollisionDetectedError, NotFoundError } from '../controllers';
 import { createProductsRoutes } from './products.routes';
 
 const unusedDependencies = {
@@ -66,6 +66,39 @@ describe('products routes unit', () => {
       error: {
         code: 'PRODUCTS_NOT_FOUND',
         message: 'Product missing-product was not found',
+      },
+    });
+  });
+
+  it('maps id collisions into explicit server failure codes', async () => {
+    const app = new Elysia().use(
+      createProductsRoutes({
+        ...unusedDependencies,
+        listProducts: async () => {
+          throw new Error('not used in this test');
+        },
+        createProduct: async () => {
+          throw new IdCollisionDetectedError('collision detected');
+        },
+      }),
+    );
+
+    const response = await app.handle(
+      new Request('http://localhost/products/', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ locator: '@local:///tmp/test' }),
+      }),
+    );
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      ok: false,
+      error: {
+        code: 'ID_COLLISION_DETECTED',
+        message: 'collision detected',
       },
     });
   });

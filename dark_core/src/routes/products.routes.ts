@@ -9,6 +9,7 @@ import {
   createProduct,
   deleteProductById,
   getProductById,
+  isIdCollisionDetectedError,
   isNotFoundError,
   listProducts,
   updateProductById,
@@ -65,6 +66,14 @@ const notFoundResponse = t.Object({
   }),
 });
 
+const idCollisionResponse = t.Object({
+  ok: t.Literal(false),
+  error: t.Object({
+    code: t.Literal('ID_COLLISION_DETECTED'),
+    message: t.String(),
+  }),
+});
+
 export const createProductsRoutes = (
   dependencies: ProductsRoutesDependencies = {
     createProduct,
@@ -112,6 +121,17 @@ export const createProductsRoutes = (
           set.status = 201;
           return success(createdProduct);
         } catch (error) {
+          if (isIdCollisionDetectedError(error)) {
+            set.status = 500;
+            Log.error(
+              `Core // Products Route // ID collision detected ${formatLogMetadata({
+                error: toErrorMessage(error),
+                locator: body.locator,
+              })}`,
+            );
+            return failure('ID_COLLISION_DETECTED', error.message);
+          }
+
           Log.error(
             `Core // Products Route // Create failed ${formatLogMetadata({ error: toErrorMessage(error) })}`,
           );
@@ -123,7 +143,7 @@ export const createProductsRoutes = (
         body: ProductPlainInputCreate,
         response: {
           201: productCreateResponse,
-          500: apiFailureResponse,
+          500: t.Union([apiFailureResponse, idCollisionResponse]),
         },
       },
     )

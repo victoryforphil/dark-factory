@@ -1,8 +1,13 @@
 import type { Product } from '../../../generated/prisma/client';
 
 import { getPrismaClient } from '../clients';
+import {
+  buildDeterministicProductId,
+  isLocalProductLocator,
+  normalizeProductLocator,
+} from '../utils/product-locator';
 import Log, { formatLogMetadata } from '../utils/logging';
-import { NotFoundError } from './controller.errors';
+import { IdCollisionDetectedError, NotFoundError } from './controller.errors';
 import type { CursorListQuery } from './controller.types';
 
 export type ListProductsQuery = CursorListQuery;
@@ -14,7 +19,6 @@ export interface CreateProductInput {
 
 const DEFAULT_LIST_LIMIT = 25;
 const MAX_LIST_LIMIT = 100;
-const LOCAL_LOCATOR_PREFIX = '@local://';
 const DEFAULT_VARIANT_NAME = 'default';
 
 const normalizeLimit = (value?: number): number => {
@@ -25,10 +29,6 @@ const normalizeLimit = (value?: number): number => {
   }
 
   return Math.max(1, Math.min(MAX_LIST_LIMIT, Math.floor(value)));
-};
-
-const isLocalLocator = (locator: string): boolean => {
-  return locator.startsWith(LOCAL_LOCATOR_PREFIX);
 };
 
 export interface UpdateProductInput {
@@ -70,17 +70,45 @@ export const getProductById = async (id: string): Promise<Product> => {
 
 export const createProduct = async (input: CreateProductInput): Promise<Product> => {
   const prisma = getPrismaClient();
+  const canonicalLocator = normalizeProductLocator(input.locator);
+  const productId = buildDeterministicProductId(canonicalLocator);
 
   const product = await prisma.$transaction(async (tx) => {
+    const existingProductById = await tx.product.findUnique({
+      where: { id: productId },
+    });
+
+    if (existingProductById) {
+      if (existingProductById.locator !== canonicalLocator) {
+        throw new IdCollisionDetectedError(
+          `Products // Create // ID collision detected ${formatLogMetadata({
+            canonicalLocator,
+            existingLocator: existingProductById.locator,
+            id: productId,
+          })}`,
+        );
+      }
+
+      return existingProductById;
+    }
+
+    const existingProductByLocator = await tx.product.findUnique({
+      where: { locator: canonicalLocator },
+    });
+
+    if (existingProductByLocator) {
+      return existingProductByLocator;
+    }
+
     const createdProduct = await tx.product.create({
       data: {
-        id: crypto.randomUUID(),
-        locator: input.locator,
+        id: productId,
+        locator: canonicalLocator,
         displayName: input.displayName ?? null,
       },
     });
 
-    if (isLocalLocator(createdProduct.locator)) {
+    if (isLocalProductLocator(createdProduct.locator)) {
       await tx.variant.create({
         data: {
           id: crypto.randomUUID(),
@@ -101,7 +129,7 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
     })}`,
   );
 
-  if (isLocalLocator(product.locator)) {
+  if (isLocalProductLocator(product.locator)) {
     Log.debug(
       `Core // Products Controller // Default variant created ${formatLogMetadata({
         locator: product.locator,
@@ -132,7 +160,7 @@ export const updateProductById = async (
   const updatedProduct = await prisma.product.update({
     where: { id },
     data: {
-      ...(input.locator !== undefined ? { locator: input.locator } : {}),
+      ...(input.locator !== undefined ? { locator: normalizeProductLocator(input.locator) } : {}),
       ...(input.displayName !== undefined ? { displayName: input.displayName } : {}),
     },
   });

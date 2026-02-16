@@ -8,6 +8,7 @@ import {
   listProducts,
   updateProductById,
 } from './products.controller';
+import { buildDeterministicProductId } from '../utils/product-locator';
 import { createVariant, listVariants } from './variants.controller';
 
 describe('products controller integration', () => {
@@ -28,7 +29,9 @@ describe('products controller integration', () => {
       displayName: 'Controller Test Product',
     });
 
-    expect(typeof created.id).toBe('string');
+    expect(created.id).toBe(
+      buildDeterministicProductId('@local:///tmp/controller-test-product'),
+    );
     expect(created.locator).toBe('@local:///tmp/controller-test-product');
     expect(created.displayName).toBe('Controller Test Product');
 
@@ -59,6 +62,29 @@ describe('products controller integration', () => {
 
     const listed = await listProducts({ limit: 10 });
     expect(listed.find((product) => product.id === created.id)).toBeUndefined();
+  });
+
+  it('treats repeated creates for same canonical locator as idempotent', async () => {
+    const created = await createProduct({
+      locator: '/tmp/idempotent-product/',
+      displayName: 'Initial Name',
+    });
+
+    const repeated = await createProduct({
+      locator: '@local:///tmp/idempotent-product',
+      displayName: 'Ignored Name',
+    });
+
+    expect(repeated.id).toBe(created.id);
+    expect(repeated.locator).toBe('@local:///tmp/idempotent-product');
+    expect(repeated.displayName).toBe('Initial Name');
+
+    const products = await listProducts({ limit: 10 });
+    expect(products.length).toBe(1);
+
+    const variants = await listVariants({ productId: created.id });
+    expect(variants.length).toBe(1);
+    expect(variants[0]?.name).toBe('default');
   });
 
   it('allows multiple variants at the same location for one product', async () => {

@@ -55,6 +55,7 @@ Commands:
 | `system health` | `GET /system/health` | System health payload |
 | `system info` | `GET /system/info` | Service info payload |
 | `system metrics` | `GET /system/metrics` | Runtime metrics payload |
+| `system reset-db` | `POST /system/reset-db` | Back up local DB and clear products/variants |
 | `products list [--cursor <id>] [--limit <n>]` | `GET /products/` | List products; without `cursor/limit`, CLI fetches all pages |
 | `products create --locator <path> [--display-name <name>]` | `POST /products/` | Create a product directly |
 | `products get --id <id>` | `GET /products/:id` | Get product by id |
