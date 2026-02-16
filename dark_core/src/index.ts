@@ -1,28 +1,11 @@
-import { Elysia } from 'elysia';
-import { openapi } from '@elysiajs/openapi'
-import { logger } from '@grotto/logysia';
-import { llms } from "@opuu/elysia-llms-txt";
-
+import { buildApp } from './app';
 import Log from './utils/logging';
 
-const app = new Elysia()
-.use(openapi()) 
-.use(
-    llms({
-      source: {
-        type: "url",
-        url: "/openapi/json",
-      },
-    })
-  )
-.use(logger({ 
-            logIP: false,
-            writer: {
-                write(msg: string) {
-                  Log.info(`Core // HTTP // ${msg.trim()}`);
-                }
-            }
-        }))
-.get('/', () => 'Hello Elysia').listen(4150);
+const PORT = 4150;
+const HOST = 'localhost';
 
-Log.info('Core // HTTP // Server is running on http://localhost:4150');
+const app = buildApp();
+
+app.listen(PORT);
+
+Log.info(`Core // HTTP // Listening (env=${Bun.env.NODE_ENV ?? 'development'},host=${HOST},port=${PORT})`);

@@ -65,6 +65,17 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - `.opencode/commands/scrape_docs.md` provides the command entrypoint for docs scraping tasks.
 - Use `@gitter` when the user asks for commit support or cleanup.
 
+## 7) Dark Core MVC Skeleton Style
+
+- `dark_core/src` follows a lightweight MVC REST skeleton:
+  - `clients/` for external system clients and their config types.
+  - `controllers/` for async, library-style business functions (routes call these).
+  - `routes/` for minimal Elysia route modules (`{type}.routes.ts`).
+  - `utils/` for shared generic helpers.
+- Keep route handlers thin: parse input, call controllers, map errors to API JSON shape.
+- Keep controllers modular and promise-based so routes and other controllers can reuse them.
+- Prefer minimal, early-stage pragmatism over heavy abstractions while keeping code DRY and readable.
+
 ## 8) Script Conventions
 
 - Project scripts use shebanged Bun TypeScript files (`#!/usr/bin/env bun`) under `scripts/`.
@@ -76,7 +87,13 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - External docs snapshots can be generated with source scripts like `scripts/scrapes/scrape_opencode_docs.sh.ts`, `scripts/scrapes/scrape_elysia_docs.sh.ts`, and `scripts/scrapes/scrape_prisma_docs.sh.ts`.
 - `scripts/scrapes/scrape_docs.sh.ts` dispatches supported source scrapers (`opencode`, `elysia`, `prisma`, `moonrepo`).
 
-## 9) Keep This File Updated
+## 9) Bun Runtime Conventions
+
+- `dark_core` runs on Bun; prefer Bun-native APIs when available instead of Node-compatible APIs.
+- For environment variables, use `Bun.env` instead of `process.env`.
+- Apply this convention in both app code and scripts unless a dependency explicitly requires Node-specific behavior.
+
+## 10) Keep This File Updated
 
 - Update this file when real code, tooling, or CI is added.
 - Keep instructions tied to verified repository behavior.
