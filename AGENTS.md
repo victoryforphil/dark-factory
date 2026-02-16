@@ -81,6 +81,7 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - `scripts/scrape_opencode_docs.sh.ts` scrapes OpenCode docs into split per-page `docs/external/opencode/*.ext.md` files and writes `docs/external/opencode/index.ext.md`.
   - Default language filter is English (`DOCS_LANGUAGE=en`) to avoid multi-language captures unless overridden.
 - `scripts/scrape_duckdb_docs.sh.ts` scrapes selected DuckDB stable docs (Node Neo, Rust, Wasm, CLI, and overview pages) into split per-page `docs/external/duckdb/*.ext.md` files and writes `docs/external/duckdb/index.ext.md`.
+- `scripts/export_opencode_sessions.sh.ts` exports this repository's OpenCode sessions into `docs/chats/opencode/` as per-session `.md` and `.json` files and writes `docs/chats/opencode/index.md`.
 - After a new command sequence succeeds in a conversation, suggest capturing it into a reusable script via `.opencode/commands/capture_script_from_context.md`.
 
 ## 9) Keep This File Updated

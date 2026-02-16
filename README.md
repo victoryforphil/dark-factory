@@ -41,6 +41,7 @@
 - `scripts/scrape_opencode_docs.sh.ts` captures OpenCode docs as split per-page `docs/external/opencode/*.ext.md` files plus `docs/external/opencode/index.ext.md`.
   - Defaults to English docs only (`DOCS_LANGUAGE=en`), with optional override via `DOCS_LANGUAGE`.
 - `scripts/scrape_duckdb_docs.sh.ts` captures selected DuckDB stable docs (Node Neo, Rust, Wasm, CLI, and overview pages) as split per-page `docs/external/duckdb/*.ext.md` files plus `docs/external/duckdb/index.ext.md`.
+- `scripts/export_opencode_sessions.sh.ts` exports all OpenCode sessions for this repository into `docs/chats/opencode/` as per-session `.md` and `.json` files plus `docs/chats/opencode/index.md`.
 - OpenCode skill reference: `.opencode/skills/proto-install/SKILL.md`.
 - OpenCode skill reference: `.opencode/skills/script-authoring/SKILL.md`.
 - OpenCode skill reference: `.opencode/skills/docs-scraping/SKILL.md`.
