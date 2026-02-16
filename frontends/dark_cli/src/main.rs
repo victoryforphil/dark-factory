@@ -10,10 +10,10 @@ use dark_rust::DarkCoreClient;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-  pretty_env_logger::init();
+    pretty_env_logger::init();
 
-  let cli = Cli::parse();
-  let api = DarkCoreClient::new(cli.base_url.clone());
+    let cli = Cli::parse();
+    let api = DarkCoreClient::new(cli.base_url.clone());
 
-  runner::run(cli, &api).await
+    runner::run(cli, &api).await
 }
