@@ -9,8 +9,11 @@
     "start": "bun run src/index.ts"
   },
   "dependencies": {
+    "@duckdb/node-api": "latest",
     "@elysiajs/openapi": "^1.4.10",
     "@grotto/logysia": "^0.1.6",
+    "@iarna/toml": "^2.2.5",
+    "@opencode-ai/sdk": "^1.2.5",
     "@opuu/elysia-llms-txt": "^1.1.0",
     "adze": "^2.3.0",
     "elysia": "latest",

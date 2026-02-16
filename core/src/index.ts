@@ -1,6 +1,9 @@
 import { config } from "./config";
 import { logger } from "./logging";
 import { createApp } from "./app";
+import { productClient } from "./clients/product-client";
+
+await productClient.initialize();
 
 const app = createApp().listen({
   hostname: config.http.address_listen,

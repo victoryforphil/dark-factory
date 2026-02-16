@@ -6,7 +6,7 @@ import {
   ProtoResponseError,
   protobufBodyParser,
   protobufPlugin,
-} from "./protobuf";
+} from "./clients/protobuf-client";
 import { handleAppError } from "./http/error-handler";
 import { registerSystemRoutes } from "./http/routes/system-routes";
 import { registerProductRoutes } from "./http/routes/product-routes";

@@ -12,7 +12,7 @@ import { Variant } from "../types/variant.js";
 
 export const protobufPackage = "darkfactory.core.v1";
 
-/** POST /products */
+/** POST /v1/products/create */
 export interface CreateProductRequest {
   /** Required. Format: @local://{abs_path} */
   productLocator: string;
@@ -29,6 +29,73 @@ export interface CreateProductSuccess {
 
 export interface CreateProductResponse {
   ok?: CreateProductSuccess | undefined;
+  error?: ApiError | undefined;
+}
+
+export interface ProductRecord {
+  product: Product | undefined;
+  defaultVariant: Variant | undefined;
+}
+
+/** POST /v1/products/get */
+export interface GetProductRequest {
+  productId?: string | undefined;
+  productLocator?: string | undefined;
+}
+
+export interface GetProductSuccess {
+  record: ProductRecord | undefined;
+}
+
+export interface GetProductResponse {
+  ok?: GetProductSuccess | undefined;
+  error?: ApiError | undefined;
+}
+
+/** POST /v1/products/list */
+export interface ListProductsRequest {
+  limit?: number | undefined;
+  offset?: number | undefined;
+}
+
+export interface ListProductsSuccess {
+  records: ProductRecord[];
+  totalCount: number;
+}
+
+export interface ListProductsResponse {
+  ok?: ListProductsSuccess | undefined;
+  error?: ApiError | undefined;
+}
+
+/** POST /v1/products/update */
+export interface UpdateProductRequest {
+  productId: string;
+  displayName?: string | undefined;
+  clearDisplayName: boolean;
+}
+
+export interface UpdateProductSuccess {
+  record: ProductRecord | undefined;
+}
+
+export interface UpdateProductResponse {
+  ok?: UpdateProductSuccess | undefined;
+  error?: ApiError | undefined;
+}
+
+/** POST /v1/products/delete */
+export interface DeleteProductRequest {
+  productId: string;
+}
+
+export interface DeleteProductSuccess {
+  productId: string;
+  defaultVariantId: string;
+}
+
+export interface DeleteProductResponse {
+  ok?: DeleteProductSuccess | undefined;
   error?: ApiError | undefined;
 }
 
@@ -272,6 +339,1022 @@ export const CreateProductResponse: MessageFns<CreateProductResponse> = {
     const message = createBaseCreateProductResponse();
     message.ok = (object.ok !== undefined && object.ok !== null)
       ? CreateProductSuccess.fromPartial(object.ok)
+      : undefined;
+    message.error = (object.error !== undefined && object.error !== null)
+      ? ApiError.fromPartial(object.error)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseProductRecord(): ProductRecord {
+  return { product: undefined, defaultVariant: undefined };
+}
+
+export const ProductRecord: MessageFns<ProductRecord> = {
+  encode(message: ProductRecord, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.product !== undefined) {
+      Product.encode(message.product, writer.uint32(10).fork()).join();
+    }
+    if (message.defaultVariant !== undefined) {
+      Variant.encode(message.defaultVariant, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ProductRecord {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseProductRecord();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.product = Product.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.defaultVariant = Variant.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ProductRecord {
+    return {
+      product: isSet(object.product) ? Product.fromJSON(object.product) : undefined,
+      defaultVariant: isSet(object.defaultVariant)
+        ? Variant.fromJSON(object.defaultVariant)
+        : isSet(object.default_variant)
+        ? Variant.fromJSON(object.default_variant)
+        : undefined,
+    };
+  },
+
+  toJSON(message: ProductRecord): unknown {
+    const obj: any = {};
+    if (message.product !== undefined) {
+      obj.product = Product.toJSON(message.product);
+    }
+    if (message.defaultVariant !== undefined) {
+      obj.defaultVariant = Variant.toJSON(message.defaultVariant);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ProductRecord>, I>>(base?: I): ProductRecord {
+    return ProductRecord.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ProductRecord>, I>>(object: I): ProductRecord {
+    const message = createBaseProductRecord();
+    message.product = (object.product !== undefined && object.product !== null)
+      ? Product.fromPartial(object.product)
+      : undefined;
+    message.defaultVariant = (object.defaultVariant !== undefined && object.defaultVariant !== null)
+      ? Variant.fromPartial(object.defaultVariant)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseGetProductRequest(): GetProductRequest {
+  return { productId: undefined, productLocator: undefined };
+}
+
+export const GetProductRequest: MessageFns<GetProductRequest> = {
+  encode(message: GetProductRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.productId !== undefined) {
+      writer.uint32(10).string(message.productId);
+    }
+    if (message.productLocator !== undefined) {
+      writer.uint32(18).string(message.productLocator);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetProductRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetProductRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.productId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.productLocator = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetProductRequest {
+    return {
+      productId: isSet(object.productId)
+        ? globalThis.String(object.productId)
+        : isSet(object.product_id)
+        ? globalThis.String(object.product_id)
+        : undefined,
+      productLocator: isSet(object.productLocator)
+        ? globalThis.String(object.productLocator)
+        : isSet(object.product_locator)
+        ? globalThis.String(object.product_locator)
+        : undefined,
+    };
+  },
+
+  toJSON(message: GetProductRequest): unknown {
+    const obj: any = {};
+    if (message.productId !== undefined) {
+      obj.productId = message.productId;
+    }
+    if (message.productLocator !== undefined) {
+      obj.productLocator = message.productLocator;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<GetProductRequest>, I>>(base?: I): GetProductRequest {
+    return GetProductRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GetProductRequest>, I>>(object: I): GetProductRequest {
+    const message = createBaseGetProductRequest();
+    message.productId = object.productId ?? undefined;
+    message.productLocator = object.productLocator ?? undefined;
+    return message;
+  },
+};
+
+function createBaseGetProductSuccess(): GetProductSuccess {
+  return { record: undefined };
+}
+
+export const GetProductSuccess: MessageFns<GetProductSuccess> = {
+  encode(message: GetProductSuccess, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.record !== undefined) {
+      ProductRecord.encode(message.record, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetProductSuccess {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetProductSuccess();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.record = ProductRecord.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetProductSuccess {
+    return { record: isSet(object.record) ? ProductRecord.fromJSON(object.record) : undefined };
+  },
+
+  toJSON(message: GetProductSuccess): unknown {
+    const obj: any = {};
+    if (message.record !== undefined) {
+      obj.record = ProductRecord.toJSON(message.record);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<GetProductSuccess>, I>>(base?: I): GetProductSuccess {
+    return GetProductSuccess.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GetProductSuccess>, I>>(object: I): GetProductSuccess {
+    const message = createBaseGetProductSuccess();
+    message.record = (object.record !== undefined && object.record !== null)
+      ? ProductRecord.fromPartial(object.record)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseGetProductResponse(): GetProductResponse {
+  return { ok: undefined, error: undefined };
+}
+
+export const GetProductResponse: MessageFns<GetProductResponse> = {
+  encode(message: GetProductResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.ok !== undefined) {
+      GetProductSuccess.encode(message.ok, writer.uint32(10).fork()).join();
+    }
+    if (message.error !== undefined) {
+      ApiError.encode(message.error, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GetProductResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGetProductResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.ok = GetProductSuccess.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.error = ApiError.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GetProductResponse {
+    return {
+      ok: isSet(object.ok) ? GetProductSuccess.fromJSON(object.ok) : undefined,
+      error: isSet(object.error) ? ApiError.fromJSON(object.error) : undefined,
+    };
+  },
+
+  toJSON(message: GetProductResponse): unknown {
+    const obj: any = {};
+    if (message.ok !== undefined) {
+      obj.ok = GetProductSuccess.toJSON(message.ok);
+    }
+    if (message.error !== undefined) {
+      obj.error = ApiError.toJSON(message.error);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<GetProductResponse>, I>>(base?: I): GetProductResponse {
+    return GetProductResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GetProductResponse>, I>>(object: I): GetProductResponse {
+    const message = createBaseGetProductResponse();
+    message.ok = (object.ok !== undefined && object.ok !== null) ? GetProductSuccess.fromPartial(object.ok) : undefined;
+    message.error = (object.error !== undefined && object.error !== null)
+      ? ApiError.fromPartial(object.error)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseListProductsRequest(): ListProductsRequest {
+  return { limit: undefined, offset: undefined };
+}
+
+export const ListProductsRequest: MessageFns<ListProductsRequest> = {
+  encode(message: ListProductsRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.limit !== undefined) {
+      writer.uint32(8).uint32(message.limit);
+    }
+    if (message.offset !== undefined) {
+      writer.uint32(16).uint32(message.offset);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListProductsRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListProductsRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.limit = reader.uint32();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.offset = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListProductsRequest {
+    return {
+      limit: isSet(object.limit) ? globalThis.Number(object.limit) : undefined,
+      offset: isSet(object.offset) ? globalThis.Number(object.offset) : undefined,
+    };
+  },
+
+  toJSON(message: ListProductsRequest): unknown {
+    const obj: any = {};
+    if (message.limit !== undefined) {
+      obj.limit = Math.round(message.limit);
+    }
+    if (message.offset !== undefined) {
+      obj.offset = Math.round(message.offset);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ListProductsRequest>, I>>(base?: I): ListProductsRequest {
+    return ListProductsRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ListProductsRequest>, I>>(object: I): ListProductsRequest {
+    const message = createBaseListProductsRequest();
+    message.limit = object.limit ?? undefined;
+    message.offset = object.offset ?? undefined;
+    return message;
+  },
+};
+
+function createBaseListProductsSuccess(): ListProductsSuccess {
+  return { records: [], totalCount: 0 };
+}
+
+export const ListProductsSuccess: MessageFns<ListProductsSuccess> = {
+  encode(message: ListProductsSuccess, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.records) {
+      ProductRecord.encode(v!, writer.uint32(10).fork()).join();
+    }
+    if (message.totalCount !== 0) {
+      writer.uint32(16).uint32(message.totalCount);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListProductsSuccess {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListProductsSuccess();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.records.push(ProductRecord.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.totalCount = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListProductsSuccess {
+    return {
+      records: globalThis.Array.isArray(object?.records)
+        ? object.records.map((e: any) => ProductRecord.fromJSON(e))
+        : [],
+      totalCount: isSet(object.totalCount)
+        ? globalThis.Number(object.totalCount)
+        : isSet(object.total_count)
+        ? globalThis.Number(object.total_count)
+        : 0,
+    };
+  },
+
+  toJSON(message: ListProductsSuccess): unknown {
+    const obj: any = {};
+    if (message.records?.length) {
+      obj.records = message.records.map((e) => ProductRecord.toJSON(e));
+    }
+    if (message.totalCount !== 0) {
+      obj.totalCount = Math.round(message.totalCount);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ListProductsSuccess>, I>>(base?: I): ListProductsSuccess {
+    return ListProductsSuccess.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ListProductsSuccess>, I>>(object: I): ListProductsSuccess {
+    const message = createBaseListProductsSuccess();
+    message.records = object.records?.map((e) => ProductRecord.fromPartial(e)) || [];
+    message.totalCount = object.totalCount ?? 0;
+    return message;
+  },
+};
+
+function createBaseListProductsResponse(): ListProductsResponse {
+  return { ok: undefined, error: undefined };
+}
+
+export const ListProductsResponse: MessageFns<ListProductsResponse> = {
+  encode(message: ListProductsResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.ok !== undefined) {
+      ListProductsSuccess.encode(message.ok, writer.uint32(10).fork()).join();
+    }
+    if (message.error !== undefined) {
+      ApiError.encode(message.error, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListProductsResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListProductsResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.ok = ListProductsSuccess.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.error = ApiError.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ListProductsResponse {
+    return {
+      ok: isSet(object.ok) ? ListProductsSuccess.fromJSON(object.ok) : undefined,
+      error: isSet(object.error) ? ApiError.fromJSON(object.error) : undefined,
+    };
+  },
+
+  toJSON(message: ListProductsResponse): unknown {
+    const obj: any = {};
+    if (message.ok !== undefined) {
+      obj.ok = ListProductsSuccess.toJSON(message.ok);
+    }
+    if (message.error !== undefined) {
+      obj.error = ApiError.toJSON(message.error);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ListProductsResponse>, I>>(base?: I): ListProductsResponse {
+    return ListProductsResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ListProductsResponse>, I>>(object: I): ListProductsResponse {
+    const message = createBaseListProductsResponse();
+    message.ok = (object.ok !== undefined && object.ok !== null)
+      ? ListProductsSuccess.fromPartial(object.ok)
+      : undefined;
+    message.error = (object.error !== undefined && object.error !== null)
+      ? ApiError.fromPartial(object.error)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseUpdateProductRequest(): UpdateProductRequest {
+  return { productId: "", displayName: undefined, clearDisplayName: false };
+}
+
+export const UpdateProductRequest: MessageFns<UpdateProductRequest> = {
+  encode(message: UpdateProductRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.productId !== "") {
+      writer.uint32(10).string(message.productId);
+    }
+    if (message.displayName !== undefined) {
+      writer.uint32(18).string(message.displayName);
+    }
+    if (message.clearDisplayName !== false) {
+      writer.uint32(24).bool(message.clearDisplayName);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): UpdateProductRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseUpdateProductRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.productId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.displayName = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.clearDisplayName = reader.bool();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): UpdateProductRequest {
+    return {
+      productId: isSet(object.productId)
+        ? globalThis.String(object.productId)
+        : isSet(object.product_id)
+        ? globalThis.String(object.product_id)
+        : "",
+      displayName: isSet(object.displayName)
+        ? globalThis.String(object.displayName)
+        : isSet(object.display_name)
+        ? globalThis.String(object.display_name)
+        : undefined,
+      clearDisplayName: isSet(object.clearDisplayName)
+        ? globalThis.Boolean(object.clearDisplayName)
+        : isSet(object.clear_display_name)
+        ? globalThis.Boolean(object.clear_display_name)
+        : false,
+    };
+  },
+
+  toJSON(message: UpdateProductRequest): unknown {
+    const obj: any = {};
+    if (message.productId !== "") {
+      obj.productId = message.productId;
+    }
+    if (message.displayName !== undefined) {
+      obj.displayName = message.displayName;
+    }
+    if (message.clearDisplayName !== false) {
+      obj.clearDisplayName = message.clearDisplayName;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<UpdateProductRequest>, I>>(base?: I): UpdateProductRequest {
+    return UpdateProductRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<UpdateProductRequest>, I>>(object: I): UpdateProductRequest {
+    const message = createBaseUpdateProductRequest();
+    message.productId = object.productId ?? "";
+    message.displayName = object.displayName ?? undefined;
+    message.clearDisplayName = object.clearDisplayName ?? false;
+    return message;
+  },
+};
+
+function createBaseUpdateProductSuccess(): UpdateProductSuccess {
+  return { record: undefined };
+}
+
+export const UpdateProductSuccess: MessageFns<UpdateProductSuccess> = {
+  encode(message: UpdateProductSuccess, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.record !== undefined) {
+      ProductRecord.encode(message.record, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): UpdateProductSuccess {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseUpdateProductSuccess();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.record = ProductRecord.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): UpdateProductSuccess {
+    return { record: isSet(object.record) ? ProductRecord.fromJSON(object.record) : undefined };
+  },
+
+  toJSON(message: UpdateProductSuccess): unknown {
+    const obj: any = {};
+    if (message.record !== undefined) {
+      obj.record = ProductRecord.toJSON(message.record);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<UpdateProductSuccess>, I>>(base?: I): UpdateProductSuccess {
+    return UpdateProductSuccess.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<UpdateProductSuccess>, I>>(object: I): UpdateProductSuccess {
+    const message = createBaseUpdateProductSuccess();
+    message.record = (object.record !== undefined && object.record !== null)
+      ? ProductRecord.fromPartial(object.record)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseUpdateProductResponse(): UpdateProductResponse {
+  return { ok: undefined, error: undefined };
+}
+
+export const UpdateProductResponse: MessageFns<UpdateProductResponse> = {
+  encode(message: UpdateProductResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.ok !== undefined) {
+      UpdateProductSuccess.encode(message.ok, writer.uint32(10).fork()).join();
+    }
+    if (message.error !== undefined) {
+      ApiError.encode(message.error, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): UpdateProductResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseUpdateProductResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.ok = UpdateProductSuccess.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.error = ApiError.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): UpdateProductResponse {
+    return {
+      ok: isSet(object.ok) ? UpdateProductSuccess.fromJSON(object.ok) : undefined,
+      error: isSet(object.error) ? ApiError.fromJSON(object.error) : undefined,
+    };
+  },
+
+  toJSON(message: UpdateProductResponse): unknown {
+    const obj: any = {};
+    if (message.ok !== undefined) {
+      obj.ok = UpdateProductSuccess.toJSON(message.ok);
+    }
+    if (message.error !== undefined) {
+      obj.error = ApiError.toJSON(message.error);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<UpdateProductResponse>, I>>(base?: I): UpdateProductResponse {
+    return UpdateProductResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<UpdateProductResponse>, I>>(object: I): UpdateProductResponse {
+    const message = createBaseUpdateProductResponse();
+    message.ok = (object.ok !== undefined && object.ok !== null)
+      ? UpdateProductSuccess.fromPartial(object.ok)
+      : undefined;
+    message.error = (object.error !== undefined && object.error !== null)
+      ? ApiError.fromPartial(object.error)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseDeleteProductRequest(): DeleteProductRequest {
+  return { productId: "" };
+}
+
+export const DeleteProductRequest: MessageFns<DeleteProductRequest> = {
+  encode(message: DeleteProductRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.productId !== "") {
+      writer.uint32(10).string(message.productId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DeleteProductRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDeleteProductRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.productId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DeleteProductRequest {
+    return {
+      productId: isSet(object.productId)
+        ? globalThis.String(object.productId)
+        : isSet(object.product_id)
+        ? globalThis.String(object.product_id)
+        : "",
+    };
+  },
+
+  toJSON(message: DeleteProductRequest): unknown {
+    const obj: any = {};
+    if (message.productId !== "") {
+      obj.productId = message.productId;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<DeleteProductRequest>, I>>(base?: I): DeleteProductRequest {
+    return DeleteProductRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<DeleteProductRequest>, I>>(object: I): DeleteProductRequest {
+    const message = createBaseDeleteProductRequest();
+    message.productId = object.productId ?? "";
+    return message;
+  },
+};
+
+function createBaseDeleteProductSuccess(): DeleteProductSuccess {
+  return { productId: "", defaultVariantId: "" };
+}
+
+export const DeleteProductSuccess: MessageFns<DeleteProductSuccess> = {
+  encode(message: DeleteProductSuccess, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.productId !== "") {
+      writer.uint32(10).string(message.productId);
+    }
+    if (message.defaultVariantId !== "") {
+      writer.uint32(18).string(message.defaultVariantId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DeleteProductSuccess {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDeleteProductSuccess();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.productId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.defaultVariantId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DeleteProductSuccess {
+    return {
+      productId: isSet(object.productId)
+        ? globalThis.String(object.productId)
+        : isSet(object.product_id)
+        ? globalThis.String(object.product_id)
+        : "",
+      defaultVariantId: isSet(object.defaultVariantId)
+        ? globalThis.String(object.defaultVariantId)
+        : isSet(object.default_variant_id)
+        ? globalThis.String(object.default_variant_id)
+        : "",
+    };
+  },
+
+  toJSON(message: DeleteProductSuccess): unknown {
+    const obj: any = {};
+    if (message.productId !== "") {
+      obj.productId = message.productId;
+    }
+    if (message.defaultVariantId !== "") {
+      obj.defaultVariantId = message.defaultVariantId;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<DeleteProductSuccess>, I>>(base?: I): DeleteProductSuccess {
+    return DeleteProductSuccess.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<DeleteProductSuccess>, I>>(object: I): DeleteProductSuccess {
+    const message = createBaseDeleteProductSuccess();
+    message.productId = object.productId ?? "";
+    message.defaultVariantId = object.defaultVariantId ?? "";
+    return message;
+  },
+};
+
+function createBaseDeleteProductResponse(): DeleteProductResponse {
+  return { ok: undefined, error: undefined };
+}
+
+export const DeleteProductResponse: MessageFns<DeleteProductResponse> = {
+  encode(message: DeleteProductResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.ok !== undefined) {
+      DeleteProductSuccess.encode(message.ok, writer.uint32(10).fork()).join();
+    }
+    if (message.error !== undefined) {
+      ApiError.encode(message.error, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DeleteProductResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDeleteProductResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.ok = DeleteProductSuccess.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.error = ApiError.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DeleteProductResponse {
+    return {
+      ok: isSet(object.ok) ? DeleteProductSuccess.fromJSON(object.ok) : undefined,
+      error: isSet(object.error) ? ApiError.fromJSON(object.error) : undefined,
+    };
+  },
+
+  toJSON(message: DeleteProductResponse): unknown {
+    const obj: any = {};
+    if (message.ok !== undefined) {
+      obj.ok = DeleteProductSuccess.toJSON(message.ok);
+    }
+    if (message.error !== undefined) {
+      obj.error = ApiError.toJSON(message.error);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<DeleteProductResponse>, I>>(base?: I): DeleteProductResponse {
+    return DeleteProductResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<DeleteProductResponse>, I>>(object: I): DeleteProductResponse {
+    const message = createBaseDeleteProductResponse();
+    message.ok = (object.ok !== undefined && object.ok !== null)
+      ? DeleteProductSuccess.fromPartial(object.ok)
       : undefined;
     message.error = (object.error !== undefined && object.error !== null)
       ? ApiError.fromPartial(object.error)

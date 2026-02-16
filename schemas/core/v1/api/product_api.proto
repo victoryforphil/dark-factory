@@ -6,7 +6,7 @@ import "core/v1/types/common.proto";
 import "core/v1/types/product.proto";
 import "core/v1/types/variant.proto";
 
-// POST /products
+// POST /v1/products/create
 message CreateProductRequest {
   // Required. Format: @local://{abs_path}
   string product_locator = 1;
@@ -23,6 +23,83 @@ message CreateProductSuccess {
 message CreateProductResponse {
   oneof result {
     CreateProductSuccess ok = 1;
+    ApiError error = 2;
+  }
+}
+
+message ProductRecord {
+  Product product = 1;
+  Variant default_variant = 2;
+}
+
+// POST /v1/products/get
+message GetProductRequest {
+  oneof lookup {
+    string product_id = 1;
+    string product_locator = 2;
+  }
+}
+
+message GetProductSuccess {
+  ProductRecord record = 1;
+}
+
+message GetProductResponse {
+  oneof result {
+    GetProductSuccess ok = 1;
+    ApiError error = 2;
+  }
+}
+
+// POST /v1/products/list
+message ListProductsRequest {
+  optional uint32 limit = 1;
+  optional uint32 offset = 2;
+}
+
+message ListProductsSuccess {
+  repeated ProductRecord records = 1;
+  uint32 total_count = 2;
+}
+
+message ListProductsResponse {
+  oneof result {
+    ListProductsSuccess ok = 1;
+    ApiError error = 2;
+  }
+}
+
+// POST /v1/products/update
+message UpdateProductRequest {
+  string product_id = 1;
+  optional string display_name = 2;
+  bool clear_display_name = 3;
+}
+
+message UpdateProductSuccess {
+  ProductRecord record = 1;
+}
+
+message UpdateProductResponse {
+  oneof result {
+    UpdateProductSuccess ok = 1;
+    ApiError error = 2;
+  }
+}
+
+// POST /v1/products/delete
+message DeleteProductRequest {
+  string product_id = 1;
+}
+
+message DeleteProductSuccess {
+  string product_id = 1;
+  string default_variant_id = 2;
+}
+
+message DeleteProductResponse {
+  oneof result {
+    DeleteProductSuccess ok = 1;
     ApiError error = 2;
   }
 }
