@@ -7,6 +7,12 @@ pub enum OutputFormat {
     Toml,
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum IncludeLevel {
+    Minimal,
+    Full,
+}
+
 #[derive(Debug, Parser)]
 #[command(name = "dark_cli", about = "Dark Factory CLI frontend")]
 pub struct Cli {
@@ -73,6 +79,8 @@ pub enum ProductsAction {
         cursor: Option<String>,
         #[arg(long)]
         limit: Option<u32>,
+        #[arg(long, value_enum)]
+        include: Option<IncludeLevel>,
     },
     Create {
         #[arg(long)]
@@ -83,6 +91,8 @@ pub enum ProductsAction {
     Get {
         #[arg(long)]
         id: String,
+        #[arg(long, value_enum)]
+        include: Option<IncludeLevel>,
     },
     Update {
         #[arg(long)]
@@ -117,6 +127,8 @@ pub enum VariantsAction {
         locator: Option<String>,
         #[arg(long)]
         name: Option<String>,
+        #[arg(long, default_value_t = true)]
+        poll: bool,
     },
     Create {
         #[arg(long)]
@@ -129,10 +141,14 @@ pub enum VariantsAction {
     Get {
         #[arg(long)]
         id: String,
+        #[arg(long, default_value_t = true)]
+        poll: bool,
     },
     Poll {
         #[arg(long)]
         id: String,
+        #[arg(long, default_value_t = true)]
+        poll: bool,
     },
     Update {
         #[arg(long)]

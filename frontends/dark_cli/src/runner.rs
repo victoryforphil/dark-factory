@@ -6,15 +6,16 @@ use anyhow::{Context, Result};
 use dark_rust::types::{
     OpencodeAttachQuery, OpencodeSessionCommandInput, OpencodeSessionCreateInput,
     OpencodeSessionDirectoryInput, OpencodeSessionPromptInput, OpencodeSessionStateQuery,
-    ProductCreateInput, ProductListQuery, ProductUpdateInput, VariantCreateInput, VariantListQuery,
-    VariantProductConnectInput, VariantProductRelationInput, VariantUpdateInput,
+    ProductCreateInput, ProductIncludeQuery, ProductListQuery, ProductUpdateInput,
+    VariantCreateInput, VariantListQuery, VariantProductConnectInput, VariantProductRelationInput,
+    VariantUpdateInput,
 };
 use dark_rust::{DarkCoreClient, DarkRustError, LocatorId, LocatorKind, RawApiResponse};
 use serde_json::{Value, json};
 
 use crate::cli::{
-    Cli, Command, OpencodeAction, OpencodeSessionsAction, ProductsAction, ServiceAction,
-    SystemAction, VariantsAction,
+    Cli, Command, IncludeLevel, OpencodeAction, OpencodeSessionsAction, ProductsAction,
+    ServiceAction, SystemAction, VariantsAction,
 };
 
 const PRODUCTS_PAGE_LIMIT: u32 = 100;
@@ -63,13 +64,18 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
             SystemAction::ResetDb => api.system_reset_db().await.map_err(Into::into),
         },
         Command::Products(command) => match &command.action {
-            ProductsAction::List { cursor, limit } => {
-                if cursor.is_none() && limit.is_none() {
+            ProductsAction::List {
+                cursor,
+                limit,
+                include,
+            } => {
+                if cursor.is_none() && limit.is_none() && include.is_none() {
                     list_all_products(api).await
                 } else {
                     api.products_list(&ProductListQuery {
                         cursor: cursor.clone(),
                         limit: *limit,
+                        include: map_include(*include),
                     })
                     .await
                     .map_err(Into::into)
@@ -88,7 +94,10 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
                 .await
                 .map_err(Into::into)
             }
-            ProductsAction::Get { id } => api.products_get(id).await.map_err(Into::into),
+            ProductsAction::Get { id, include } => api
+                .products_get(id, map_include(*include))
+                .await
+                .map_err(Into::into),
             ProductsAction::Update {
                 id,
                 locator,
@@ -115,6 +124,7 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
                 product_id,
                 locator,
                 name,
+                poll,
             } => api
                 .variants_list(&VariantListQuery {
                     cursor: cursor.clone(),
@@ -122,6 +132,7 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
                     product_id: product_id.clone(),
                     locator: locator.clone(),
                     name: name.clone(),
+                    poll: Some(*poll),
                 })
                 .await
                 .map_err(Into::into),
@@ -144,8 +155,12 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
                 .await
                 .map_err(Into::into)
             }
-            VariantsAction::Get { id } => api.variants_get(id).await.map_err(Into::into),
-            VariantsAction::Poll { id } => api.variants_poll(id).await.map_err(Into::into),
+            VariantsAction::Get { id, poll } => {
+                api.variants_get(id, Some(*poll)).await.map_err(Into::into)
+            }
+            VariantsAction::Poll { id, poll } => {
+                api.variants_poll(id, Some(*poll)).await.map_err(Into::into)
+            }
             VariantsAction::Update { id, locator, name } => api
                 .variants_update(
                     id,
@@ -264,6 +279,7 @@ async fn list_all_products(api: &DarkCoreClient) -> Result<RawApiResponse> {
             .products_list(&ProductListQuery {
                 cursor: cursor.clone(),
                 limit: Some(PRODUCTS_PAGE_LIMIT),
+                include: None,
             })
             .await?;
 
@@ -322,6 +338,14 @@ fn normalize_locator_input(locator: &str) -> Result<String> {
         .map_err(Into::into)
 }
 
+fn map_include(include: Option<IncludeLevel>) -> Option<ProductIncludeQuery> {
+    match include {
+        Some(IncludeLevel::Minimal) => Some(ProductIncludeQuery::Minimal),
+        Some(IncludeLevel::Full) => Some(ProductIncludeQuery::Full),
+        None => None,
+    }
+}
+
 fn resolve_directory(path: Option<&str>) -> Result<std::path::PathBuf> {
     let base_path = match path {
         Some(value) => std::path::PathBuf::from(value),
@@ -365,6 +389,7 @@ async fn info_for_directory(
         .variants_list(&VariantListQuery {
             locator: Some(locator.clone()),
             limit: Some(500),
+            poll: Some(true),
             ..VariantListQuery::default()
         })
         .await
@@ -379,48 +404,28 @@ async fn info_for_directory(
     }
 
     let variants = extract_data_rows(&variants_response.body);
-
-    for variant in &variants {
-        let Some(id) = variant.get("id").and_then(Value::as_str) else {
-            continue;
-        };
-
-        let poll_response = api.variants_poll(id).await?;
-
-        if !(200..300).contains(&poll_response.status) {
-            return Ok(poll_response);
-        }
-    }
-
-    let polled_variants_response = api
-        .variants_list(&VariantListQuery {
-            locator: Some(locator.clone()),
-            limit: Some(500),
-            ..VariantListQuery::default()
-        })
-        .await?;
-
-    if !(200..300).contains(&polled_variants_response.status) {
-        return Ok(polled_variants_response);
-    }
-
-    let polled_variants = extract_data_rows(&polled_variants_response.body);
-    let product_ids: BTreeSet<String> = polled_variants
+    let product_ids: BTreeSet<String> = variants
         .iter()
         .filter_map(|variant| variant.get("productId").and_then(Value::as_str))
         .map(ToString::to_string)
         .collect();
 
     let mut products: Vec<Value> = Vec::new();
+    let mut product_variants: Vec<Value> = Vec::new();
 
     for product_id in product_ids {
-        let product_response = api.products_get(&product_id).await?;
+        let product_response = api
+            .products_get(&product_id, Some(ProductIncludeQuery::Full))
+            .await?;
 
         if !(200..300).contains(&product_response.status) {
             return Ok(product_response);
         }
 
         if let Some(product) = product_response.body.get("data") {
+            if let Some(included_variants) = product.get("variants").and_then(Value::as_array) {
+                product_variants.extend(included_variants.iter().cloned());
+            }
             products.push(product.clone());
         }
     }
@@ -434,7 +439,7 @@ async fn info_for_directory(
                 "directory": directory.to_string_lossy().to_string(),
                 "locator": locator,
                 "products": products,
-                "variants": polled_variants,
+                "variants": product_variants,
             }
         }),
     })

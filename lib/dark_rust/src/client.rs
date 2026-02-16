@@ -5,8 +5,8 @@ use crate::error::DarkRustError;
 use crate::types::{
     OpencodeAttachQuery, OpencodeSessionCommandInput, OpencodeSessionCreateInput,
     OpencodeSessionDirectoryInput, OpencodeSessionPromptInput, OpencodeSessionStateQuery,
-    ProductCreateInput, ProductListQuery, ProductUpdateInput, VariantCreateInput, VariantListQuery,
-    VariantUpdateInput,
+    ProductCreateInput, ProductIncludeQuery, ProductListQuery, ProductUpdateInput,
+    VariantCreateInput, VariantListQuery, VariantUpdateInput,
 };
 
 #[derive(Debug, Clone)]
@@ -64,6 +64,10 @@ impl DarkCoreClient {
             query_parts.push(("limit".to_string(), limit.to_string()));
         }
 
+        if let Some(include) = query.include {
+            query_parts.push(("include".to_string(), include.as_query_value().to_string()));
+        }
+
         let query = if query_parts.is_empty() {
             None
         } else {
@@ -80,8 +84,24 @@ impl DarkCoreClient {
         self.post("/products/", serde_json::to_value(input)?).await
     }
 
-    pub async fn products_get(&self, product_id: &str) -> Result<RawApiResponse, DarkRustError> {
-        self.get(&format!("/products/{product_id}"), None).await
+    pub async fn products_get(
+        &self,
+        product_id: &str,
+        include: Option<ProductIncludeQuery>,
+    ) -> Result<RawApiResponse, DarkRustError> {
+        let mut query_parts = Vec::new();
+
+        if let Some(include) = include {
+            query_parts.push(("include".to_string(), include.as_query_value().to_string()));
+        }
+
+        let query = if query_parts.is_empty() {
+            None
+        } else {
+            Some(query_parts.as_slice())
+        };
+
+        self.get(&format!("/products/{product_id}"), query).await
     }
 
     pub async fn products_update(
@@ -126,6 +146,10 @@ impl DarkCoreClient {
             query_parts.push(("name".to_string(), name.clone()));
         }
 
+        if let Some(poll) = query.poll {
+            query_parts.push(("poll".to_string(), poll.to_string()));
+        }
+
         let query = if query_parts.is_empty() {
             None
         } else {
@@ -142,13 +166,38 @@ impl DarkCoreClient {
         self.post("/variants/", serde_json::to_value(input)?).await
     }
 
-    pub async fn variants_get(&self, variant_id: &str) -> Result<RawApiResponse, DarkRustError> {
-        self.get(&format!("/variants/{variant_id}"), None).await
+    pub async fn variants_get(
+        &self,
+        variant_id: &str,
+        poll: Option<bool>,
+    ) -> Result<RawApiResponse, DarkRustError> {
+        let mut query_parts = Vec::new();
+
+        if let Some(poll) = poll {
+            query_parts.push(("poll".to_string(), poll.to_string()));
+        }
+
+        let query = if query_parts.is_empty() {
+            None
+        } else {
+            Some(query_parts.as_slice())
+        };
+
+        self.get(&format!("/variants/{variant_id}"), query).await
     }
 
-    pub async fn variants_poll(&self, variant_id: &str) -> Result<RawApiResponse, DarkRustError> {
-        self.post(&format!("/variants/{variant_id}/poll"), Value::Null)
-            .await
+    pub async fn variants_poll(
+        &self,
+        variant_id: &str,
+        poll: Option<bool>,
+    ) -> Result<RawApiResponse, DarkRustError> {
+        let mut path = format!("/variants/{variant_id}/poll");
+
+        if let Some(poll) = poll {
+            append_query(&mut path, &[("poll".to_string(), poll.to_string())]);
+        }
+
+        self.post(&path, Value::Null).await
     }
 
     pub async fn variants_update(
