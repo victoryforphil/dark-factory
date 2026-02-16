@@ -16,6 +16,7 @@ import {
   sendOpencodeSessionCommand,
   sendOpencodeSessionPrompt,
 } from './opencode_server.controller';
+import { getOpencodeBaseUrl } from './opencode_server.client';
 import { mapOpenCodeMessages, mapOpenCodeSessionStatus } from './opencode_server.mapper';
 import type { OpenCodeStatusLike } from './opencode_server.types';
 
@@ -90,6 +91,7 @@ export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
       connectionInfo: {
         provider: OPENCODE_SERVER_PROVIDER_KEY,
         directory,
+        serverUrl: getOpencodeBaseUrl(),
         projectId: attach.project.id,
       },
       attachCommand: attach.command,
@@ -108,6 +110,7 @@ export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
         connectionInfo: {
           provider: OPENCODE_SERVER_PROVIDER_KEY,
           directory,
+          serverUrl: getOpencodeBaseUrl(),
         },
       };
     }
@@ -123,6 +126,7 @@ export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
       connectionInfo: {
         provider: OPENCODE_SERVER_PROVIDER_KEY,
         directory,
+        serverUrl: getOpencodeBaseUrl(),
         projectId: attach.project.id,
       },
       attachCommand: attach.command,
@@ -143,6 +147,7 @@ export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
       connectionInfo: {
         provider: OPENCODE_SERVER_PROVIDER_KEY,
         directory,
+        serverUrl: getOpencodeBaseUrl(),
         projectId: attach.project.id,
       },
     };
@@ -221,6 +226,7 @@ export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
             connectionInfo: {
               provider: OPENCODE_SERVER_PROVIDER_KEY,
               directory,
+              serverUrl: getOpencodeBaseUrl(),
             },
           };
         }),
