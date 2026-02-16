@@ -1,6 +1,7 @@
 import { Elysia } from "elysia";
+import { openapi } from "@elysiajs/openapi";
 import { config } from "./config";
-import { logger, requestLogger } from "./logging";
+import { logger } from "./logging";
 import {
   ProtoRequestError,
   ProtoResponseError,
@@ -13,7 +14,20 @@ import {
 const serviceName = "dark-factory-core";
 
 const app = new Elysia()
-  .use(requestLogger)
+  .use(
+    openapi({
+      documentation: {
+        info: {
+          title: "Dark Factory Core API",
+          version: "0.1.0",
+          description: "OpenAPI documentation for the Dark Factory core service.",
+        },
+      },
+      path: "/openapi",
+      provider: "swagger-ui",
+      specPath: "/openapi/json",
+    }),
+  )
   .use(protobufBodyParser)
   .use(protobufPlugin)
   .error({
