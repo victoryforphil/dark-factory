@@ -6,6 +6,7 @@ projects:
   generated: "generated"
   dark_rust: "lib/dark_rust"
   dark_cli: "frontends/dark_cli"
+  dark_tui: "frontends/dark_tui"
 
 vcs:
   manager: "git"

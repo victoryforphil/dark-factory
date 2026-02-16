@@ -1,0 +1,59 @@
+# Dark Factory TUI — Default Theme
+#
+# Colors can be specified as:
+#   - RGB arrays: [180, 230, 180]
+#   - Named colors: "cyan", "dark_gray", "white", etc.
+#
+# Only override the values you want to change; omitted fields use built-in defaults.
+
+[pill]
+ok_fg     = [180, 230, 180]
+ok_bg     = [30,  60,  30]
+warn_fg   = [230, 210, 140]
+warn_bg   = [60,  50,  20]
+err_fg    = [240, 160, 150]
+err_bg    = [70,  25,  25]
+info_fg   = [150, 190, 230]
+info_bg   = [25,  40,  65]
+muted_fg  = [140, 140, 140]
+muted_bg  = [40,  40,  40]
+accent_fg = [160, 220, 230]
+accent_bg = [25,  55,  60]
+
+[key_hint]
+key_fg     = [220, 220, 220]
+key_bg     = [55,  55,  70]
+action_fg  = [150, 150, 160]
+bracket_fg = [90,  90,  110]
+
+[entity]
+product = "cyan"
+variant = "green"
+actor   = "magenta"
+
+[pane]
+focused_border   = "cyan"
+unfocused_border = "dark_gray"
+
+[table]
+header_fg            = "white"
+highlight_fg         = "black"
+highlight_bg_product = "cyan"
+highlight_bg_variant = "green"
+highlight_bg_actor   = "magenta"
+
+[catalog]
+connector = "dark_gray"
+
+[text]
+primary       = "white"
+secondary     = "gray"
+muted         = "dark_gray"
+error         = [240, 160, 150]
+status_normal = [150, 150, 160]
+
+[header]
+border = "cyan"
+
+[footer]
+border = "dark_gray"
