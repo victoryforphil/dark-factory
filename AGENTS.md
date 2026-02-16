@@ -59,6 +59,7 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - `.opencode/agents/gitter.md` is the git-focused subagent.
 - `.opencode/skills/gitter-commit/SKILL.md` documents when to route commit tasks to `@gitter`.
 - `.opencode/skills/proto-install/SKILL.md` documents standardized script-based `proto install` usage.
+- `.opencode/skills/protobuf-schema-authoring/SKILL.md` documents how to author proto2/proto3 schemas and provide Rust/TypeScript codegen workflows.
 - `.opencode/skills/script-authoring/SKILL.md` documents how to build reusable Bun scripts from prompt/example/bash/context.
 - Use `@gitter` when the user asks for commit support or cleanup.
 
@@ -75,6 +76,7 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - Shared script helpers live under `scripts/helpers/`.
 - `scripts/install.sh.ts` runs a reusable ordered list of install steps.
 - `scripts/proto_install.sh.ts` runs `proto install` from repository root.
+- `scripts/scrape_moon_docs.sh.ts` scrapes moonrepo docs into `docs/external/moonrepo/*.ext.md`.
 - After a new command sequence succeeds in a conversation, suggest capturing it into a reusable script via `.opencode/commands/capture_script_from_context.md`.
 
 ## 9) Keep This File Updated
