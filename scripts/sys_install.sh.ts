@@ -56,9 +56,11 @@ function buildAliasBlock(repoPath: string): string {
     START_MARKER,
     `export DARKFACTORY_SRC_PATH="${escapedPath}"`,
     "alias dcli='cd \"$DARKFACTORY_SRC_PATH\" && cargo run --release -p dark_cli --'",
-    "alias dtui='cd \"$DARKFACTORY_SRC_PATH\" && cargo run --release -p dark_tui --'",
+    "alias dchat='cd \"$DARKFACTORY_SRC_PATH\" && cargo run --release -p dark_chat --'",
+    "alias dtui='bun \"$DARKFACTORY_SRC_PATH/scripts/dtui.sh.ts\"'",
     "alias dark_cli='cd \"$DARKFACTORY_SRC_PATH\" && cargo run --release -p dark_cli --'",
-    "alias dark_tui='cd \"$DARKFACTORY_SRC_PATH\" && cargo run --release -p dark_tui --'",
+    "alias dark_chat='cd \"$DARKFACTORY_SRC_PATH\" && cargo run --release -p dark_chat --'",
+    "alias dark_tui='bun \"$DARKFACTORY_SRC_PATH/scripts/dtui.sh.ts\"'",
     END_MARKER,
   ].join("\n");
 }

@@ -24,7 +24,7 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
   - `modules/products/products.routes.ts`
   - `modules/products/products.controller.ts`
   - `modules/system/system.config.ts`
-  - `modules/providers/opencode/opencode.controller.ts`
+  - `modules/providers/opencode_server/opencode_server.controller.ts`
   - colocated tests like `modules/products/products.unit.test.ts` and `modules/products/products.int.test.ts`
 - Prefer one unit test file and one integration test file per domain module instead of split route/controller test files.
 - Keep route handlers thin: parse input, call controllers, map errors to API JSON shape.

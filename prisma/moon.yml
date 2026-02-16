@@ -12,9 +12,8 @@ tasks:
     command: "bunx prisma generate --schema schema.prisma"
     inputs:
       - "schema.prisma"
-    outputs:
-      - "/generated/prisma/**/*"
-      - "/generated/prismabox/**/*"
+    options:
+      cache: false
 
   check:
     command: "bunx prisma validate --schema schema.prisma"

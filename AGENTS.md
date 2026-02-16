@@ -15,8 +15,10 @@ It reflects only what is currently true in this repository.
   - Actors attach to variants (`Variant 1 -> N Actors`) and store provider/runtime snapshots (`actorLocator`, `workingLocator`, `providerSessionId`, `attachCommand`, `connectionInfo`).
 - Rust workspace code now includes:
   - `frontends/dark_cli/` for the CLI binary.
+  - `frontends/dark_chat/` for the OpenCode-focused chat TUI frontend (library + binary).
   - `frontends/dark_tui/` for the Ratatui dashboard frontend.
   - `lib/dark_rust/` for shared dark_core API client/types used by Rust frontends.
+  - `lib/dark_tui_components/` for reusable Ratatui component primitives shared by Rust TUIs.
 - TUI work in this repo uses Ratatui; local scraped references live at `docs/external/ratatui_web/index.ext.md` and `docs/external/ratatui_docs/index.ext.md`.
 - Moon workspace/project config is present at:
   - `.moon/workspace.yml`
@@ -25,7 +27,9 @@ It reflects only what is currently true in this repository.
   - `prisma/moon.yml`
   - `generated/moon.yml`
   - `lib/dark_rust/moon.yml`
+  - `lib/dark_tui_components/moon.yml`
   - `frontends/dark_cli/moon.yml`
+  - `frontends/dark_chat/moon.yml`
   - `frontends/dark_tui/moon.yml`
 - Prisma generated outputs are written under `generated/` (for example `generated/prisma/` and `generated/prismabox/`).
 - Do not implement ad-hoc/manual Prisma schema compatibility SQL in app code; evolve `prisma/schema.prisma` and apply changes via Prisma tooling (`prisma db push` / migrations).
@@ -111,6 +115,10 @@ It reflects only what is currently true in this repository.
   - `POST /variants/:id/actors/import` for opt-in import of provider-managed active sessions into actor rows.
   - actor lifecycle/interaction endpoints: `POST /actors/:id/poll`, `GET /actors/:id/attach`, `POST /actors/:id/messages`, `GET /actors/:id/messages`, `POST /actors/:id/commands`.
   - provider config discovery endpoint: `GET /system/providers`.
+- Realtime websocket coverage now includes `GET /ws` (upgrade) with JSON RPC-like envelopes:
+  - client `rpc_request` payloads (`method`, `path`, optional `query`/`body`) dispatch through the same HTTP route handlers.
+  - server `rpc_response` payloads return `status`, `path`, and `body` using the same API success/failure shape as HTTP.
+  - server broadcasts `event=routes.mutated` after successful `POST`/`PATCH`/`DELETE` route mutations (source=`http` or `ws`).
 
 ## 9) Provider Configuration
 
@@ -128,6 +136,7 @@ It reflects only what is currently true in this repository.
 - `scripts/dev.sh.ts` runs `moon run dark_core:dev`.
 - `scripts/test.sh.ts` runs `moon run dark_core:test`.
 - `scripts/dcli.sh.ts` runs `dark_cli` via Cargo from repo root and forwards all CLI args.
+- `scripts/dchat.sh.ts` runs `dark_chat` via Cargo from repo root and forwards all CLI args.
 - `scripts/dtui.sh.ts` runs `dark_tui` via Cargo from repo root and forwards all CLI args.
 - `scripts/sys_install.sh.ts` manages shell aliases and `DARKFACTORY_SRC_PATH` in user shell rc files.
 - `scripts/reflect_constant.sh.ts` manages periodic reflector loops (`start`, `status`, `stop`, or foreground `run`).

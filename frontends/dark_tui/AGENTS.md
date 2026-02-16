@@ -12,7 +12,8 @@ This file defines local guidance for agents working in `frontends/dark_tui`.
 - Crate name: `dark_tui`.
 - Entrypoint exists at `src/main.rs`.
 - TUI rendering uses `ratatui` with a `crossterm` backend.
-- Shared dark_core HTTP client/types live in `lib/dark_rust` and should be reused.
+- Shared dark_core REST + websocket client/types live in `lib/dark_rust` and should be reused.
+- Shared reusable UI primitives live in `lib/dark_tui_components` and should be preferred over local one-off widget copies.
 
 ## Modularity Direction
 
