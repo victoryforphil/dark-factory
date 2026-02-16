@@ -151,3 +151,9 @@ bun.lockb
 target/
 **/target/
 **/*.rs.bk
+
+# Local runtime/state and SQLite files
+.opencode/runtime/
+*.db
+*.db-shm
+*.db-wal
