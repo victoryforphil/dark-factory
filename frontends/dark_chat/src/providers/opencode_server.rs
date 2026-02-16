@@ -114,6 +114,58 @@ impl OpenCodeProvider {
 
         bail!("OpenCode // HTTP // all fallback paths returned 404 (paths={paths:?})")
     }
+
+    pub async fn send_prompt_with_options(
+        &self,
+        directory: &str,
+        session_id: &str,
+        prompt: &str,
+        model: Option<&str>,
+        agent: Option<&str>,
+        no_reply: bool,
+    ) -> Result<()> {
+        let trimmed = prompt.trim();
+        if trimmed.is_empty() {
+            bail!("OpenCode // Session // prompt cannot be empty");
+        }
+
+        let query = vec![("directory".to_string(), directory.to_string())];
+        let mut body = json!({
+            "noReply": no_reply,
+            "parts": [{
+                "type": "text",
+                "text": trimmed,
+            }],
+        });
+
+        if let Some(model) = model.and_then(parse_model_selector) {
+            body["model"] = json!({
+                "providerID": model.0,
+                "modelID": model.1,
+            });
+        }
+
+        if let Some(agent) = agent
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToString::to_string)
+        {
+            body["agent"] = Value::String(agent);
+        }
+
+        let path_message = format!("/session/{session_id}/message");
+        let path_prompt = format!("/session/{session_id}/prompt");
+        let _ = self
+            .request_json_with_fallback(
+                Method::POST,
+                &[path_message.as_str(), path_prompt.as_str()],
+                &query,
+                Some(body),
+            )
+            .await?;
+
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -188,9 +240,7 @@ impl ChatProvider for OpenCodeProvider {
             .await
             .ok()
             .map(unwrap_data)
-            .and_then(|value| {
-                serde_json::from_value::<HashMap<String, SessionStatusWire>>(value).ok()
-            })
+            .map(|value| extract_session_statuses(&value))
             .unwrap_or_default();
 
         let mapped = sessions
@@ -198,8 +248,8 @@ impl ChatProvider for OpenCodeProvider {
             .map(|session| {
                 let status = statuses
                     .get(&session.id)
-                    .map(|wire| wire.status_type.clone())
-                    .unwrap_or_else(|| "unknown".to_string());
+                    .cloned()
+                    .unwrap_or_else(|| "idle".to_string());
 
                 ChatSession {
                     id: session.id,
@@ -207,6 +257,7 @@ impl ChatProvider for OpenCodeProvider {
                         .title
                         .filter(|value| !value.trim().is_empty())
                         .unwrap_or_else(|| "Untitled session".to_string()),
+                    parent_id: session.parent_id,
                     status,
                     updated_at: session
                         .updated_at
@@ -248,6 +299,7 @@ impl ChatProvider for OpenCodeProvider {
                 .title
                 .filter(|value| !value.trim().is_empty())
                 .unwrap_or_else(|| "Untitled session".to_string()),
+            parent_id: record.parent_id,
             status: "idle".to_string(),
             updated_at: record
                 .updated_at
@@ -347,6 +399,33 @@ impl ChatProvider for OpenCodeProvider {
             }
         }
 
+        let extract_model_label = |model: &Value, fallback: Option<&str>| -> String {
+            let from_value = model
+                .as_str()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToString::to_string)
+                .or_else(|| {
+                    model
+                        .get("id")
+                        .or_else(|| model.get("model"))
+                        .or_else(|| model.get("name"))
+                        .and_then(Value::as_str)
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                        .map(ToString::to_string)
+                });
+
+            from_value
+                .or_else(|| {
+                    fallback
+                        .map(str::trim)
+                        .filter(|value| !value.is_empty())
+                        .map(ToString::to_string)
+                })
+                .unwrap_or_default()
+        };
+
         if let Some(providers) = data.get("providers").and_then(Value::as_array) {
             for provider in providers {
                 let provider_id = provider
@@ -357,29 +436,26 @@ impl ChatProvider for OpenCodeProvider {
                     .trim()
                     .to_string();
 
-                if let Some(model_entries) = provider.get("models").and_then(Value::as_array) {
-                    for model in model_entries {
-                        let model_label = if let Some(value) = model.as_str() {
-                            value.trim().to_string()
-                        } else if let Some(value) = model
-                            .get("id")
-                            .or_else(|| model.get("model"))
-                            .or_else(|| model.get("name"))
-                            .and_then(Value::as_str)
-                        {
-                            value.trim().to_string()
-                        } else {
-                            String::new()
-                        };
-
+                if let Some(model_entries) = provider.get("models") {
+                    let mut push_model = |model_label: String| {
                         if model_label.is_empty() {
-                            continue;
+                            return;
                         }
 
                         if model_label.contains('/') || provider_id.is_empty() {
                             models.push(model_label);
                         } else {
                             models.push(format!("{provider_id}/{model_label}"));
+                        }
+                    };
+
+                    if let Some(entries) = model_entries.as_array() {
+                        for model in entries {
+                            push_model(extract_model_label(model, None));
+                        }
+                    } else if let Some(entries) = model_entries.as_object() {
+                        for (model_key, model) in entries {
+                            push_model(extract_model_label(model, Some(model_key)));
                         }
                     }
                 }
@@ -438,47 +514,8 @@ impl ChatProvider for OpenCodeProvider {
         model: Option<&str>,
         agent: Option<&str>,
     ) -> Result<()> {
-        let trimmed = prompt.trim();
-        if trimmed.is_empty() {
-            bail!("OpenCode // Session // prompt cannot be empty");
-        }
-
-        let query = vec![("directory".to_string(), directory.to_string())];
-        let mut body = json!({
-            "noReply": false,
-            "parts": [{
-                "type": "text",
-                "text": trimmed,
-            }],
-        });
-
-        if let Some(model) = model.and_then(parse_model_selector) {
-            body["model"] = json!({
-                "providerID": model.0,
-                "modelID": model.1,
-            });
-        }
-
-        if let Some(agent) = agent
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .map(ToString::to_string)
-        {
-            body["agent"] = Value::String(agent);
-        }
-
-        let path_message = format!("/session/{session_id}/message");
-        let path_prompt = format!("/session/{session_id}/prompt");
-        let _ = self
-            .request_json_with_fallback(
-                Method::POST,
-                &[path_message.as_str(), path_prompt.as_str()],
-                &query,
-                Some(body),
-            )
-            .await?;
-
-        Ok(())
+        self.send_prompt_with_options(directory, session_id, prompt, model, agent, false)
+            .await
     }
 
     async fn run_command(&self, directory: &str, session_id: &str, command: &str) -> Result<()> {
@@ -507,10 +544,39 @@ struct SessionWire {
     id: String,
     #[serde(default)]
     title: Option<String>,
+    #[serde(default, alias = "parentID", alias = "parent_id")]
+    parent_id: Option<String>,
     #[serde(default)]
     updated_at: Option<String>,
     #[serde(default)]
     time: SessionTimeWire,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SessionWire;
+
+    #[test]
+    fn session_wire_reads_parent_id_from_parent_id_key() {
+        let payload = serde_json::json!({
+            "id": "ses_child",
+            "parent_id": "ses_parent"
+        });
+        let parsed: SessionWire = serde_json::from_value(payload).expect("session wire should parse");
+
+        assert_eq!(parsed.parent_id.as_deref(), Some("ses_parent"));
+    }
+
+    #[test]
+    fn session_wire_reads_parent_id_from_parent_id_caps_key() {
+        let payload = serde_json::json!({
+            "id": "ses_child",
+            "parentID": "ses_parent"
+        });
+        let parsed: SessionWire = serde_json::from_value(payload).expect("session wire should parse");
+
+        assert_eq!(parsed.parent_id.as_deref(), Some("ses_parent"));
+    }
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -518,12 +584,6 @@ struct SessionWire {
 struct SessionTimeWire {
     #[serde(default)]
     updated: Option<i64>,
-}
-
-#[derive(Debug, Deserialize)]
-struct SessionStatusWire {
-    #[serde(rename = "type", default)]
-    status_type: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -778,6 +838,45 @@ fn unwrap_data(value: Value) -> Value {
             .unwrap_or_else(|| Value::Object(map)),
         other => other,
     }
+}
+
+fn extract_session_statuses(value: &Value) -> HashMap<String, String> {
+    let Some(entries) = value.as_object() else {
+        return HashMap::new();
+    };
+
+    entries
+        .iter()
+        .filter_map(|(session_id, status_value)| {
+            extract_status_type(status_value)
+                .map(|status| (session_id.clone(), status.to_string()))
+        })
+        .collect()
+}
+
+fn extract_status_type(value: &Value) -> Option<&str> {
+    if let Some(status) = value.as_str() {
+        let trimmed = status.trim();
+        return if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed)
+        };
+    }
+
+    let map = value.as_object()?;
+
+    for key in ["type", "status", "state"] {
+        let Some(entry) = map.get(key) else {
+            continue;
+        };
+
+        if let Some(status) = extract_status_type(entry) {
+            return Some(status);
+        }
+    }
+
+    None
 }
 
 fn extract_string_options(value: &Value, candidate_keys: &[&str]) -> Vec<String> {

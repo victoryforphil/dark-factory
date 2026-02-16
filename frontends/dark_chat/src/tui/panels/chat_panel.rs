@@ -24,10 +24,25 @@ pub enum ModelSelectorHit {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AgentSelectorHit {
+    Outside,
+    Popup,
+    Query,
+    ListItem(usize),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ComposerAutocompleteHit {
     Outside,
     Popup,
     ListItem(usize),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ComposerMetaHit {
+    None,
+    Model,
+    Agent,
 }
 
 const COMPOSER_PANEL_HEIGHT: u16 = 5;
@@ -59,7 +74,7 @@ impl ChatPanel {
         let header = match app.active_session() {
             Some(session) => ChatConversationHeaderProps {
                 title: session.title.clone(),
-                subtitle: Some(format!("session:{}", compact_id(&session.id))),
+                subtitle: Some(format!("session:{}", session.id)),
                 status_label: Some(session.status.clone()),
                 status_tone: status_tone(&session.status),
             },
@@ -75,6 +90,7 @@ impl ChatPanel {
         render_messages(frame, rows[1], app, theme);
         render_composer_panel(frame, rows[2], app, theme);
         render_model_selector_popup(frame, inner, rows[2], app, theme);
+        render_agent_selector_popup(frame, inner, rows[2], app, theme);
         render_composer_autocomplete_popup(frame, inner, rows[2], app, theme);
     }
 
@@ -89,7 +105,7 @@ impl ChatPanel {
             return ModelSelectorHit::Outside;
         }
 
-        let Some(area) = model_selector_popup_area(conversation_area, composer_area) else {
+        let Some(area) = model_selector_popup_area(conversation_area, composer_area, app) else {
             return ModelSelectorHit::Outside;
         };
 
@@ -204,6 +220,209 @@ impl ChatPanel {
             ComposerAutocompleteHit::Popup
         }
     }
+
+    pub fn agent_selector_hit(
+        conversation_area: Rect,
+        composer_area: Rect,
+        app: &App,
+        col: u16,
+        row: u16,
+    ) -> AgentSelectorHit {
+        if !app.is_agent_selector_open() {
+            return AgentSelectorHit::Outside;
+        }
+
+        let Some(area) = agent_selector_popup_area(conversation_area, composer_area, app) else {
+            return AgentSelectorHit::Outside;
+        };
+
+        if !rect_contains(area, col, row) {
+            return AgentSelectorHit::Outside;
+        }
+
+        let inner = Rect {
+            x: area.x.saturating_add(1),
+            y: area.y.saturating_add(1),
+            width: area.width.saturating_sub(2),
+            height: area.height.saturating_sub(2),
+        };
+
+        if inner.width < 8 || inner.height < 3 {
+            return AgentSelectorHit::Popup;
+        }
+
+        let rows = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(1),
+                Constraint::Length(1),
+                Constraint::Length(1),
+            ])
+            .split(inner);
+
+        if rect_contains(rows[1], col, row) {
+            return AgentSelectorHit::Query;
+        }
+
+        if !rect_contains(rows[0], col, row) {
+            return AgentSelectorHit::Popup;
+        }
+
+        let items = app.agent_selector_items();
+        if items.is_empty() {
+            return AgentSelectorHit::Popup;
+        }
+
+        let selected = app
+            .agent_selector_selected()
+            .min(items.len().saturating_sub(1));
+        let visible = rows[0].height.max(1) as usize;
+        let start = selected
+            .saturating_sub(visible / 2)
+            .min(items.len().saturating_sub(visible));
+        let local = row.saturating_sub(rows[0].y) as usize;
+        let index = start + local;
+
+        if index < items.len() {
+            AgentSelectorHit::ListItem(index)
+        } else {
+            AgentSelectorHit::Popup
+        }
+    }
+
+    pub fn composer_meta_hit(
+        conversation_area: Rect,
+        composer_area: Rect,
+        app: &App,
+        col: u16,
+        row: u16,
+    ) -> ComposerMetaHit {
+        let Some((model_area, agent_area)) =
+            composer_meta_areas(conversation_area, composer_area, app)
+        else {
+            return ComposerMetaHit::None;
+        };
+
+        if rect_contains(model_area, col, row) {
+            return ComposerMetaHit::Model;
+        }
+
+        if rect_contains(agent_area, col, row) {
+            return ComposerMetaHit::Agent;
+        }
+
+        ComposerMetaHit::None
+    }
+}
+
+fn render_agent_selector_popup(
+    frame: &mut Frame,
+    conversation_area: Rect,
+    composer_area: Rect,
+    app: &App,
+    theme: &impl ComponentThemeLike,
+) {
+    if !app.is_agent_selector_open() {
+        return;
+    }
+
+    let Some(area) = agent_selector_popup_area(conversation_area, composer_area, app) else {
+        return;
+    };
+
+    frame.render_widget(Clear, area);
+    let block = PaneBlockComponent::build("Agent Picker", true, theme);
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    if inner.width < 8 || inner.height < 3 {
+        return;
+    }
+
+    let rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+        ])
+        .split(inner);
+
+    let items = app.agent_selector_items();
+    if items.is_empty() {
+        frame.render_widget(
+            Paragraph::new(vec![Line::from(Span::styled(
+                "No matching agents.",
+                Style::default().fg(theme.text_muted()),
+            ))]),
+            rows[0],
+        );
+    } else {
+        let selected = app
+            .agent_selector_selected()
+            .min(items.len().saturating_sub(1));
+        let visible = rows[0].height.max(1) as usize;
+        let start = selected
+            .saturating_sub(visible / 2)
+            .min(items.len().saturating_sub(visible));
+
+        let mut lines = Vec::new();
+        for (offset, agent) in items.iter().skip(start).take(visible).enumerate() {
+            let index = start + offset;
+            let active = app.active_agent() == Some(agent.as_str());
+            let prefix = if index == selected { "▸ " } else { "  " };
+            let mut spans = vec![
+                Span::styled(
+                    prefix,
+                    if index == selected {
+                        Style::default().fg(theme.pill_accent_fg())
+                    } else {
+                        Style::default().fg(theme.text_muted())
+                    },
+                ),
+                Span::styled(
+                    compact_text(agent, 44),
+                    if index == selected {
+                        Style::default().fg(theme.pill_accent_fg())
+                    } else {
+                        Style::default().fg(theme.text_secondary())
+                    },
+                ),
+            ];
+
+            if active {
+                spans.push(Span::raw(" "));
+                spans.push(StatusPill::info("active", theme).span_compact());
+            }
+
+            lines.push(Line::from(spans));
+        }
+
+        frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: true }), rows[0]);
+    }
+
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            StatusPill::accent("FILTER", theme).span_compact(),
+            Span::raw(" "),
+            Span::styled(
+                with_cursor_tail(app.agent_selector_query()),
+                Style::default().fg(theme.text_secondary()),
+            ),
+        ]))
+        .wrap(Wrap { trim: true }),
+        rows[1],
+    );
+
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            Span::styled("enter", Style::default().fg(theme.pill_accent_fg())),
+            Span::styled(" select  ", Style::default().fg(theme.text_muted())),
+            Span::styled("esc", Style::default().fg(theme.pill_accent_fg())),
+            Span::styled(" close", Style::default().fg(theme.text_muted())),
+        ])),
+        rows[2],
+    );
 }
 
 fn render_messages(frame: &mut Frame, area: Rect, app: &App, theme: &impl ComponentThemeLike) {
@@ -319,7 +538,7 @@ fn render_model_selector_popup(
         return;
     }
 
-    let Some(area) = model_selector_popup_area(conversation_area, composer_area) else {
+    let Some(area) = model_selector_popup_area(conversation_area, composer_area, app) else {
         return;
     };
 
@@ -452,7 +671,10 @@ fn render_composer_autocomplete_popup(
     app: &App,
     theme: &impl ComponentThemeLike,
 ) {
-    if !app.composer_autocomplete_open() || app.is_model_selector_open() {
+    if !app.composer_autocomplete_open()
+        || app.is_model_selector_open()
+        || app.is_agent_selector_open()
+    {
         return;
     }
 
@@ -571,7 +793,68 @@ fn compact_text(value: &str, max_width: usize) -> String {
     format!("{head}...")
 }
 
-fn model_selector_popup_area(conversation_area: Rect, composer_area: Rect) -> Option<Rect> {
+fn composer_meta_areas(
+    conversation_area: Rect,
+    composer_area: Rect,
+    app: &App,
+) -> Option<(Rect, Rect)> {
+    if conversation_area.width < 18 || conversation_area.height < 8 {
+        return None;
+    }
+
+    let composer_inner = Rect {
+        x: composer_area.x.saturating_add(1),
+        y: composer_area.y.saturating_add(1),
+        width: composer_area.width.saturating_sub(2),
+        height: composer_area.height.saturating_sub(2),
+    };
+    if composer_inner.width < 4 || composer_inner.height < 1 {
+        return None;
+    }
+
+    let model_label = format!(
+        "model:{}",
+        compact_text(app.active_model().unwrap_or("-"), 28)
+    );
+    let agent_label = format!(
+        "agent:{}",
+        compact_text(app.active_agent().unwrap_or("-"), 20)
+    );
+
+    let model_width = model_label
+        .chars()
+        .count()
+        .min(composer_inner.width as usize) as u16;
+    let agent_x = composer_inner
+        .x
+        .saturating_add(model_width.saturating_add(2));
+    let remaining = composer_inner
+        .x
+        .saturating_add(composer_inner.width)
+        .saturating_sub(agent_x);
+    let agent_width = agent_label.chars().count().min(remaining as usize) as u16;
+
+    Some((
+        Rect {
+            x: composer_inner.x,
+            y: composer_inner.y,
+            width: model_width,
+            height: 1,
+        },
+        Rect {
+            x: agent_x,
+            y: composer_inner.y,
+            width: agent_width,
+            height: 1,
+        },
+    ))
+}
+
+fn model_selector_popup_area(
+    conversation_area: Rect,
+    composer_area: Rect,
+    app: &App,
+) -> Option<Rect> {
     if conversation_area.width < 28 || conversation_area.height < 8 {
         return None;
     }
@@ -583,12 +866,67 @@ fn model_selector_popup_area(conversation_area: Rect, composer_area: Rect) -> Op
 
     let popup_width = max_width.min(68);
     let popup_height = conversation_area.height.min(14);
-    let popup_x = conversation_area.x.saturating_add(
+    let anchor_col = app
+        .model_selector_anchor_col()
+        .or_else(|| {
+            composer_meta_areas(conversation_area, composer_area, app)
+                .map(|(model, _)| model.x.saturating_add(model.width / 2))
+        })
+        .unwrap_or(composer_area.x.saturating_add(1));
+    let desired_x = anchor_col.saturating_sub(popup_width / 2);
+    let min_x = conversation_area.x.saturating_add(1);
+    let max_x = conversation_area.x.saturating_add(
         conversation_area
             .width
             .saturating_sub(popup_width)
             .saturating_sub(1),
     );
+    let popup_x = desired_x.clamp(min_x, max_x);
+    let popup_y = composer_area
+        .y
+        .saturating_sub(popup_height.saturating_sub(1))
+        .max(conversation_area.y.saturating_add(1));
+
+    Some(Rect {
+        x: popup_x,
+        y: popup_y,
+        width: popup_width,
+        height: popup_height,
+    })
+}
+
+fn agent_selector_popup_area(
+    conversation_area: Rect,
+    composer_area: Rect,
+    app: &App,
+) -> Option<Rect> {
+    if conversation_area.width < 28 || conversation_area.height < 8 {
+        return None;
+    }
+
+    let max_width = conversation_area.width.saturating_sub(2);
+    if max_width < 24 {
+        return None;
+    }
+
+    let popup_width = max_width.min(56);
+    let popup_height = conversation_area.height.min(12);
+    let anchor_col = app
+        .agent_selector_anchor_col()
+        .or_else(|| {
+            composer_meta_areas(conversation_area, composer_area, app)
+                .map(|(_, agent)| agent.x.saturating_add(agent.width / 2))
+        })
+        .unwrap_or(composer_area.x.saturating_add(1));
+    let desired_x = anchor_col.saturating_sub(popup_width / 2);
+    let min_x = conversation_area.x.saturating_add(1);
+    let max_x = conversation_area.x.saturating_add(
+        conversation_area
+            .width
+            .saturating_sub(popup_width)
+            .saturating_sub(1),
+    );
+    let popup_x = desired_x.clamp(min_x, max_x);
     let popup_y = composer_area
         .y
         .saturating_sub(popup_height.saturating_sub(1))
@@ -660,15 +998,6 @@ fn rect_contains(area: Rect, col: u16, row: u16) -> bool {
         && col < area.x.saturating_add(area.width)
         && row >= area.y
         && row < area.y.saturating_add(area.height)
-}
-
-fn compact_id(value: &str) -> String {
-    let trimmed = value.trim();
-    if trimmed.len() <= 16 {
-        return trimmed.to_string();
-    }
-
-    format!("{}...", &trimmed[..16])
 }
 
 fn status_tone(status: &str) -> ChatStatusTone {

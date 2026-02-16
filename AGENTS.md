@@ -136,7 +136,7 @@ It reflects only what is currently true in this repository.
 - `scripts/dev.sh.ts` runs `moon run dark_core:dev`.
 - `scripts/test.sh.ts` runs `moon run dark_core:test`.
 - `scripts/dcli.sh.ts` runs `dark_cli` via Cargo from repo root and forwards all CLI args.
-- `scripts/dchat.sh.ts` runs `dark_chat` via Cargo from repo root and forwards all CLI args.
+- `scripts/dchat.sh.ts` runs `dark_chat` via Cargo while preserving the launch CWD so OpenCode config resolution matches the caller terminal.
 - `scripts/dtui.sh.ts` runs `dark_tui` via Cargo from repo root and forwards all CLI args.
 - `scripts/sys_install.sh.ts` manages shell aliases and `DARKFACTORY_SRC_PATH` in user shell rc files.
 - `scripts/reflect_constant.sh.ts` manages periodic reflector loops (`start`, `status`, `stop`, or foreground `run`).

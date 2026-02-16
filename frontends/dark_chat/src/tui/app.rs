@@ -1,8 +1,10 @@
 use std::fs;
-use std::path::Path;
+use std::io;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use dark_tui_components::ComponentTheme;
+use serde::{Deserialize, Serialize};
 use tui_textarea::{CursorMove, TextArea};
 
 use crate::core::{ChatMessage, ChatSession, ChatSnapshot, ProviderHealth, ProviderRuntimeStatus};
@@ -28,10 +30,19 @@ pub enum ComposerAutocompleteMode {
     File,
 }
 
+#[derive(Debug, Default, Deserialize, Serialize)]
+struct PersistedChatSelection {
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
+    agent: Option<String>,
+}
+
 pub struct App {
     base_url: String,
     directory: String,
     provider_name: String,
+    preferences_path: PathBuf,
     refresh_seconds: u64,
     theme: ComponentTheme,
     health: ProviderHealth,
@@ -63,6 +74,11 @@ pub struct App {
     model_selector_query: String,
     model_selector_raw_input: String,
     model_selector_selected: usize,
+    model_selector_anchor_col: Option<u16>,
+    agent_selector_open: bool,
+    agent_selector_query: String,
+    agent_selector_selected: usize,
+    agent_selector_anchor_col: Option<u16>,
     sessions_scroll_index: usize,
     chat_scroll_lines: u16,
     runtime_scroll_lines: u16,
@@ -87,11 +103,15 @@ impl App {
         let draft = String::new();
         let draft_cursor = 0;
         let composer = build_composer_textarea(&draft, draft_cursor);
+        let preferences_path = Path::new(&directory)
+            .join(".darkfactory")
+            .join("darkchat.toml");
 
         Self {
             base_url,
             directory,
             provider_name,
+            preferences_path,
             refresh_seconds,
             theme: ComponentTheme::default(),
             health: ProviderHealth {
@@ -126,6 +146,11 @@ impl App {
             model_selector_query: String::new(),
             model_selector_raw_input: String::new(),
             model_selector_selected: 0,
+            model_selector_anchor_col: None,
+            agent_selector_open: false,
+            agent_selector_query: String::new(),
+            agent_selector_selected: 0,
+            agent_selector_anchor_col: None,
             sessions_scroll_index: 0,
             chat_scroll_lines: 0,
             runtime_scroll_lines: 0,
@@ -301,6 +326,7 @@ impl App {
             .sessions_scroll_index
             .min(self.sessions.len().saturating_sub(1));
         self.model_selector_selected = 0;
+        self.agent_selector_selected = 0;
     }
 
     pub fn select_next_session(&mut self) {
@@ -333,6 +359,7 @@ impl App {
 
     pub fn select_next_agent(&mut self) {
         self.selected_agent = next_index(self.selected_agent, self.agents.len());
+        let _ = self.persist_selection();
     }
 
     pub fn set_active_agent_by_name(&mut self, value: &str) -> bool {
@@ -343,6 +370,7 @@ impl App {
 
         if let Some(index) = self.agents.iter().position(|agent| agent == target) {
             self.selected_agent = index;
+            let _ = self.persist_selection();
             return true;
         }
 
@@ -358,11 +386,32 @@ impl App {
         if let Some(index) = self.models.iter().position(|model| model == target) {
             self.selected_model = index;
             self.active_model_override = None;
+            let _ = self.persist_selection();
             return true;
         }
 
         self.active_model_override = Some(target.to_string());
+        let _ = self.persist_selection();
         true
+    }
+
+    pub fn restore_selection_from_disk(&mut self) -> io::Result<bool> {
+        let saved = self.load_selection_from_disk()?;
+        let Some(saved) = saved else {
+            return Ok(false);
+        };
+
+        let mut restored = false;
+
+        if let Some(model) = saved.model {
+            restored |= self.set_active_model_by_name(&model);
+        }
+
+        if let Some(agent) = saved.agent {
+            restored |= self.set_active_agent_by_name(&agent);
+        }
+
+        Ok(restored)
     }
 
     pub fn is_model_selector_open(&self) -> bool {
@@ -385,12 +434,23 @@ impl App {
         self.model_selector_selected
     }
 
+    pub fn model_selector_anchor_col(&self) -> Option<u16> {
+        self.model_selector_anchor_col
+    }
+
     pub fn open_model_selector(&mut self) {
         self.model_selector_open = true;
         self.model_selector_raw_mode = false;
         self.model_selector_query.clear();
         self.model_selector_raw_input = self.active_model().unwrap_or_default().to_string();
         self.model_selector_selected = 0;
+        self.model_selector_anchor_col = None;
+        self.agent_selector_open = false;
+    }
+
+    pub fn open_model_selector_at(&mut self, anchor_col: u16) {
+        self.open_model_selector();
+        self.model_selector_anchor_col = Some(anchor_col);
     }
 
     pub fn close_model_selector(&mut self) {
@@ -399,6 +459,107 @@ impl App {
         self.model_selector_query.clear();
         self.model_selector_raw_input.clear();
         self.model_selector_selected = 0;
+        self.model_selector_anchor_col = None;
+    }
+
+    pub fn is_agent_selector_open(&self) -> bool {
+        self.agent_selector_open
+    }
+
+    pub fn agent_selector_query(&self) -> &str {
+        &self.agent_selector_query
+    }
+
+    pub fn agent_selector_selected(&self) -> usize {
+        self.agent_selector_selected
+    }
+
+    pub fn agent_selector_anchor_col(&self) -> Option<u16> {
+        self.agent_selector_anchor_col
+    }
+
+    pub fn open_agent_selector(&mut self) {
+        self.agent_selector_open = true;
+        self.agent_selector_query.clear();
+        self.agent_selector_selected = 0;
+        self.agent_selector_anchor_col = None;
+        self.close_model_selector();
+    }
+
+    pub fn open_agent_selector_at(&mut self, anchor_col: u16) {
+        self.open_agent_selector();
+        self.agent_selector_anchor_col = Some(anchor_col);
+    }
+
+    pub fn close_agent_selector(&mut self) {
+        self.agent_selector_open = false;
+        self.agent_selector_query.clear();
+        self.agent_selector_selected = 0;
+        self.agent_selector_anchor_col = None;
+    }
+
+    pub fn agent_selector_insert_char(&mut self, value: char) {
+        self.agent_selector_query.push(value);
+        self.agent_selector_selected = 0;
+    }
+
+    pub fn agent_selector_backspace(&mut self) {
+        self.agent_selector_query.pop();
+        self.agent_selector_selected = 0;
+    }
+
+    pub fn agent_selector_clear(&mut self) {
+        self.agent_selector_query.clear();
+        self.agent_selector_selected = 0;
+    }
+
+    pub fn agent_selector_items(&self) -> Vec<String> {
+        let filter = self.agent_selector_query.trim().to_ascii_lowercase();
+        let mut items = self.agents.clone();
+        if filter.is_empty() {
+            return items;
+        }
+
+        items.retain(|agent| agent.to_ascii_lowercase().contains(&filter));
+        items
+    }
+
+    pub fn agent_selector_move_up(&mut self) {
+        let len = self.agent_selector_items().len();
+        if len == 0 {
+            self.agent_selector_selected = 0;
+            return;
+        }
+
+        self.agent_selector_selected = previous_index(self.agent_selector_selected, len);
+    }
+
+    pub fn agent_selector_move_down(&mut self) {
+        let len = self.agent_selector_items().len();
+        if len == 0 {
+            self.agent_selector_selected = 0;
+            return;
+        }
+
+        self.agent_selector_selected = next_index(self.agent_selector_selected, len);
+    }
+
+    pub fn agent_selector_set_selected(&mut self, index: usize) {
+        let len = self.agent_selector_items().len();
+        if len == 0 {
+            self.agent_selector_selected = 0;
+            return;
+        }
+
+        self.agent_selector_selected = index.min(len.saturating_sub(1));
+    }
+
+    pub fn confirm_agent_selector(&mut self) -> Option<String> {
+        let items = self.agent_selector_items();
+        let selected = items.get(self.agent_selector_selected)?.clone();
+        self.set_active_agent_by_name(&selected);
+        self.close_agent_selector();
+        Some(selected)
     }
 
     pub fn model_selector_toggle_mode(&mut self) {
@@ -852,6 +1013,34 @@ impl App {
     pub fn last_synced(&self) -> &str {
         &self.last_synced
     }
+
+    fn persist_selection(&self) -> io::Result<()> {
+        let parent = self
+            .preferences_path
+            .parent()
+            .ok_or_else(|| io::Error::other("missing darkchat.toml parent"))?;
+        fs::create_dir_all(parent)?;
+
+        let payload = PersistedChatSelection {
+            model: self.active_model().map(ToString::to_string),
+            agent: self.active_agent().map(ToString::to_string),
+        };
+        let encoded = toml::to_string_pretty(&payload)
+            .map_err(|error| io::Error::other(error.to_string()))?;
+
+        fs::write(&self.preferences_path, encoded)
+    }
+
+    fn load_selection_from_disk(&self) -> io::Result<Option<PersistedChatSelection>> {
+        if !self.preferences_path.exists() {
+            return Ok(None);
+        }
+
+        let raw = fs::read_to_string(&self.preferences_path)?;
+        let decoded = toml::from_str::<PersistedChatSelection>(&raw)
+            .map_err(|error| io::Error::other(error.to_string()))?;
+        Ok(Some(decoded))
+    }
 }
 
 fn resolve_session_index(sessions: &[ChatSession], preferred_id: Option<&str>) -> usize {
@@ -937,7 +1126,7 @@ fn current_composer_trigger(value: &str, cursor_index: usize) -> Option<(char, S
 
     let prefix = &value[..cursor_byte];
     let token_start_byte = prefix
-        .rfind(char::is_whitespace)
+        .rfind(|ch: char| ch.is_whitespace())
         .map(|index| index + 1)
         .unwrap_or(0);
     let token = &prefix[token_start_byte..];

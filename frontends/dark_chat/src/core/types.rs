@@ -8,6 +8,7 @@ pub struct ProviderHealth {
 pub struct ChatSession {
     pub id: String,
     pub title: String,
+    pub parent_id: Option<String>,
     pub status: String,
     pub updated_at: Option<String>,
     pub updated_unix: Option<i64>,

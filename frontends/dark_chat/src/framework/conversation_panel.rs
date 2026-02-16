@@ -2,10 +2,13 @@ use dark_tui_components::{
     ChatComposerComponent, ChatComposerProps, ChatConversationHeaderComponent,
     ChatConversationHeaderProps, ChatMessageEntry, ChatMessageListComponent, ChatMessageListProps,
     ChatMessageRole, ChatPalette, ChatStatusTone, ComponentThemeLike, PaneBlockComponent,
+    StatusPill,
 };
-use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Color;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::Frame;
 use std::borrow::Cow;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,6 +60,8 @@ pub struct ConversationPalette {
 pub struct ConversationPanelProps<'a> {
     pub title: &'a str,
     pub focused: bool,
+    pub active_model_label: &'a str,
+    pub active_agent_label: &'a str,
     pub header: ConversationHeader<'a>,
     pub messages: &'a [ConversationMessage<'a>],
     pub empty_label: &'a str,
@@ -85,8 +90,8 @@ pub fn render_conversation_panel(
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(3),
-            Constraint::Min(3),
-            Constraint::Length(3),
+            Constraint::Min(4),
+            Constraint::Length(5),
         ])
         .split(inner);
 
@@ -114,30 +119,65 @@ pub fn render_conversation_panel(
         })
         .collect::<Vec<_>>();
 
-    ChatMessageListComponent::render(
-        frame,
-        chunks[1],
-        theme,
-        ChatMessageListProps {
-            messages: &message_entries,
-            empty_label: props.empty_label,
-            max_messages: props.max_messages,
-            max_body_lines_per_message: props.max_body_lines_per_message,
-            scroll_offset_lines: props.scroll_offset_lines,
-            palette: ChatPalette {
-                text_primary: props.palette.text_primary,
-                role_user: props.palette.role_user,
-                role_assistant: props.palette.role_assistant,
-                role_system: props.palette.role_system,
-                role_tool: props.palette.role_tool,
-                role_other: props.palette.role_other,
+    let messages_block = PaneBlockComponent::build("Messages", props.focused, theme);
+    let messages_inner = messages_block.inner(chunks[1]);
+    frame.render_widget(messages_block, chunks[1]);
+    if messages_inner.width > 0 && messages_inner.height > 0 {
+        ChatMessageListComponent::render(
+            frame,
+            messages_inner,
+            theme,
+            ChatMessageListProps {
+                messages: &message_entries,
+                empty_label: props.empty_label,
+                max_messages: props.max_messages,
+                max_body_lines_per_message: props.max_body_lines_per_message,
+                scroll_offset_lines: props.scroll_offset_lines,
+                palette: ChatPalette {
+                    text_primary: props.palette.text_primary,
+                    role_user: props.palette.role_user,
+                    role_assistant: props.palette.role_assistant,
+                    role_system: props.palette.role_system,
+                    role_tool: props.palette.role_tool,
+                    role_other: props.palette.role_other,
+                },
             },
-        },
+        );
+    }
+
+    let composer_block = PaneBlockComponent::build("Composer", props.focused, theme);
+    let composer_inner = composer_block.inner(chunks[2]);
+    frame.render_widget(composer_block, chunks[2]);
+    if composer_inner.width < 2 || composer_inner.height < 2 {
+        return;
+    }
+
+    let composer_rows = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Min(1)])
+        .split(composer_inner);
+
+    frame.render_widget(
+        Paragraph::new(Line::from(vec![
+            StatusPill::accent(
+                format!("model:{}", compact_text(props.active_model_label, 24)),
+                theme,
+            )
+            .span_compact(),
+            Span::raw("  "),
+            StatusPill::muted(
+                format!("agent:{}", compact_text(props.active_agent_label, 18)),
+                theme,
+            )
+            .span_compact(),
+        ]))
+        .wrap(Wrap { trim: true }),
+        composer_rows[0],
     );
 
     ChatComposerComponent::render(
         frame,
-        chunks[2],
+        composer_rows[1],
         theme,
         ChatComposerProps {
             enabled: props.composer.enabled,
@@ -159,6 +199,18 @@ pub fn status_tone_for_status(status: &str) -> ConversationStatusTone {
         "stopped" | "offline" => ConversationStatusTone::Muted,
         _ => ConversationStatusTone::Accent,
     }
+}
+
+fn compact_text(value: &str, max_width: usize) -> String {
+    if value.chars().count() <= max_width {
+        return value.to_string();
+    }
+
+    let head = value
+        .chars()
+        .take(max_width.saturating_sub(3))
+        .collect::<String>();
+    format!("{head}...")
 }
 
 fn chat_status_tone(value: ConversationStatusTone) -> ChatStatusTone {

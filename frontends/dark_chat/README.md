@@ -25,7 +25,7 @@ Ratatui-based OpenCode chat frontend with reusable provider/core layers.
 | --- | --- | --- | --- |
 | `--base-url <URL>` | `DARK_CHAT_BASE_URL` | `http://127.0.0.1:4096` | OpenCode server URL |
 | `--directory <path>` | `DARK_CHAT_DIRECTORY` | current directory | Workspace directory to target |
-| `--refresh-seconds <n>` | `DARK_CHAT_REFRESH_SECONDS` | `5` | Auto-refresh cadence |
+| `--refresh-seconds <n>` | `DARK_CHAT_REFRESH_SECONDS` | `3` | Auto-refresh cadence |
 | `--session <id>` | `DARK_CHAT_SESSION` | unset | Prefer session id on boot |
 | `--session-title <title>` | `DARK_CHAT_SESSION_TITLE` | unset | Preferred title for bootstrap-created session |
 | `--provider <provider>` | `DARK_CHAT_PROVIDER` | `opencode/server` | Chat provider backend |

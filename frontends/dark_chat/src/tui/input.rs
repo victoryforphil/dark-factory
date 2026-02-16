@@ -29,6 +29,10 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
         return handle_model_selector_key(app, key);
     }
 
+    if app.is_agent_selector_open() {
+        return handle_agent_selector_key(app, key);
+    }
+
     if app.is_composing() {
         return handle_compose_key(app, key);
     }
@@ -116,6 +120,48 @@ fn handle_model_selector_key(app: &mut App, key: KeyEvent) -> LoopAction {
                 && !key.modifiers.contains(KeyModifiers::ALT) =>
         {
             app.model_selector_insert_char(value);
+            LoopAction::None
+        }
+        _ => LoopAction::None,
+    }
+}
+
+fn handle_agent_selector_key(app: &mut App, key: KeyEvent) -> LoopAction {
+    match key.code {
+        KeyCode::Esc => {
+            app.close_agent_selector();
+            app.set_status_message("Agent selector closed.");
+            LoopAction::None
+        }
+        KeyCode::Up | KeyCode::Char('k') => {
+            app.agent_selector_move_up();
+            LoopAction::None
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            app.agent_selector_move_down();
+            LoopAction::None
+        }
+        KeyCode::Enter => {
+            if let Some(agent) = app.confirm_agent_selector() {
+                app.set_status_message(format!("Agent selected: {agent}"));
+            } else {
+                app.set_status_message("No agent selected.");
+            }
+            LoopAction::None
+        }
+        KeyCode::Backspace => {
+            app.agent_selector_backspace();
+            LoopAction::None
+        }
+        KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.agent_selector_clear();
+            LoopAction::None
+        }
+        KeyCode::Char(value)
+            if !key.modifiers.contains(KeyModifiers::CONTROL)
+                && !key.modifiers.contains(KeyModifiers::ALT) =>
+        {
+            app.agent_selector_insert_char(value);
             LoopAction::None
         }
         _ => LoopAction::None,

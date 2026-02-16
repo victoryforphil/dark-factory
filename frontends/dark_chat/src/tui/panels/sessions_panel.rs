@@ -1,9 +1,9 @@
-use ratatui::layout::{Position, Rect, Size};
+use std::collections::{HashMap, HashSet};
+
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::widgets::Paragraph;
 use ratatui::Frame;
-use tui_scrollview::{ScrollView, ScrollViewState};
 
 use dark_tui_components::{PaneBlockComponent, StatusPill};
 
@@ -12,11 +12,16 @@ use crate::tui::app::{App, FocusPane};
 
 pub struct SessionsPanel;
 
-const SESSION_CARD_HEIGHT: u16 = 4;
-const SESSION_CARD_GAP: u16 = 0;
+struct SessionTreeRow {
+    session_index: usize,
+    depth: usize,
+    ancestors_have_next: Vec<bool>,
+    has_next_sibling: bool,
+    child_count: usize,
+}
 
 impl SessionsPanel {
-    pub fn render(frame: &mut Frame, area: Rect, app: &App) {
+    pub fn render(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
         let theme = app.theme();
         let block = PaneBlockComponent::build("Sessions", app.is_focus(FocusPane::Sessions), theme);
         let inner = block.inner(area);
@@ -37,51 +42,52 @@ impl SessionsPanel {
             return;
         }
 
-        let visible_count = visible_session_count(inner.height);
-        let max_window_start = app.sessions().len().saturating_sub(visible_count);
-        let window_start = app.sessions_scroll_index().min(max_window_start);
-
-        let slot_height = SESSION_CARD_HEIGHT + SESSION_CARD_GAP;
-        let viewport_height = inner.height.max(1);
-        let mut scroll_view = ScrollView::new(Size::new(inner.width.max(1), viewport_height));
-
-        for offset in 0..visible_count {
-            let index = window_start + offset;
-            let Some(session) = app.sessions().get(index) else {
-                break;
-            };
-
-            let y = ((offset as u32)
-                .saturating_mul(slot_height as u32)
-                .min(u16::MAX as u32)) as u16;
-
-            let widget = session_card_widget(session, index == app.selected_session_index(), theme);
-            scroll_view.render_widget(
-                widget,
-                Rect {
-                    x: 0,
-                    y,
-                    width: inner.width,
-                    height: SESSION_CARD_HEIGHT,
-                },
-            );
+        let rows = session_tree_rows(app.sessions());
+        if rows.is_empty() {
+            return;
         }
 
-        let mut state = ScrollViewState::new();
-        state.set_offset(Position { x: 0, y: 0 });
+        let show_hint = rows.len() > inner.height as usize;
+        let body_height = if show_hint {
+            inner.height.saturating_sub(1).max(1)
+        } else {
+            inner.height
+        };
 
-        frame.render_stateful_widget(scroll_view, inner, &mut state);
+        let visible_count = body_height as usize;
+        let max_window_start = rows.len().saturating_sub(visible_count);
+        let window_start = app.sessions_scroll_index().min(max_window_start);
+        let window_end = (window_start + visible_count).min(rows.len());
 
-        if app.sessions().len() > visible_count {
-            let visible_end = (window_start + visible_count).min(app.sessions().len());
+        let mut lines = Vec::with_capacity(visible_count);
+        for row in &rows[window_start..window_end] {
+            let session = &app.sessions()[row.session_index];
+            let selected = row.session_index == app.selected_session_index();
+            lines.push(session_tree_line(session, row, selected, theme));
+        }
+
+        while lines.len() < visible_count {
+            lines.push(Line::from(""));
+        }
+
+        let body_area = ratatui::layout::Rect {
+            x: inner.x,
+            y: inner.y,
+            width: inner.width,
+            height: body_height,
+        };
+        frame.render_widget(Paragraph::new(lines), body_area);
+
+        if show_hint {
+            let visible_end = window_end;
             let hint = Paragraph::new(format!(
                 "showing {}-{} of {}",
                 window_start + 1,
                 visible_end,
-                app.sessions().len()
+                rows.len()
             ))
             .style(Style::default().fg(theme.text_muted));
-            let hint_area = Rect {
+            let hint_area = ratatui::layout::Rect {
                 x: inner.x,
                 y: inner.y.saturating_add(inner.height.saturating_sub(1)),
                 width: inner.width,
@@ -91,7 +97,7 @@ impl SessionsPanel {
         }
     }
 
-    pub fn session_index_at(area: Rect, app: &App, row: u16) -> Option<usize> {
+    pub fn session_index_at(area: ratatui::layout::Rect, app: &App, row: u16) -> Option<usize> {
         if app.sessions().is_empty() {
             return None;
         }
@@ -101,75 +107,205 @@ impl SessionsPanel {
             return None;
         }
 
-        if row < inner.y || row >= inner.y.saturating_add(inner.height) {
+        let rows = session_tree_rows(app.sessions());
+        if rows.is_empty() {
             return None;
         }
 
-        let visible_count = visible_session_count(inner.height);
-        let max_window_start = app.sessions().len().saturating_sub(visible_count);
+        let show_hint = rows.len() > inner.height as usize;
+        let body_height = if show_hint {
+            inner.height.saturating_sub(1).max(1)
+        } else {
+            inner.height
+        };
+        let body_bottom = inner.y.saturating_add(body_height);
+
+        if row < inner.y || row >= body_bottom {
+            return None;
+        }
+
+        let visible_count = body_height as usize;
+        let max_window_start = rows.len().saturating_sub(visible_count);
         let window_start = app.sessions_scroll_index().min(max_window_start);
 
-        let local_row = row.saturating_sub(inner.y);
-        let slot_height = SESSION_CARD_HEIGHT + SESSION_CARD_GAP;
-        let slot_index = (local_row / slot_height) as usize;
-        let slot_row = local_row % slot_height;
-
-        if slot_index >= visible_count || slot_row >= SESSION_CARD_HEIGHT {
-            return None;
-        }
-
-        let index = window_start + slot_index;
-        (index < app.sessions().len()).then_some(index)
+        let local_row = row.saturating_sub(inner.y) as usize;
+        let row_index = window_start + local_row;
+        rows.get(row_index).map(|entry| entry.session_index)
     }
 }
 
-fn session_card_widget(
-    session: &ChatSession,
-    selected: bool,
-    theme: &dark_tui_components::ComponentTheme,
-) -> Paragraph<'static> {
-    let border_style = if selected {
-        Style::default()
-            .fg(theme.pane_focused_border)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default().fg(theme.pane_unfocused_border)
+fn session_tree_rows(sessions: &[ChatSession]) -> Vec<SessionTreeRow> {
+    if sessions.is_empty() {
+        return Vec::new();
+    }
+
+    let mut index_by_id = HashMap::new();
+    for (index, session) in sessions.iter().enumerate() {
+        index_by_id.insert(session.id.clone(), index);
+    }
+
+    let mut children_by_parent: HashMap<usize, Vec<usize>> = HashMap::new();
+    let mut roots = Vec::new();
+    for (index, session) in sessions.iter().enumerate() {
+        let parent_index = session
+            .parent_id
+            .as_deref()
+            .and_then(|id| index_by_id.get(id).copied())
+            .filter(|parent| *parent != index);
+
+        if let Some(parent) = parent_index {
+            children_by_parent.entry(parent).or_default().push(index);
+        } else {
+            roots.push(index);
+        }
+    }
+
+    let mut rows = Vec::with_capacity(sessions.len());
+    let mut visited = HashSet::new();
+
+    for (position, root) in roots.iter().copied().enumerate() {
+        let has_next_sibling = position + 1 < roots.len();
+        walk_session_tree(
+            root,
+            0,
+            &[],
+            has_next_sibling,
+            &children_by_parent,
+            &mut visited,
+            &mut rows,
+        );
+    }
+
+    for index in 0..sessions.len() {
+        if visited.contains(&index) {
+            continue;
+        }
+
+        walk_session_tree(
+            index,
+            0,
+            &[],
+            false,
+            &children_by_parent,
+            &mut visited,
+            &mut rows,
+        );
+    }
+
+    rows
+}
+
+fn walk_session_tree(
+    index: usize,
+    depth: usize,
+    ancestors_have_next: &[bool],
+    has_next_sibling: bool,
+    children_by_parent: &HashMap<usize, Vec<usize>>,
+    visited: &mut HashSet<usize>,
+    rows: &mut Vec<SessionTreeRow>,
+) {
+    if !visited.insert(index) {
+        return;
+    }
+
+    let child_count = children_by_parent.get(&index).map(Vec::len).unwrap_or(0);
+    rows.push(SessionTreeRow {
+        session_index: index,
+        depth,
+        ancestors_have_next: ancestors_have_next.to_vec(),
+        has_next_sibling,
+        child_count,
+    });
+
+    let Some(children) = children_by_parent.get(&index) else {
+        return;
     };
 
-    let mut heading = vec![Span::styled(
-        compact_text(&session.title, 28),
+    for (position, child) in children.iter().copied().enumerate() {
+        let child_has_next_sibling = position + 1 < children.len();
+        let mut child_ancestors = ancestors_have_next.to_vec();
+        child_ancestors.push(has_next_sibling);
+        walk_session_tree(
+            child,
+            depth + 1,
+            &child_ancestors,
+            child_has_next_sibling,
+            children_by_parent,
+            visited,
+            rows,
+        );
+    }
+}
+
+fn session_tree_line<'a>(
+    session: &'a ChatSession,
+    row: &SessionTreeRow,
+    selected: bool,
+    theme: &dark_tui_components::ComponentTheme,
+) -> Line<'a> {
+    let mut spans = Vec::new();
+    spans.push(Span::styled(
+        tree_prefix(row),
+        Style::default().fg(theme.text_muted),
+    ));
+
+    spans.push(Span::styled(
+        compact_text(&session.title, 24),
         if selected {
             Style::default().add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(theme.text_secondary)
         },
-    )];
+    ));
 
     if selected {
-        heading.push(Span::raw(" "));
-        heading.push(StatusPill::accent("active", theme).span_compact());
+        spans.push(Span::raw(" "));
+        spans.push(StatusPill::accent("active", theme).span_compact());
     }
 
-    let status_pill = session_status_pill(&session.status, theme);
-    let relative = relative_time_label(session.updated_unix);
-    let lines = vec![
-        Line::from(heading),
-        Line::from(vec![
-            StatusPill::muted(format!("id:{}", compact_id(&session.id)), theme).span_compact(),
-            Span::raw(" "),
-            status_pill.span_compact(),
-            Span::raw(" "),
-            Span::styled(relative, Style::default().fg(theme.text_muted)),
-        ]),
-    ];
+    if session.parent_id.is_some() {
+        spans.push(Span::raw(" "));
+        spans.push(StatusPill::muted("subagent", theme).span_compact());
+    }
 
-    Paragraph::new(lines)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(border_style),
-        )
-        .wrap(Wrap { trim: true })
+    if row.child_count > 0 {
+        spans.push(Span::raw(" "));
+        spans.push(StatusPill::muted(format!("threads:{}", row.child_count), theme).span_compact());
+    }
+
+    spans.push(Span::raw(" "));
+    spans.push(session_status_pill(&session.status, theme).span_compact());
+    spans.push(Span::raw(" "));
+    spans.push(Span::styled(
+        relative_time_label(session.updated_unix),
+        Style::default().fg(theme.text_muted),
+    ));
+
+    Line::from(spans)
+}
+
+fn tree_prefix(row: &SessionTreeRow) -> String {
+    let mut prefix = String::new();
+    for has_next in &row.ancestors_have_next {
+        if *has_next {
+            prefix.push_str("|  ");
+        } else {
+            prefix.push_str("   ");
+        }
+    }
+
+    if row.depth == 0 {
+        prefix.push_str("o ");
+        return prefix;
+    }
+
+    if row.has_next_sibling {
+        prefix.push_str("|- ");
+    } else {
+        prefix.push_str("\\- ");
+    }
+
+    prefix
 }
 
 fn session_status_pill(
@@ -185,17 +321,8 @@ fn session_status_pill(
     }
 }
 
-fn visible_session_count(height: u16) -> usize {
-    if height < SESSION_CARD_HEIGHT {
-        return 1;
-    }
-
-    let slot_height = SESSION_CARD_HEIGHT + SESSION_CARD_GAP;
-    (height.saturating_add(SESSION_CARD_GAP) / slot_height).max(1) as usize
-}
-
-fn panel_inner(area: Rect) -> Rect {
-    Rect {
+fn panel_inner(area: ratatui::layout::Rect) -> ratatui::layout::Rect {
+    ratatui::layout::Rect {
         x: area.x.saturating_add(1),
         y: area.y.saturating_add(1),
         width: area.width.saturating_sub(2),
@@ -211,15 +338,6 @@ fn compact_text(value: &str, max_width: usize) -> String {
     let head_len = max_width.saturating_sub(3);
     let head = value.chars().take(head_len).collect::<String>();
     format!("{head}...")
-}
-
-fn compact_id(value: &str) -> String {
-    let trimmed = value.trim();
-    if trimmed.len() <= 14 {
-        return trimmed.to_string();
-    }
-
-    format!("{}...", &trimmed[..14])
 }
 
 fn relative_time_label(updated_unix: Option<i64>) -> String {

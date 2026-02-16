@@ -19,7 +19,7 @@ pub struct Cli {
     #[arg(long, env = "DARK_CHAT_DIRECTORY")]
     pub directory: Option<String>,
 
-    #[arg(long, env = "DARK_CHAT_REFRESH_SECONDS", default_value_t = 5)]
+    #[arg(long, env = "DARK_CHAT_REFRESH_SECONDS", default_value_t = 3)]
     pub refresh_seconds: u64,
 
     #[arg(long, env = "DARK_CHAT_SESSION")]

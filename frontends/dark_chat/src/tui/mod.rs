@@ -34,7 +34,9 @@ use crate::tui::commands::{
     parse_remote_slash_command, run_local_grep_summary,
 };
 use crate::tui::input::{LoopAction, handle_key};
-use crate::tui::panels::{ComposerAutocompleteHit, ModelSelectorHit, SessionsPanel};
+use crate::tui::panels::{
+    AgentSelectorHit, ComposerAutocompleteHit, ComposerMetaHit, ModelSelectorHit, SessionsPanel,
+};
 use crate::tui::realtime::event_requires_refresh;
 use crate::tui::views::{MainView, PanelHit};
 
@@ -60,8 +62,20 @@ pub async fn run(cli: Cli) -> Result<()> {
         cli.refresh_seconds,
     );
     app.apply_snapshot(bootstrap_snapshot);
+    match app.restore_selection_from_disk() {
+        Ok(true) => {
+            app.set_status_message("Connected to OpenCode and restored saved chat selection.");
+        }
+        Ok(false) => {
+            app.set_status_message("Connected to OpenCode and loaded session state.");
+        }
+        Err(error) => {
+            app.set_status_message(format!(
+                "Connected to OpenCode; chat selection restore failed: {error}"
+            ));
+        }
+    }
     app.set_realtime_supported(backend.supports_realtime());
-    app.set_status_message("Connected to OpenCode and loaded session state.");
 
     let mut terminal = setup_terminal()?;
     let run_result = run_loop(&mut terminal, &backend, &mut app).await;
@@ -77,7 +91,7 @@ pub async fn run(cli: Cli) -> Result<()> {
 }
 
 async fn run_loop(terminal: &mut TuiTerminal, backend: &ChatBackend, app: &mut App) -> Result<()> {
-    let refresh_interval = Duration::from_secs(app.refresh_seconds().max(2));
+    let refresh_interval = Duration::from_secs(app.refresh_seconds().max(1));
     let mut force_refresh = false;
     let mut next_refresh_at = Instant::now() + refresh_interval;
     let mut next_realtime_retry_at = Instant::now();
@@ -271,6 +285,46 @@ async fn run_loop(terminal: &mut TuiTerminal, backend: &ChatBackend, app: &mut A
                 continue;
             }
 
+            if app.is_agent_selector_open() {
+                let hit = crate::tui::panels::ChatPanel::agent_selector_hit(
+                    layout.chat,
+                    layout.chat_composer,
+                    app,
+                    mouse.column,
+                    mouse.row,
+                );
+
+                match mouse.kind {
+                    MouseEventKind::Down(MouseButton::Left) => match hit {
+                        AgentSelectorHit::ListItem(index) => {
+                            app.agent_selector_set_selected(index);
+                            if let Some(agent) = app.confirm_agent_selector() {
+                                app.set_status_message(format!("Agent selected: {agent}"));
+                            }
+                        }
+                        AgentSelectorHit::Query => {}
+                        AgentSelectorHit::Popup => {}
+                        AgentSelectorHit::Outside => {
+                            app.close_agent_selector();
+                            app.set_status_message("Agent selector closed.");
+                        }
+                    },
+                    MouseEventKind::ScrollUp => {
+                        if hit != AgentSelectorHit::Outside {
+                            app.agent_selector_move_up();
+                        }
+                    }
+                    MouseEventKind::ScrollDown => {
+                        if hit != AgentSelectorHit::Outside {
+                            app.agent_selector_move_down();
+                        }
+                    }
+                    _ => {}
+                }
+
+                continue;
+            }
+
             if app.composer_autocomplete_open() {
                 let hit = crate::tui::panels::ChatPanel::composer_autocomplete_hit(
                     layout.chat,
@@ -337,8 +391,28 @@ async fn run_loop(terminal: &mut TuiTerminal, backend: &ChatBackend, app: &mut A
                             app.set_status_message("Focused conversation panel.");
                         }
                         PanelHit::ChatComposer => {
-                            app.open_composer();
-                            app.set_status_message("Focused composer.");
+                            match crate::tui::panels::ChatPanel::composer_meta_hit(
+                                layout.chat,
+                                layout.chat_composer,
+                                app,
+                                mouse.column,
+                                mouse.row,
+                            ) {
+                                ComposerMetaHit::Model => {
+                                    app.open_model_selector_at(mouse.column);
+                                    app.set_status_message(
+                                        "Model selector opened. Type to filter, Tab for raw.",
+                                    );
+                                }
+                                ComposerMetaHit::Agent => {
+                                    app.open_agent_selector_at(mouse.column);
+                                    app.set_status_message("Agent selector opened. Type to filter.");
+                                }
+                                ComposerMetaHit::None => {
+                                    app.open_composer();
+                                    app.set_status_message("Focused composer.");
+                                }
+                            }
                         }
                         PanelHit::Runtime => {
                             app.set_focus(FocusPane::Runtime);
