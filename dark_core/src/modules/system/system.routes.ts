@@ -8,6 +8,7 @@ import {
   resetLocalDatabase,
 } from './system.controller';
 import { failure, success, toErrorMessage } from '../../utils/api-response';
+import Log, { formatLogMetadata } from '../../utils/logging';
 
 export interface SystemRoutesDependencies {
   getApiInfo: typeof getApiInfo;
@@ -68,6 +69,9 @@ export const createSystemRoutes = (
       try {
         return success(await dependencies.getHealth());
       } catch (error) {
+        Log.error(
+          `Core // System Route // Health failed ${formatLogMetadata({ error: toErrorMessage(error) })}`,
+        );
         set.status = 500;
         return failure('SYSTEM_HEALTH_FAILED', toErrorMessage(error));
       }
@@ -76,6 +80,9 @@ export const createSystemRoutes = (
       try {
         return success(await dependencies.getApiInfo());
       } catch (error) {
+        Log.error(
+          `Core // System Route // Info failed ${formatLogMetadata({ error: toErrorMessage(error) })}`,
+        );
         set.status = 500;
         return failure('SYSTEM_INFO_FAILED', toErrorMessage(error));
       }
@@ -84,6 +91,9 @@ export const createSystemRoutes = (
       try {
         return success(await dependencies.getMetrics());
       } catch (error) {
+        Log.error(
+          `Core // System Route // Metrics failed ${formatLogMetadata({ error: toErrorMessage(error) })}`,
+        );
         set.status = 500;
         return failure('SYSTEM_METRICS_FAILED', toErrorMessage(error));
       }
@@ -94,6 +104,9 @@ export const createSystemRoutes = (
         try {
           return success(await dependencies.getProvidersInfo());
         } catch (error) {
+          Log.error(
+            `Core // System Route // Providers failed ${formatLogMetadata({ error: toErrorMessage(error) })}`,
+          );
           set.status = 500;
           return failure('SYSTEM_PROVIDERS_FAILED', toErrorMessage(error));
         }
@@ -111,6 +124,9 @@ export const createSystemRoutes = (
         try {
           return success(await dependencies.resetLocalDatabase());
         } catch (error) {
+          Log.error(
+            `Core // System Route // Reset db failed ${formatLogMetadata({ error: toErrorMessage(error) })}`,
+          );
           set.status = 500;
           return failure('SYSTEM_RESET_DB_FAILED', toErrorMessage(error));
         }

@@ -66,6 +66,14 @@ const parseBooleanQuery = (value?: string): boolean => {
   return value !== 'false' && value !== '0';
 };
 
+const logActorRouteError = (event: string, metadata: Record<string, string | number | boolean>) => {
+  Log.error(`Core // Actors Route // ${event} ${formatLogMetadata(metadata)}`);
+};
+
+const logActorRouteWarn = (event: string, metadata: Record<string, string | number | boolean>) => {
+  Log.warn(`Core // Actors Route // ${event} ${formatLogMetadata(metadata)}`);
+};
+
 export const createActorsRoutes = (
   dependencies: ActorsRoutesDependencies = {
     buildActorAttachById,
@@ -95,6 +103,13 @@ export const createActorsRoutes = (
           });
           return success(actors);
         } catch (error) {
+          logActorRouteError('List failed', {
+            error: toErrorMessage(error),
+            productId: query.productId ?? '-',
+            provider: query.provider ?? '-',
+            status: query.status ?? '-',
+            variantId: query.variantId ?? '-',
+          });
           set.status = 500;
           return failure('ACTORS_LIST_FAILED', toErrorMessage(error));
         }
@@ -131,20 +146,40 @@ export const createActorsRoutes = (
           const message = toErrorMessage(error);
 
           if (isNotFoundError(error)) {
+            logActorRouteWarn('Create failed (variant not found)', {
+              error: message,
+              variantId: body.variantId,
+              provider: body.provider ?? '-',
+            });
             set.status = 404;
             return failure('ACTORS_NOT_FOUND', message);
           }
 
           if (isUnsupportedProviderError(message)) {
+            logActorRouteWarn('Create failed (provider unsupported)', {
+              error: message,
+              provider: body.provider ?? '-',
+              variantId: body.variantId,
+            });
             set.status = 400;
             return failure('ACTORS_PROVIDER_UNSUPPORTED', message);
           }
 
           if (isDisabledProviderError(message)) {
+            logActorRouteWarn('Create failed (provider disabled)', {
+              error: message,
+              provider: body.provider ?? '-',
+              variantId: body.variantId,
+            });
             set.status = 400;
             return failure('ACTORS_PROVIDER_DISABLED', message);
           }
 
+          logActorRouteError('Create failed', {
+            error: message,
+            provider: body.provider ?? '-',
+            variantId: body.variantId,
+          });
           set.status = 500;
           return failure('ACTORS_CREATE_FAILED', message);
         }
@@ -172,10 +207,18 @@ export const createActorsRoutes = (
           return success(await dependencies.getActorById(params.id));
         } catch (error) {
           if (isNotFoundError(error)) {
+            logActorRouteWarn('Get failed (not found)', {
+              actorId: params.id,
+              error: error.message,
+            });
             set.status = 404;
             return failure('ACTORS_NOT_FOUND', error.message);
           }
 
+          logActorRouteError('Get failed', {
+            actorId: params.id,
+            error: toErrorMessage(error),
+          });
           set.status = 500;
           return failure('ACTORS_GET_FAILED', toErrorMessage(error));
         }
@@ -196,10 +239,18 @@ export const createActorsRoutes = (
           return success(await dependencies.updateActorById(params.id, body));
         } catch (error) {
           if (isNotFoundError(error)) {
+            logActorRouteWarn('Update failed (not found)', {
+              actorId: params.id,
+              error: error.message,
+            });
             set.status = 404;
             return failure('ACTORS_NOT_FOUND', error.message);
           }
 
+          logActorRouteError('Update failed', {
+            actorId: params.id,
+            error: toErrorMessage(error),
+          });
           set.status = 500;
           return failure('ACTORS_UPDATE_FAILED', toErrorMessage(error));
         }
@@ -226,10 +277,20 @@ export const createActorsRoutes = (
           return success(await dependencies.deleteActorById(params.id, { terminate }));
         } catch (error) {
           if (isNotFoundError(error)) {
+            logActorRouteWarn('Delete failed (not found)', {
+              actorId: params.id,
+              error: error.message,
+              terminate: parseBooleanQuery(query.terminate),
+            });
             set.status = 404;
             return failure('ACTORS_NOT_FOUND', error.message);
           }
 
+          logActorRouteError('Delete failed', {
+            actorId: params.id,
+            error: toErrorMessage(error),
+            terminate: parseBooleanQuery(query.terminate),
+          });
           set.status = 500;
           return failure('ACTORS_DELETE_FAILED', toErrorMessage(error));
         }
@@ -253,10 +314,18 @@ export const createActorsRoutes = (
           return success(await dependencies.pollActorById(params.id));
         } catch (error) {
           if (isNotFoundError(error)) {
+            logActorRouteWarn('Poll failed (not found)', {
+              actorId: params.id,
+              error: error.message,
+            });
             set.status = 404;
             return failure('ACTORS_NOT_FOUND', error.message);
           }
 
+          logActorRouteError('Poll failed', {
+            actorId: params.id,
+            error: toErrorMessage(error),
+          });
           set.status = 500;
           return failure('ACTORS_POLL_FAILED', toErrorMessage(error));
         }
@@ -282,10 +351,22 @@ export const createActorsRoutes = (
           );
         } catch (error) {
           if (isNotFoundError(error)) {
+            logActorRouteWarn('Attach failed (not found)', {
+              actorId: params.id,
+              error: error.message,
+              model: query.model ?? '-',
+              agent: query.agent ?? '-',
+            });
             set.status = 404;
             return failure('ACTORS_NOT_FOUND', error.message);
           }
 
+          logActorRouteError('Attach failed', {
+            actorId: params.id,
+            error: toErrorMessage(error),
+            model: query.model ?? '-',
+            agent: query.agent ?? '-',
+          });
           set.status = 500;
           return failure('ACTORS_ATTACH_FAILED', toErrorMessage(error));
         }
@@ -317,10 +398,20 @@ export const createActorsRoutes = (
           );
         } catch (error) {
           if (isNotFoundError(error)) {
+            logActorRouteWarn('Message send failed (not found)', {
+              actorId: params.id,
+              error: error.message,
+            });
             set.status = 404;
             return failure('ACTORS_NOT_FOUND', error.message);
           }
 
+          logActorRouteError('Message send failed', {
+            actorId: params.id,
+            error: toErrorMessage(error),
+            model: body.model ?? '-',
+            agent: body.agent ?? '-',
+          });
           set.status = 500;
           return failure('ACTORS_MESSAGE_SEND_FAILED', toErrorMessage(error));
         }
@@ -351,10 +442,19 @@ export const createActorsRoutes = (
           );
         } catch (error) {
           if (isNotFoundError(error)) {
+            logActorRouteWarn('Messages list failed (not found)', {
+              actorId: params.id,
+              error: error.message,
+            });
             set.status = 404;
             return failure('ACTORS_NOT_FOUND', error.message);
           }
 
+          logActorRouteError('Messages list failed', {
+            actorId: params.id,
+            error: toErrorMessage(error),
+            nLastMessages: query.nLastMessages ?? '-',
+          });
           set.status = 500;
           return failure('ACTORS_MESSAGES_LIST_FAILED', toErrorMessage(error));
         }
@@ -385,17 +485,23 @@ export const createActorsRoutes = (
           );
         } catch (error) {
           if (isNotFoundError(error)) {
+            logActorRouteWarn('Command failed (not found)', {
+              actorId: params.id,
+              error: error.message,
+              command: body.command,
+            });
             set.status = 404;
             return failure('ACTORS_NOT_FOUND', error.message);
           }
 
           set.status = 500;
-          Log.error(
-            `Core // Actors Route // Command failed ${formatLogMetadata({
-              actorId: params.id,
-              error: toErrorMessage(error),
-            })}`,
-          );
+          logActorRouteError('Command failed', {
+            actorId: params.id,
+            error: toErrorMessage(error),
+            command: body.command,
+            model: body.model ?? '-',
+            agent: body.agent ?? '-',
+          });
           return failure('ACTORS_COMMAND_FAILED', toErrorMessage(error));
         }
       },
