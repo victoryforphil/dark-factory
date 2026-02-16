@@ -1,6 +1,12 @@
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf};
+
+use serde::{Deserialize, Serialize};
+
 use crate::models::{
-    ActorChatMessageRow, ActorRow, DashboardSnapshot, ProductRow, VariantRow, compact_id,
-    compact_locator, compact_timestamp,
+    compact_id, compact_locator, compact_timestamp, ActorChatMessageRow, ActorRow,
+    DashboardSnapshot, ProductRow, VariantRow,
 };
 use crate::theme::Theme;
 
@@ -44,6 +50,20 @@ struct SpawnFormState {
     providers: Vec<String>,
     selected_provider: usize,
     initial_prompt: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChatPickerKind {
+    Model,
+    Agent,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+struct PersistedChatSelection {
+    #[serde(default)]
+    model: Option<String>,
+    #[serde(default)]
+    agent: Option<String>,
 }
 
 impl ResultsViewMode {
@@ -95,6 +115,7 @@ pub struct DragAnchor {
 #[derive(Debug)]
 pub struct App {
     directory: String,
+    chat_preferences_path: PathBuf,
     refresh_seconds: u64,
     focus: FocusPane,
     results_view_mode: ResultsViewMode,
@@ -124,6 +145,22 @@ pub struct App {
     chat_messages: Vec<ActorChatMessageRow>,
     chat_draft: String,
     chat_composing: bool,
+    chat_model_options: Vec<String>,
+    chat_agent_options: Vec<String>,
+    chat_selected_model: Option<String>,
+    chat_selected_agent: Option<String>,
+    chat_preferred_model: Option<String>,
+    chat_preferred_agent: Option<String>,
+    chat_picker_open: Option<ChatPickerKind>,
+    chat_picker_query: String,
+    chat_picker_selected: usize,
+    chat_autocomplete_open: bool,
+    chat_autocomplete_mode: Option<char>,
+    chat_autocomplete_query: String,
+    chat_autocomplete_selected: usize,
+    chat_autocomplete_items: Vec<String>,
+    chat_workspace_file_cache: Vec<String>,
+    chat_workspace_file_cache_loaded: bool,
     chat_needs_refresh: bool,
     snapshot_refresh_in_flight: bool,
     chat_refresh_in_flight: bool,
@@ -133,8 +170,13 @@ pub struct App {
 
 impl App {
     pub fn new(directory: String, refresh_seconds: u64, theme: Theme) -> Self {
+        let chat_preferences_path = Path::new(&directory)
+            .join(".darkfactory")
+            .join("darktui.toml");
+
         Self {
             directory,
+            chat_preferences_path,
             refresh_seconds,
             focus: FocusPane::Products,
             results_view_mode: ResultsViewMode::Table,
@@ -160,6 +202,22 @@ impl App {
             chat_messages: Vec::new(),
             chat_draft: String::new(),
             chat_composing: false,
+            chat_model_options: Vec::new(),
+            chat_agent_options: Vec::new(),
+            chat_selected_model: None,
+            chat_selected_agent: None,
+            chat_preferred_model: None,
+            chat_preferred_agent: None,
+            chat_picker_open: None,
+            chat_picker_query: String::new(),
+            chat_picker_selected: 0,
+            chat_autocomplete_open: false,
+            chat_autocomplete_mode: None,
+            chat_autocomplete_query: String::new(),
+            chat_autocomplete_selected: 0,
+            chat_autocomplete_items: Vec::new(),
+            chat_workspace_file_cache: Vec::new(),
+            chat_workspace_file_cache_loaded: false,
             chat_needs_refresh: false,
             snapshot_refresh_in_flight: false,
             chat_refresh_in_flight: false,
@@ -348,10 +406,6 @@ impl App {
         }
     }
 
-    pub fn chat_actor_id(&self) -> Option<&str> {
-        self.chat_actor_id.as_deref()
-    }
-
     pub fn chat_actor(&self) -> Option<&ActorRow> {
         let actor_id = self.chat_actor_id.as_deref()?;
         self.actors.iter().find(|actor| actor.id == actor_id)
@@ -365,8 +419,78 @@ impl App {
         self.chat_composing
     }
 
+    pub fn is_chat_refresh_in_flight(&self) -> bool {
+        self.chat_refresh_in_flight
+    }
+
+    pub fn is_chat_send_in_flight(&self) -> bool {
+        self.chat_send_in_flight
+    }
+
     pub fn chat_draft(&self) -> &str {
         &self.chat_draft
+    }
+
+    pub fn chat_active_model(&self) -> Option<&str> {
+        self.chat_selected_model.as_deref()
+    }
+
+    pub fn chat_active_agent(&self) -> Option<&str> {
+        self.chat_selected_agent.as_deref()
+    }
+
+    pub fn chat_model_options(&self) -> &[String] {
+        &self.chat_model_options
+    }
+
+    pub fn chat_agent_options(&self) -> &[String] {
+        &self.chat_agent_options
+    }
+
+    pub fn chat_picker_open(&self) -> Option<ChatPickerKind> {
+        self.chat_picker_open
+    }
+
+    pub fn chat_picker_query(&self) -> &str {
+        &self.chat_picker_query
+    }
+
+    pub fn chat_picker_items(&self) -> Vec<String> {
+        let items = self.current_chat_picker_items();
+        if self.chat_picker_query.is_empty() {
+            return items.to_vec();
+        }
+
+        let needle = self.chat_picker_query.to_ascii_lowercase();
+        items
+            .iter()
+            .filter(|item| item.to_ascii_lowercase().contains(&needle))
+            .cloned()
+            .collect()
+    }
+
+    pub fn chat_picker_selected(&self) -> usize {
+        self.chat_picker_selected
+    }
+
+    pub fn chat_autocomplete_open(&self) -> bool {
+        self.chat_autocomplete_open
+    }
+
+    pub fn chat_autocomplete_mode(&self) -> Option<char> {
+        self.chat_autocomplete_mode
+    }
+
+    pub fn chat_autocomplete_query(&self) -> &str {
+        &self.chat_autocomplete_query
+    }
+
+    pub fn chat_autocomplete_items(&self) -> &[String] {
+        &self.chat_autocomplete_items
+    }
+
+    pub fn chat_autocomplete_selected(&self) -> usize {
+        self.chat_autocomplete_selected
     }
 
     pub fn open_chat_composer(&mut self) -> bool {
@@ -377,16 +501,20 @@ impl App {
         self.chat_visible = true;
         self.chat_needs_refresh = true;
         self.chat_composing = true;
+        self.ensure_chat_workspace_file_cache();
         true
     }
 
     pub fn cancel_chat_composer(&mut self) {
         self.chat_composing = false;
+        self.close_chat_picker();
+        self.close_chat_autocomplete();
     }
 
     pub fn commit_sent_chat_prompt(&mut self) {
         self.chat_draft.clear();
         self.chat_composing = false;
+        self.close_chat_autocomplete();
     }
 
     pub fn current_chat_prompt(&self) -> Option<String> {
@@ -408,6 +536,7 @@ impl App {
         }
 
         self.chat_draft.push(value);
+        self.refresh_chat_autocomplete();
     }
 
     pub fn chat_backspace(&mut self) {
@@ -416,6 +545,283 @@ impl App {
         }
 
         self.chat_draft.pop();
+        self.refresh_chat_autocomplete();
+    }
+
+    pub fn set_chat_options(&mut self, models: Vec<String>, agents: Vec<String>) {
+        self.chat_model_options = normalize_string_options(models);
+        self.chat_agent_options = normalize_string_options(agents);
+
+        self.chat_selected_model = resolve_selected_option(
+            &self.chat_model_options,
+            self.chat_selected_model.as_deref(),
+            self.chat_preferred_model.as_deref(),
+        );
+
+        self.chat_selected_agent = resolve_selected_option(
+            &self.chat_agent_options,
+            self.chat_selected_agent.as_deref(),
+            self.chat_preferred_agent.as_deref(),
+        );
+    }
+
+    pub fn open_chat_model_picker(&mut self) {
+        if self.chat_model_options.is_empty() {
+            return;
+        }
+
+        self.chat_picker_open = Some(ChatPickerKind::Model);
+        self.chat_picker_query.clear();
+        let selected = self
+            .chat_selected_model
+            .as_deref()
+            .and_then(|value| {
+                self.chat_model_options
+                    .iter()
+                    .position(|item| item == value)
+            })
+            .unwrap_or(0);
+        self.chat_picker_selected = selected;
+        self.clamp_chat_picker_selection();
+    }
+
+    pub fn open_chat_agent_picker(&mut self) {
+        if self.chat_agent_options.is_empty() {
+            return;
+        }
+
+        self.chat_picker_open = Some(ChatPickerKind::Agent);
+        self.chat_picker_query.clear();
+        let selected = self
+            .chat_selected_agent
+            .as_deref()
+            .and_then(|value| {
+                self.chat_agent_options
+                    .iter()
+                    .position(|item| item == value)
+            })
+            .unwrap_or(0);
+        self.chat_picker_selected = selected;
+        self.clamp_chat_picker_selection();
+    }
+
+    pub fn close_chat_picker(&mut self) {
+        self.chat_picker_open = None;
+        self.chat_picker_query.clear();
+        self.chat_picker_selected = 0;
+    }
+
+    pub fn chat_picker_insert_char(&mut self, value: char) {
+        if self.chat_picker_open.is_none() {
+            return;
+        }
+
+        self.chat_picker_query.push(value);
+        self.clamp_chat_picker_selection();
+    }
+
+    pub fn chat_picker_backspace(&mut self) {
+        if self.chat_picker_open.is_none() {
+            return;
+        }
+
+        self.chat_picker_query.pop();
+        self.clamp_chat_picker_selection();
+    }
+
+    pub fn clear_chat_picker_query(&mut self) {
+        if self.chat_picker_open.is_none() {
+            return;
+        }
+
+        self.chat_picker_query.clear();
+        self.clamp_chat_picker_selection();
+    }
+
+    pub fn chat_picker_move_up(&mut self) {
+        let len = self.chat_picker_items().len();
+        if len == 0 {
+            self.chat_picker_selected = 0;
+            return;
+        }
+
+        self.chat_picker_selected = previous_index(self.chat_picker_selected, len);
+    }
+
+    pub fn chat_picker_move_down(&mut self) {
+        let len = self.chat_picker_items().len();
+        if len == 0 {
+            self.chat_picker_selected = 0;
+            return;
+        }
+
+        self.chat_picker_selected = next_index(self.chat_picker_selected, len);
+    }
+
+    pub fn chat_picker_set_selected(&mut self, index: usize) {
+        let len = self.chat_picker_items().len();
+        if len == 0 {
+            self.chat_picker_selected = 0;
+            return;
+        }
+
+        self.chat_picker_selected = index.min(len.saturating_sub(1));
+    }
+
+    pub fn apply_chat_picker_selection(&mut self) -> Option<String> {
+        let index = self.chat_picker_selected;
+        let kind = self.chat_picker_open?;
+        let selected = self.chat_picker_items().get(index)?.clone();
+
+        match kind {
+            ChatPickerKind::Model => {
+                self.chat_selected_model = Some(selected.clone());
+                self.chat_preferred_model = Some(selected.clone());
+            }
+            ChatPickerKind::Agent => {
+                self.chat_selected_agent = Some(selected.clone());
+                self.chat_preferred_agent = Some(selected.clone());
+            }
+        }
+
+        let _ = self.persist_chat_selection();
+
+        self.close_chat_picker();
+        Some(selected)
+    }
+
+    pub fn restore_chat_selection_from_disk(&mut self) -> io::Result<bool> {
+        let Some(saved) = self.load_chat_selection_from_disk()? else {
+            return Ok(false);
+        };
+
+        self.chat_preferred_model = saved.model;
+        self.chat_preferred_agent = saved.agent;
+
+        self.chat_selected_model = resolve_selected_option(
+            &self.chat_model_options,
+            self.chat_selected_model.as_deref(),
+            self.chat_preferred_model.as_deref(),
+        );
+        self.chat_selected_agent = resolve_selected_option(
+            &self.chat_agent_options,
+            self.chat_selected_agent.as_deref(),
+            self.chat_preferred_agent.as_deref(),
+        );
+
+        Ok(true)
+    }
+
+    fn clamp_chat_picker_selection(&mut self) {
+        let len = self.chat_picker_items().len();
+        if len == 0 {
+            self.chat_picker_selected = 0;
+            return;
+        }
+
+        self.chat_picker_selected = self.chat_picker_selected.min(len.saturating_sub(1));
+    }
+
+    pub fn close_chat_autocomplete(&mut self) {
+        self.chat_autocomplete_open = false;
+        self.chat_autocomplete_mode = None;
+        self.chat_autocomplete_query.clear();
+        self.chat_autocomplete_selected = 0;
+        self.chat_autocomplete_items.clear();
+    }
+
+    pub fn chat_autocomplete_move_up(&mut self) {
+        let len = self.chat_autocomplete_items.len();
+        if len == 0 {
+            self.chat_autocomplete_selected = 0;
+            return;
+        }
+
+        self.chat_autocomplete_selected = previous_index(self.chat_autocomplete_selected, len);
+    }
+
+    pub fn chat_autocomplete_move_down(&mut self) {
+        let len = self.chat_autocomplete_items.len();
+        if len == 0 {
+            self.chat_autocomplete_selected = 0;
+            return;
+        }
+
+        self.chat_autocomplete_selected = next_index(self.chat_autocomplete_selected, len);
+    }
+
+    pub fn chat_autocomplete_set_selected(&mut self, index: usize) {
+        let len = self.chat_autocomplete_items.len();
+        if len == 0 {
+            self.chat_autocomplete_selected = 0;
+            return;
+        }
+
+        self.chat_autocomplete_selected = index.min(len.saturating_sub(1));
+    }
+
+    pub fn apply_chat_autocomplete_selection(&mut self) -> Option<String> {
+        let selected = self
+            .chat_autocomplete_items
+            .get(self.chat_autocomplete_selected)
+            .cloned()?;
+
+        let token_start = chat_token_start(&self.chat_draft);
+        self.chat_draft.truncate(token_start);
+        self.chat_draft.push_str(&selected);
+        self.close_chat_autocomplete();
+        Some(selected)
+    }
+
+    fn current_chat_picker_items(&self) -> &[String] {
+        match self.chat_picker_open {
+            Some(ChatPickerKind::Model) => &self.chat_model_options,
+            Some(ChatPickerKind::Agent) => &self.chat_agent_options,
+            None => &[],
+        }
+    }
+
+    fn refresh_chat_autocomplete(&mut self) {
+        if !self.chat_composing {
+            self.close_chat_autocomplete();
+            return;
+        }
+
+        let Some((mode, query)) = current_chat_trigger(&self.chat_draft) else {
+            self.close_chat_autocomplete();
+            return;
+        };
+
+        let items = match mode {
+            '/' => slash_suggestions(&query),
+            '@' => {
+                self.ensure_chat_workspace_file_cache();
+                file_suggestions(&self.chat_workspace_file_cache, &query)
+            }
+            _ => Vec::new(),
+        };
+
+        if items.is_empty() {
+            self.close_chat_autocomplete();
+            return;
+        }
+
+        self.chat_autocomplete_open = true;
+        self.chat_autocomplete_mode = Some(mode);
+        self.chat_autocomplete_query = query;
+        self.chat_autocomplete_items = items;
+        self.chat_autocomplete_selected = self
+            .chat_autocomplete_selected
+            .min(self.chat_autocomplete_items.len().saturating_sub(1));
+    }
+
+    fn ensure_chat_workspace_file_cache(&mut self) {
+        if self.chat_workspace_file_cache_loaded {
+            return;
+        }
+
+        self.chat_workspace_file_cache = collect_workspace_files(&self.directory, 1200, 6);
+        self.chat_workspace_file_cache_loaded = true;
     }
 
     pub fn request_chat_refresh(&mut self) {
@@ -1105,6 +1511,33 @@ impl App {
             product_index: self.selected_product,
         });
     }
+
+    fn persist_chat_selection(&self) -> io::Result<()> {
+        let parent = self
+            .chat_preferences_path
+            .parent()
+            .ok_or_else(|| io::Error::other("missing darktui.toml parent"))?;
+        fs::create_dir_all(parent)?;
+
+        let payload = PersistedChatSelection {
+            model: self.chat_selected_model.clone(),
+            agent: self.chat_selected_agent.clone(),
+        };
+        let encoded = toml::to_string_pretty(&payload)
+            .map_err(|error| io::Error::other(error.to_string()))?;
+        fs::write(&self.chat_preferences_path, encoded)
+    }
+
+    fn load_chat_selection_from_disk(&self) -> io::Result<Option<PersistedChatSelection>> {
+        if !self.chat_preferences_path.exists() {
+            return Ok(None);
+        }
+
+        let raw = fs::read_to_string(&self.chat_preferences_path)?;
+        let decoded = toml::from_str::<PersistedChatSelection>(&raw)
+            .map_err(|error| io::Error::other(error.to_string()))?;
+        Ok(Some(decoded))
+    }
 }
 
 fn resolve_index_by_id<T>(rows: &[T], id: Option<&str>, id_accessor: impl Fn(&T) -> &str) -> usize {
@@ -1135,4 +1568,144 @@ fn previous_index(current: usize, len: usize) -> usize {
     }
 
     (current + len - 1) % len
+}
+
+fn normalize_string_options(mut values: Vec<String>) -> Vec<String> {
+    values.retain(|value| !value.trim().is_empty());
+    values.sort();
+    values.dedup();
+    values
+}
+
+fn resolve_selected_option(
+    options: &[String],
+    current: Option<&str>,
+    preferred: Option<&str>,
+) -> Option<String> {
+    if options.is_empty() {
+        return None;
+    }
+
+    if let Some(preferred) = preferred {
+        if options.iter().any(|item| item == preferred) {
+            return Some(preferred.to_string());
+        }
+    }
+
+    if let Some(current) = current {
+        if options.iter().any(|item| item == current) {
+            return Some(current.to_string());
+        }
+    }
+
+    options.first().cloned()
+}
+
+fn current_chat_trigger(value: &str) -> Option<(char, String)> {
+    let token_start = chat_token_start(value);
+    let token = &value[token_start..];
+
+    if let Some(query) = token.strip_prefix('/') {
+        return Some(('/', query.to_string()));
+    }
+
+    if let Some(query) = token.strip_prefix('@') {
+        return Some(('@', query.to_string()));
+    }
+
+    None
+}
+
+fn chat_token_start(value: &str) -> usize {
+    value
+        .rfind(|ch: char| ch.is_whitespace())
+        .map_or(0, |index| index + 1)
+}
+
+fn slash_suggestions(query: &str) -> Vec<String> {
+    const COMMANDS: [&str; 8] = [
+        "/help",
+        "/refresh",
+        "/new",
+        "/clear",
+        "/sessions",
+        "/agent ",
+        "/model ",
+        "/grep ",
+    ];
+
+    let needle = query.to_ascii_lowercase();
+    COMMANDS
+        .into_iter()
+        .filter(|command| {
+            needle.is_empty()
+                || command
+                    .trim_start_matches('/')
+                    .to_ascii_lowercase()
+                    .contains(&needle)
+        })
+        .map(ToString::to_string)
+        .collect()
+}
+
+fn file_suggestions(paths: &[String], query: &str) -> Vec<String> {
+    let needle = query.to_ascii_lowercase();
+    paths
+        .iter()
+        .filter(|path| needle.is_empty() || path.to_ascii_lowercase().contains(&needle))
+        .take(60)
+        .map(|path| format!("@{path}"))
+        .collect()
+}
+
+fn collect_workspace_files(root: &str, limit: usize, max_depth: usize) -> Vec<String> {
+    fn walk(
+        root: &std::path::Path,
+        current: &std::path::Path,
+        depth: usize,
+        max_depth: usize,
+        limit: usize,
+        output: &mut Vec<String>,
+    ) {
+        if output.len() >= limit || depth > max_depth {
+            return;
+        }
+
+        let Ok(entries) = std::fs::read_dir(current) else {
+            return;
+        };
+
+        for entry in entries.flatten() {
+            if output.len() >= limit {
+                break;
+            }
+
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().to_string();
+            if name.starts_with('.')
+                || matches!(name.as_str(), "target" | "node_modules" | "generated")
+            {
+                continue;
+            }
+
+            if path.is_dir() {
+                walk(root, &path, depth + 1, max_depth, limit, output);
+                continue;
+            }
+
+            if !path.is_file() {
+                continue;
+            }
+
+            if let Ok(relative) = path.strip_prefix(root) {
+                output.push(relative.to_string_lossy().replace('\\', "/"));
+            }
+        }
+    }
+
+    let mut output = Vec::new();
+    let root_path = std::path::Path::new(root);
+    walk(root_path, root_path, 0, max_depth, limit, &mut output);
+    output.sort();
+    output
 }

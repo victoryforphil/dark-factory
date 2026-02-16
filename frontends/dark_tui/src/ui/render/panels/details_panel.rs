@@ -1,12 +1,12 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
 use crate::app::{App, VizSelection};
 use crate::models::{
-    ActorRow, ProductRow, VariantRow, compact_id, compact_locator, compact_timestamp,
+    compact_id, compact_locator, compact_timestamp, ActorRow, ProductRow, VariantRow,
 };
 use crate::theme::{EntityKind, Theme};
 

@@ -1,12 +1,12 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::app::{App, VizSelection};
 use crate::models::{
-    ActorRow, ProductRow, VariantRow, compact_id, compact_locator, compact_timestamp,
+    compact_id, compact_locator, compact_timestamp, ActorRow, ProductRow, VariantRow,
 };
 use crate::theme::Theme;
 
@@ -804,8 +804,8 @@ impl UnifiedCatalogView {
         // Row 1: compact actor title
         let title_text = if actor.title.trim().is_empty() {
             compact_id(&actor.id)
-        } else if actor.title.len() > 30 {
-            format!("{}...", &actor.title[..27])
+        } else if actor.title.len() > 40 {
+            format!("{}...", &actor.title[..37])
         } else {
             actor.title.clone()
         };
@@ -819,7 +819,7 @@ impl UnifiedCatalogView {
             if actor.description.trim().is_empty() || actor.description.trim() == "-" {
                 "No description".to_string()
             } else {
-                compact_text(&actor.description, 30)
+                compact_text(&actor.description, 44)
             };
         let description_line = Line::from(vec![Span::styled(
             description_text,

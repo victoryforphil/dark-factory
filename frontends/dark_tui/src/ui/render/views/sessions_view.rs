@@ -45,9 +45,9 @@ impl SessionsView {
             rows,
             [
                 Constraint::Length(14),
-                Constraint::Percentage(40),
+                Constraint::Percentage(48),
                 Constraint::Percentage(20),
-                Constraint::Percentage(40),
+                Constraint::Percentage(32),
             ],
         )
         .header(header)

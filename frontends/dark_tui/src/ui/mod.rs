@@ -97,7 +97,17 @@ pub async fn run(cli: Cli) -> Result<()> {
     } else {
         "rest"
     };
-    app.set_status(format!("Connected to {} via {}", cli.base_url, transport));
+    let mut status = format!("Connected to {} via {}", cli.base_url, transport);
+    match app.restore_chat_selection_from_disk() {
+        Ok(true) => {
+            status.push_str(" (restored chat model/agent)");
+        }
+        Ok(false) => {}
+        Err(error) => {
+            status.push_str(&format!(" (chat selection restore failed: {error})"));
+        }
+    }
+    app.set_status(status);
 
     let mut terminal = setup_terminal()?;
 
@@ -118,7 +128,7 @@ async fn run_loop(
     service: &DashboardService,
     app: &mut App,
 ) -> Result<()> {
-    let refresh_interval = Duration::from_secs(app.refresh_seconds().max(2));
+    let refresh_interval = Duration::from_secs(app.refresh_seconds().max(1));
     let mut force_refresh = true;
     let mut next_refresh_at = Instant::now();
     let mut snapshot_task: Option<tokio::task::JoinHandle<Result<DashboardSnapshot>>> = None;
@@ -126,6 +136,8 @@ async fn run_loop(
         tokio::task::JoinHandle<(String, Result<Vec<ActorChatMessageRow>>)>,
     > = None;
     let mut chat_send_task: Option<tokio::task::JoinHandle<(String, Result<()>)>> = None;
+    let mut chat_options_task: Option<tokio::task::JoinHandle<(String, Result<(Vec<String>, Vec<String>)>)>> =
+        None;
     let mut action_tasks: Vec<ActionTask> = Vec::new();
 
     loop {
@@ -198,12 +210,14 @@ async fn run_loop(
 
         if chat_refresh_task.is_none() {
             if let Some(actor_id) = app.take_chat_refresh_request() {
+                let Some(actor) = app.chat_actor().cloned() else {
+                    app.set_status("Chat refresh skipped: actor missing.");
+                    continue;
+                };
                 let service = service.clone();
                 app.set_chat_refresh_in_flight(true);
                 chat_refresh_task = Some(tokio::spawn(async move {
-                    let result =
-                        run_with_api_timeout(service.fetch_actor_messages(&actor_id, Some(80)))
-                            .await;
+                    let result = run_with_api_timeout(service.fetch_actor_messages(&actor, Some(80))).await;
                     (actor_id, result)
                 }));
             }
@@ -221,13 +235,36 @@ async fn run_loop(
                 Ok((actor_id, Ok(()))) => {
                     app.commit_sent_chat_prompt();
                     app.request_chat_refresh();
-                    app.set_status(format!("Message sent to {actor_id}."));
+                    app.set_status(format!("OpenCode response completed for {actor_id}; syncing chat..."));
                 }
                 Ok((_actor_id, Err(error))) => {
                     app.set_status(format!("Chat send failed: {error}"));
                 }
                 Err(error) => {
                     app.set_status(format!("Chat send task failed: {error}"));
+                }
+            }
+        }
+
+        if chat_options_task
+            .as_ref()
+            .is_some_and(|task| task.is_finished())
+        {
+            let Some(task) = chat_options_task.take() else {
+                unreachable!("chat options task should exist when marked finished");
+            };
+
+            match task.await {
+                Ok((actor_id, Ok((models, agents)))) => {
+                    if app.chat_actor().is_some_and(|actor| actor.id == actor_id) {
+                        app.set_chat_options(models, agents);
+                    }
+                }
+                Ok((_actor_id, Err(error))) => {
+                    app.set_status(format!("Chat options failed: {error}"));
+                }
+                Err(error) => {
+                    app.set_status(format!("Chat options task failed: {error}"));
                 }
             }
         }
@@ -320,18 +357,75 @@ async fn run_loop(
 
         let ev = event::read()?;
 
-        // --- Mouse events (viz-mode 2D drag/scroll) ---
+        // --- Mouse events ---
         if let Event::Mouse(mouse) = &ev {
+            let size = terminal.size()?;
+            let root = Rect {
+                x: 0,
+                y: 0,
+                width: size.width,
+                height: size.height,
+            };
+
+            match render::chat_hit_test(root, app, mouse.column, mouse.row) {
+                render::ChatPanelHit::ModelLabel => {
+                    if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
+                        app.open_chat_model_picker();
+                        app.set_status("Model picker opened. Type to filter.");
+                    }
+                    continue;
+                }
+                render::ChatPanelHit::AgentLabel => {
+                    if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
+                        app.open_chat_agent_picker();
+                        app.set_status("Agent picker opened. Type to filter.");
+                    }
+                    continue;
+                }
+                render::ChatPanelHit::PickerItem(index) => {
+                    if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
+                        app.chat_picker_set_selected(index);
+                        if let Some(value) = app.apply_chat_picker_selection() {
+                            app.set_status(format!("Chat option selected: {value}"));
+                        }
+                    }
+                    continue;
+                }
+                render::ChatPanelHit::PickerPopup => {
+                    match mouse.kind {
+                        MouseEventKind::ScrollUp => app.chat_picker_move_up(),
+                        MouseEventKind::ScrollDown => app.chat_picker_move_down(),
+                        MouseEventKind::Down(MouseButton::Left) => {}
+                        _ => {}
+                    }
+                    continue;
+                }
+                render::ChatPanelHit::AutocompleteItem(index) => {
+                    if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
+                        app.chat_autocomplete_set_selected(index);
+                        let _ = app.apply_chat_autocomplete_selection();
+                    }
+                    continue;
+                }
+                render::ChatPanelHit::AutocompletePopup => {
+                    match mouse.kind {
+                        MouseEventKind::ScrollUp => app.chat_autocomplete_move_up(),
+                        MouseEventKind::ScrollDown => app.chat_autocomplete_move_down(),
+                        MouseEventKind::Down(MouseButton::Left) => {}
+                        _ => {}
+                    }
+                    continue;
+                }
+                render::ChatPanelHit::Outside => {
+                    if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
+                        app.close_chat_picker();
+                    }
+                }
+            }
+
             if app.results_view_mode() == ResultsViewMode::Viz {
                 match mouse.kind {
                     MouseEventKind::Down(MouseButton::Left) => {
-                        let size = terminal.size()?;
-                        let root = Rect {
-                            x: 0,
-                            y: 0,
-                            width: size.width,
-                            height: size.height,
-                        };
                         if !render::try_select_viz_node(root, app, mouse.column, mouse.row) {
                             app.start_drag(mouse.column, mouse.row);
                         }
@@ -506,6 +600,15 @@ async fn run_loop(
                 app.toggle_chat_visibility();
                 let status = if app.is_chat_visible() {
                     app.request_chat_refresh();
+                    if chat_options_task.is_none() {
+                        if let Some(actor) = app.chat_actor().cloned() {
+                            let service = service.clone();
+                            chat_options_task = Some(tokio::spawn(async move {
+                                let result = run_with_api_timeout(service.fetch_actor_chat_options(&actor)).await;
+                                (actor.id.clone(), result)
+                            }));
+                        }
+                    }
                     "Chat panel shown."
                 } else {
                     "Chat panel hidden."
@@ -514,16 +617,26 @@ async fn run_loop(
             }
             LoopAction::OpenChatCompose => {
                 if app.open_chat_composer() {
+                    if chat_options_task.is_none() {
+                        if let Some(actor) = app.chat_actor().cloned() {
+                            let service = service.clone();
+                            chat_options_task = Some(tokio::spawn(async move {
+                                let result = run_with_api_timeout(service.fetch_actor_chat_options(&actor)).await;
+                                (actor.id.clone(), result)
+                            }));
+                        }
+                    }
                     app.set_status("Chat compose mode enabled.");
                 } else {
                     app.set_status("Chat compose skipped: select an actor first.");
                 }
             }
             LoopAction::SendChatMessage => {
-                let Some(actor_id) = app.chat_actor_id().map(ToString::to_string) else {
+                let Some(actor) = app.chat_actor().cloned() else {
                     app.set_status("Chat send skipped: no actor selected.");
                     continue;
                 };
+                let actor_id = actor.id.clone();
                 let Some(prompt) = app.current_chat_prompt() else {
                     app.set_status("Chat send skipped: prompt is empty.");
                     continue;
@@ -534,12 +647,19 @@ async fn run_loop(
                     continue;
                 }
 
-                app.set_status(format!("Sending message to {actor_id}..."));
+                app.set_status("Queueing prompt to OpenCode session...");
                 let service = service.clone();
+                let selected_model = app.chat_active_model().map(ToString::to_string);
+                let selected_agent = app.chat_active_agent().map(ToString::to_string);
                 app.set_chat_send_in_flight(true);
                 chat_send_task = Some(tokio::spawn(async move {
-                    let result =
-                        run_with_api_timeout(service.send_actor_prompt(&actor_id, &prompt)).await;
+                    let result = run_with_api_timeout(service.send_actor_prompt(
+                        &actor,
+                        &prompt,
+                        selected_model.as_deref(),
+                        selected_agent.as_deref(),
+                    ))
+                    .await;
                     (actor_id, result)
                 }));
             }
@@ -626,6 +746,10 @@ fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
 
     if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
         return LoopAction::Quit;
+    }
+
+    if app.chat_picker_open().is_some() {
+        return handle_chat_picker_key(app, key);
     }
 
     if app.is_chat_composing() {
@@ -727,6 +851,48 @@ fn handle_chat_compose_key(app: &mut App, key: KeyEvent) -> LoopAction {
                 && !key.modifiers.contains(KeyModifiers::ALT) =>
         {
             app.chat_insert_char(value);
+            LoopAction::None
+        }
+        _ => LoopAction::None,
+    }
+}
+
+fn handle_chat_picker_key(app: &mut App, key: KeyEvent) -> LoopAction {
+    match key.code {
+        KeyCode::Esc => {
+            app.close_chat_picker();
+            app.set_status("Chat picker closed.");
+            LoopAction::None
+        }
+        KeyCode::Enter => {
+            if let Some(value) = app.apply_chat_picker_selection() {
+                app.set_status(format!("Chat option selected: {value}"));
+            } else {
+                app.set_status("No matching option selected.");
+            }
+            LoopAction::None
+        }
+        KeyCode::Up | KeyCode::Char('k') => {
+            app.chat_picker_move_up();
+            LoopAction::None
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            app.chat_picker_move_down();
+            LoopAction::None
+        }
+        KeyCode::Backspace => {
+            app.chat_picker_backspace();
+            LoopAction::None
+        }
+        KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+            app.clear_chat_picker_query();
+            LoopAction::None
+        }
+        KeyCode::Char(value)
+            if !key.modifiers.contains(KeyModifiers::CONTROL)
+                && !key.modifiers.contains(KeyModifiers::ALT) =>
+        {
+            app.chat_picker_insert_char(value);
             LoopAction::None
         }
         _ => LoopAction::None,

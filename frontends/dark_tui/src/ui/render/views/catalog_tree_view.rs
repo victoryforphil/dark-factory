@@ -1,8 +1,8 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem, ListState};
+use ratatui::Frame;
 
 use crate::app::{App, VizSelection};
 use crate::models::compact_id;
@@ -165,7 +165,7 @@ impl CatalogTreeView {
                         if actor.description.trim().is_empty() || actor.description.trim() == "-" {
                             String::new()
                         } else {
-                            format!(" -- {}", compact_text(&actor.description, 42))
+                            format!(" -- {}", compact_text(&actor.description, 56))
                         };
 
                     vec![

@@ -45,8 +45,10 @@ pub struct ActorRow {
     pub title: String,
     pub description: String,
     pub provider: String,
+    pub provider_session_id: Option<String>,
     pub status: String,
     pub directory: String,
+    pub connection_info: serde_json::Value,
     pub created_at: String,
     pub updated_at: String,
 }

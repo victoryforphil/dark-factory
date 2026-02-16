@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use anyhow::{Context, Result};
-use dark_rust::types::ActorMessage;
+use anyhow::{Context, Result, anyhow};
+use dark_chat::providers::{ChatProvider, OpenCodeProvider};
 use dark_rust::{
     DarkCoreClient, DarkCoreWsClient, DarkRustError, LocatorId, LocatorKind, RawApiResponse,
 };
@@ -276,80 +276,94 @@ impl DashboardService {
             .get("data")
             .and_then(|value| value.get("id"))
             .and_then(Value::as_str)
-            .context("Dark TUI // Actors // Missing actor id in response")?;
+            .context("Dark TUI // Actors // Missing actor id in response")?
+            .to_string();
 
         if let Some(prompt) = initial_prompt
             .map(str::trim)
             .filter(|value| !value.is_empty())
         {
-            let response = self
-                .request(
-                    "POST",
-                    &format!("/actors/{actor_id}/messages"),
-                    None,
-                    Some(json!({
-                        "prompt": prompt,
-                        "noReply": false,
-                    })),
-                )
-                .await?;
-            let _ = ensure_success(response)?;
+            let actor = self.fetch_actor_row(&actor_id).await?;
+            self.send_actor_prompt(&actor, prompt, None, None)
+                .await
+                .with_context(|| {
+                    format!(
+                        "Dark TUI // Chat // Failed to send initial prompt for actor {actor_id}"
+                    )
+                })?;
         }
 
-        Ok(actor_id.to_string())
+        Ok(actor_id)
     }
 
     pub async fn fetch_actor_messages(
         &self,
-        actor_id: &str,
+        actor: &ActorRow,
         n_last_messages: Option<u32>,
     ) -> Result<Vec<ActorChatMessageRow>> {
-        let mut query = Vec::new();
-        if let Some(n_last_messages) = n_last_messages {
-            query.push(("nLastMessages".to_string(), n_last_messages.to_string()));
-        }
+        let context = required_actor_opencode_context(actor, "fetch messages")?;
+        let provider = OpenCodeProvider::new(context.base_url);
+        let messages = provider
+            .list_messages(&context.directory, &context.session_id, n_last_messages)
+            .await
+            .context("Dark TUI // Chat // Failed to fetch OpenCode session messages")?;
 
-        let response = self
-            .request(
-                "GET",
-                &format!("/actors/{actor_id}/messages"),
-                query_slice_or_none(&query),
-                None,
-            )
-            .await?;
-        let body = ensure_success(response)?;
-
-        let records: Vec<ActorMessage> = serde_json::from_value(
-            body.get("data")
-                .cloned()
-                .unwrap_or(Value::Array(Vec::new())),
-        )
-        .context("Dark TUI // Actors // Unable to decode actor message list")?;
-
-        Ok(records.into_iter().map(to_actor_chat_message_row).collect())
+        Ok(messages
+            .into_iter()
+            .map(|message| ActorChatMessageRow {
+                role: message.role,
+                text: message.text,
+                created_at: message.created_at.unwrap_or_else(|| "-".to_string()),
+            })
+            .collect())
     }
 
-    pub async fn send_actor_prompt(&self, actor_id: &str, prompt: &str) -> Result<()> {
+    pub async fn send_actor_prompt(
+        &self,
+        actor: &ActorRow,
+        prompt: &str,
+        model: Option<&str>,
+        agent: Option<&str>,
+    ) -> Result<()> {
         let trimmed = prompt.trim();
         if trimmed.is_empty() {
-            return Err(anyhow::anyhow!(
+            return Err(anyhow!(
                 "Dark TUI // Actors // Prompt cannot be empty"
             ));
         }
 
-        let response = self
-            .request(
-                "POST",
-                &format!("/actors/{actor_id}/messages"),
-                None,
-                Some(json!({
-                    "prompt": trimmed,
-                    "noReply": false,
-                })),
+        let context = required_actor_opencode_context(actor, "send prompt")?;
+        let provider = OpenCodeProvider::new(context.base_url);
+        provider
+            .send_prompt_with_options(
+                &context.directory,
+                &context.session_id,
+                trimmed,
+                model,
+                agent,
+                false,
             )
-            .await?;
-        let _ = ensure_success(response)?;
+            .await
+            .context("Dark TUI // Chat // Failed to send OpenCode session prompt")?;
+
         Ok(())
+    }
+
+    pub async fn fetch_actor_chat_options(&self, actor: &ActorRow) -> Result<(Vec<String>, Vec<String>)> {
+        if let Some(context) = actor_opencode_context(actor) {
+            let provider = OpenCodeProvider::new(context.base_url);
+            let models = provider
+                .list_models(&context.directory)
+                .await
+                .unwrap_or_default();
+            let agents = provider
+                .list_agents(&context.directory)
+                .await
+                .unwrap_or_default();
+            return Ok((models, agents));
+        }
+
+        Ok((Vec::new(), Vec::new()))
     }
 
     pub async fn build_attach_command(&self, session_id: &str) -> Result<String> {
@@ -500,6 +514,15 @@ impl DashboardService {
 
         Ok(actors)
     }
+
+    async fn fetch_actor_row(&self, actor_id: &str) -> Result<ActorRow> {
+        self.fetch_all_actors()
+            .await?
+            .into_iter()
+            .find(|actor| actor.id == actor_id)
+            .map(to_actor_row)
+            .with_context(|| format!("Dark TUI // Actors // Actor not found: {actor_id}"))
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -637,29 +660,68 @@ fn to_actor_row(record: ActorRecord) -> ActorRow {
             .filter(|value| !value.is_empty())
             .unwrap_or_else(|| "-".to_string()),
         provider: record.provider,
+        provider_session_id: record.provider_session_id,
         status: record.status,
         directory: record
             .working_locator
             .strip_prefix("@local://")
             .map(ToString::to_string)
             .unwrap_or(record.working_locator),
+        connection_info: record.connection_info.unwrap_or(Value::Null),
         created_at: compact_timestamp(&record.created_at),
         updated_at: compact_timestamp(&record.updated_at),
     }
 }
 
-fn to_actor_chat_message_row(record: ActorMessage) -> ActorChatMessageRow {
-    let text = record
-        .text
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
-        .unwrap_or_else(|| "(no text content)".to_string());
+#[derive(Debug, Clone)]
+struct ActorOpenCodeContext {
+    base_url: String,
+    directory: String,
+    session_id: String,
+}
 
-    ActorChatMessageRow {
-        role: record.role,
-        text,
-        created_at: compact_timestamp(&record.created_at),
+fn actor_opencode_context(actor: &ActorRow) -> Option<ActorOpenCodeContext> {
+    let provider = actor.provider.trim().to_ascii_lowercase();
+    if !provider.starts_with("opencode") {
+        return None;
     }
+
+    let session_id = actor.provider_session_id.clone()?;
+    let connection = actor.connection_info.as_object();
+
+    let base_url = connection
+        .and_then(|value| {
+            value
+                .get("serverUrl")
+                .or_else(|| value.get("server_url"))
+                .or_else(|| value.get("baseUrl"))
+                .and_then(Value::as_str)
+        })
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)?;
+
+    let directory = connection
+        .and_then(|value| value.get("directory").and_then(Value::as_str))
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| actor.directory.clone());
+
+    Some(ActorOpenCodeContext {
+        base_url,
+        directory,
+        session_id,
+    })
+}
+
+fn required_actor_opencode_context(actor: &ActorRow, action: &str) -> Result<ActorOpenCodeContext> {
+    actor_opencode_context(actor).ok_or_else(|| {
+        anyhow!(
+            "Dark TUI // Chat // Cannot {action} for actor {}: direct OpenCode session connection is required",
+            actor.id
+        )
+    })
 }
 
 fn query_slice_or_none(query: &[(String, String)]) -> Option<&[(String, String)]> {
@@ -788,8 +850,12 @@ struct ActorRecord {
     id: String,
     variant_id: String,
     provider: String,
+    #[serde(default)]
+    provider_session_id: Option<String>,
     status: String,
     working_locator: String,
+    #[serde(default)]
+    connection_info: Option<Value>,
     #[serde(default)]
     title: Option<String>,
     #[serde(default)]

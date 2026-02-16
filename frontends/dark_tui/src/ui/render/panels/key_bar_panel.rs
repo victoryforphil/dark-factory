@@ -1,7 +1,7 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
 use crate::app::{App, ResultsViewMode};
 

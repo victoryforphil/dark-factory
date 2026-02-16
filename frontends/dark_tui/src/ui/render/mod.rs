@@ -1,20 +1,22 @@
 mod panels;
 mod views;
 
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::layout::{Constraint, Direction, Layout};
+use ratatui::Frame;
 
 use crate::app::{App, ResultsViewMode};
 
 use panels::{ChatPanel, DetailsPanel, FooterPanel, HeaderPanel, KeyBarPanel, SpawnFormPanel};
 use views::{CatalogTreeView, UnifiedCatalogView};
 
+pub(crate) use panels::ChatPanelHit;
+
 /// Main layout constants — tuned for readability on 80-col and wider terminals.
 const SIDEBAR_PERCENT: u16 = 24;
 const MAIN_PERCENT: u16 = 76;
-const MAIN_WITH_CHAT_PERCENT: u16 = 52;
-const CHAT_PERCENT: u16 = 26;
+const MAIN_WITH_CHAT_PERCENT: u16 = 46;
+const CHAT_PERCENT: u16 = 32;
 const SIDEBAR_WITH_CHAT_PERCENT: u16 = 22;
 
 pub fn render_dashboard(frame: &mut Frame, app: &App) {
@@ -129,6 +131,32 @@ pub(crate) fn try_select_viz_node(root: Rect, app: &mut App, col: u16, row: u16)
     };
 
     UnifiedCatalogView::click_select(main_area, app, col, row)
+}
+
+pub(crate) fn chat_area(root: Rect, app: &App) -> Option<Rect> {
+    if !app.is_chat_visible() {
+        return None;
+    }
+
+    let body = body_area(root);
+    let columns = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(MAIN_WITH_CHAT_PERCENT),
+            Constraint::Percentage(CHAT_PERCENT),
+            Constraint::Percentage(SIDEBAR_WITH_CHAT_PERCENT),
+        ])
+        .split(body);
+
+    Some(columns[1])
+}
+
+pub(crate) fn chat_hit_test(root: Rect, app: &App, col: u16, row: u16) -> ChatPanelHit {
+    let Some(chat) = chat_area(root, app) else {
+        return ChatPanelHit::Outside;
+    };
+
+    ChatPanel::hit_test(chat, app, col, row)
 }
 
 fn body_area(root: Rect) -> Rect {
