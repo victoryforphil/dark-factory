@@ -1,0 +1,22 @@
+$schema: "https://moonrepo.dev/schemas/project.json"
+
+language: "typescript"
+stack: "backend"
+type: "tool"
+
+tasks:
+  install:
+    command: "noop"
+
+  build:
+    command: "bunx prisma generate --schema schema.prisma"
+    inputs:
+      - "schema.prisma"
+    outputs:
+      - "/generated/prisma/**/*"
+      - "/generated/prismabox/**/*"
+
+  check:
+    command: "bunx prisma validate --schema schema.prisma"
+    inputs:
+      - "schema.prisma"

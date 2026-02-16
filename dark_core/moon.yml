@@ -1,0 +1,43 @@
+$schema: "https://moonrepo.dev/schemas/project.json"
+
+language: "typescript"
+stack: "backend"
+type: "application"
+dependsOn:
+  - "generated"
+
+tasks:
+  install:
+    command: "bun install"
+    options:
+      cache: false
+
+  build:
+    command: "bun build src/index.ts --outdir dist --target bun"
+    deps:
+      - "generated:build"
+    inputs:
+      - "src/**/*"
+      - "package.json"
+      - "tsconfig.json"
+      - "/prisma/schema.prisma"
+    outputs:
+      - "dist/**/*"
+
+  dev:
+    command: "bun run dev"
+    deps:
+      - "generated:build"
+    options:
+      cache: false
+      persistent: true
+
+  check:
+    command: "bun run format:check"
+    deps:
+      - "generated:build"
+
+  test:
+    command: "bun test"
+    deps:
+      - "generated:build"

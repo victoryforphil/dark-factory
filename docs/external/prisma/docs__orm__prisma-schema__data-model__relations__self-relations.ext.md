@@ -1,0 +1,180 @@
+----
+## External Docs Snapshot // prisma
+
+- Captured: 2026-02-16T05:57:22.190Z
+- Source root: https://www.prisma.io/docs/orm/prisma-schema
+- Source page: /docs/orm/prisma-schema/data-model/relations/self-relations
+- Keywords: prisma, prisma schema, orm, docs, docs, orm, prisma schema, data model, relations, self relations
+- Summary: A relation field can also reference its own model, in this case the relation is called a _self-relation_. Self-relations can be of any cardinality, 1-1, 1-n and m-n.
+----
+
+Source: https://www.prisma.io/docs/orm/prisma-schema/data-model/relations/self-relations
+
+A relation field can also reference its own model, in this case the relation is called a _self-relation_. Self-relations can be of any cardinality, 1-1, 1-n and m-n.
+
+Questions answered in this page
+
+Note that self-relations always require the `@relation` attribute.
+
+One-to-one self-relations[​](http://www.prisma.io/docs/orm/prisma-schema/data-model/relations/self-relations#one-to-one-self-relations "Direct link to One-to-one self-relations")
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+The following example models a one-to-one self-relation:
+
+*   Relational databases
+*   MongoDB
+
+`model User {  id          Int     @id @default(autoincrement())  name        String?  successorId Int?    @unique  successor   User?   @relation("BlogOwnerHistory", fields: [successorId], references: [id])  predecessor User?   @relation("BlogOwnerHistory")}`
+
+This relation expresses the following:
+
+*   "a user can have one or zero predecessors" (for example, Sarah is Mary's predecessor as blog owner)
+*   "a user can have one or zero successors" (for example, Mary is Sarah's successor as blog owner)
+
+> **Note**: One-to-one self-relations cannot be made required on both sides. One or both sides must be optional, otherwise it becomes impossible to create the first `User` record.
+
+To create a one-to-one self-relation:
+
+*   Both sides of the relation must define a `@relation` attribute that share the same name - in this case, **BlogOwnerHistory**.
+*   One relation field must be a [fully annotated](https://www.prisma.io/docs/orm/prisma-schema/data-model/relations#relation-fields). In this example, the `successor` field defines both the `field` and `references` arguments.
+*   One relation field must be backed by a foreign key. The `successor` field is backed by the `successorId` foreign key, which references a value in the `id` field. The `successorId` scalar relation field also requires a `@unique` attribute to guarantee a one-to-one relation.
+
+> **Note**: One-to-one self relations require two sides even if both sides are equal in the relationship. For example, to model a 'best friends' relation, you would need to create two relation fields: `bestfriend1` and a `bestfriend2`.
+
+Either side of the relation can be backed by a foreign key. In the previous example, repeated below, `successor` is backed by `successorId`:
+
+*   Relational databases
+*   MongoDB
+
+`model User {  id          Int     @id @default(autoincrement())  name        String?  successorId Int?    @unique  successor   User?   @relation("BlogOwnerHistory", fields: [successorId], references: [id])  predecessor User?   @relation("BlogOwnerHistory")}`
+
+Alternatively, you could rewrite this so that `predecessor` is backed by `predecessorId`:
+
+*   Relational databases
+*   MongoDB
+
+`model User {  id            Int     @id @default(autoincrement())  name          String?  successor     User?   @relation("BlogOwnerHistory")  predecessorId Int?    @unique  predecessor   User?   @relation("BlogOwnerHistory", fields: [predecessorId], references: [id])}`
+
+No matter which side is backed by a foreign key, Prisma Client surfaces both the `predecessor` and `successor` fields:
+
+`const x = await prisma.user.create({  data: {    name: "Bob McBob",      successor: {      connect: {        id: 2,      },    },      predecessor: {      connect: {        id: 4,      },    },  },});`
+
+### One-to-one self relations in the database[​](http://www.prisma.io/docs/orm/prisma-schema/data-model/relations/self-relations#one-to-one-self-relations-in-the-database "Direct link to One-to-one self relations in the database")
+
+### Relational databases[​](http://www.prisma.io/docs/orm/prisma-schema/data-model/relations/self-relations#relational-databases "Direct link to Relational databases")
+
+In **relational databases only**, a one-to-one self-relation is represented by the following SQL:
+
+`CREATE TABLE "User" (    id SERIAL PRIMARY KEY,    "name" TEXT,    "successorId" INTEGER);ALTER TABLE "User" ADD CONSTRAINT fk_successor_user FOREIGN KEY ("successorId") REFERENCES "User" (id);ALTER TABLE "User" ADD CONSTRAINT successor_unique UNIQUE ("successorId");`
+
+### MongoDB[​](http://www.prisma.io/docs/orm/prisma-schema/data-model/relations/self-relations#mongodb "Direct link to MongoDB")
+
+For MongoDB, Prisma ORM currently uses a [normalized data model design](https://www.mongodb.com/docs/manual/data-modeling/), which means that documents reference each other by ID in a similar way to relational databases.
+
+The following MongoDB documents represent a one-to-one self-relation between two users:
+
+`{ "_id": { "$oid": "60d97df70080618f000e3ca9" }, "name": "Elsa the Elder" }`
+
+`{  "_id": { "$oid": "60d97df70080618f000e3caa" },  "name": "Elsa",  "successorId": { "$oid": "60d97df70080618f000e3ca9" }}`
+
+One-to-many self relations[​](http://www.prisma.io/docs/orm/prisma-schema/data-model/relations/self-relations#one-to-many-self-relations "Direct link to One-to-many self relations")
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+A one-to-many self-relation looks as follows:
+
+*   Relational databases
+*   MongoDB
+
+`model User {  id        Int     @id @default(autoincrement())  name      String?  teacherId Int?  teacher   User?   @relation("TeacherStudents", fields: [teacherId], references: [id])  students  User[]  @relation("TeacherStudents")}`
+
+This relation expresses the following:
+
+*   "a user has zero or one _teachers_ "
+*   "a user can have zero or more _students_"
+
+Note that you can also require each user to have a teacher by making the `teacher` field [required](https://www.prisma.io/docs/orm/prisma-schema/data-model/models#optional-and-mandatory-fields).
+
+### One-to-many self-relations in the database[​](http://www.prisma.io/docs/orm/prisma-schema/data-model/relations/self-relations#one-to-many-self-relations-in-the-database "Direct link to One-to-many self-relations in the database")
+
+### Relational databases[​](http://www.prisma.io/docs/orm/prisma-schema/data-model/relations/self-relations#relational-databases-1 "Direct link to Relational databases")
+
+In relational databases, a one-to-many self-relation is represented by the following SQL:
+
+`CREATE TABLE "User" (    id SERIAL PRIMARY KEY,    "name" TEXT,    "teacherId" INTEGER);ALTER TABLE "User" ADD CONSTRAINT fk_teacherid_user FOREIGN KEY ("teacherId") REFERENCES "User" (id);`
+
+Notice the lack of `UNIQUE` constraint on `teacherId` - multiple students can have the same teacher.
+
+### MongoDB[​](http://www.prisma.io/docs/orm/prisma-schema/data-model/relations/self-relations#mongodb-1 "Direct link to MongoDB")
+
+For MongoDB, Prisma ORM currently uses a [normalized data model design](https://www.mongodb.com/docs/manual/data-modeling/), which means that documents reference each other by ID in a similar way to relational databases.
+
+The following MongoDB documents represent a one-to-many self-relation between three users - one teacher and two students with the same `teacherId`:
+
+`{  "_id": { "$oid": "60d9b9e600fe3d470079d6f9" },  "name": "Ms. Roberts"}`
+
+`{  "_id": { "$oid": "60d9b9e600fe3d470079d6fa" },  "name": "Student 8",  "teacherId": { "$oid": "60d9b9e600fe3d470079d6f9" }}`
+
+`{  "_id": { "$oid": "60d9b9e600fe3d470079d6fb" },  "name": "Student 9",  "teacherId": { "$oid": "60d9b9e600fe3d470079d6f9" }}`
+
+Many-to-many self relations[​](http://www.prisma.io/docs/orm/prisma-schema/data-model/relations/self-relations#many-to-many-self-relations "Direct link to Many-to-many self relations")
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+A many-to-many self-relation looks as follows:
+
+*   Relational databases
+*   MongoDB
+
+`model User {  id         Int     @id @default(autoincrement())  name       String?  followedBy User[]  @relation("UserFollows")  following  User[]  @relation("UserFollows")}`
+
+This relation expresses the following:
+
+*   "a user can be followed by zero or more users"
+*   "a user can follow zero or more users"
+
+Note that for relational databases, this many-to-many-relation is [implicit](https://www.prisma.io/docs/orm/prisma-schema/data-model/relations/many-to-many-relations#implicit-many-to-many-relations). This means Prisma ORM maintains a [relation table](https://www.prisma.io/docs/orm/prisma-schema/data-model/relations/many-to-many-relations#relation-tables) for it in the underlying database.
+
+If you need the relation to hold other fields, you can create an [explicit](https://www.prisma.io/docs/orm/prisma-schema/data-model/relations/many-to-many-relations#explicit-many-to-many-relations) many-to-many self relation as well. The explicit version of the self relation shown previously is as follows:
+
+`model User {  id         Int       @id @default(autoincrement())  name       String?  followedBy Follows[] @relation("followedBy")  following  Follows[] @relation("following")}model Follows {  followedBy   User @relation("followedBy", fields: [followedById], references: [id])  followedById Int  following    User @relation("following", fields: [followingId], references: [id])  followingId  Int  @@id([followingId, followedById])}`
+
+### Many-to-many self-relations in the database[​](http://www.prisma.io/docs/orm/prisma-schema/data-model/relations/self-relations#many-to-many-self-relations-in-the-database "Direct link to Many-to-many self-relations in the database")
+
+### Relational databases[​](http://www.prisma.io/docs/orm/prisma-schema/data-model/relations/self-relations#relational-databases-2 "Direct link to Relational databases")
+
+In relational databases, a many-to-many self-relation (implicit) is represented by the following SQL:
+
+`CREATE TABLE "User" (    id integer DEFAULT nextval('"User_id_seq"'::regclass) PRIMARY KEY,    name text);CREATE TABLE "_UserFollows" (    "A" integer NOT NULL REFERENCES "User"(id) ON DELETE CASCADE ON UPDATE CASCADE,    "B" integer NOT NULL REFERENCES "User"(id) ON DELETE CASCADE ON UPDATE CASCADE);`
+
+### MongoDB[​](http://www.prisma.io/docs/orm/prisma-schema/data-model/relations/self-relations#mongodb-2 "Direct link to MongoDB")
+
+For MongoDB, Prisma ORM currently uses a [normalized data model design](https://www.mongodb.com/docs/manual/data-modeling/), which means that documents reference each other by ID in a similar way to relational databases.
+
+The following MongoDB documents represent a many-to-many self-relation between five users - two users that follow `"Bob"`, and two users that follow him:
+
+`{  "_id": { "$oid": "60d9866f00a3e930009a6cdd" },  "name": "Bob",  "followedByIDs": [    { "$oid": "60d9866f00a3e930009a6cde" },    { "$oid": "60d9867000a3e930009a6cdf" }  ],  "followingIDs": [    { "$oid": "60d9867000a3e930009a6ce0" },    { "$oid": "60d9867000a3e930009a6ce1" }  ]}`
+
+`{  "_id": { "$oid": "60d9866f00a3e930009a6cde" },  "name": "Follower1",  "followingIDs": [{ "$oid": "60d9866f00a3e930009a6cdd" }]}`
+
+`{  "_id": { "$oid": "60d9867000a3e930009a6cdf" },  "name": "Follower2",  "followingIDs": [{ "$oid": "60d9866f00a3e930009a6cdd" }]}`
+
+`{  "_id": { "$oid": "60d9867000a3e930009a6ce0" },  "name": "CoolPerson1",  "followedByIDs": [{ "$oid": "60d9866f00a3e930009a6cdd" }]}`
+
+`{  "_id": { "$oid": "60d9867000a3e930009a6ce1" },  "name": "CoolPerson2",  "followedByIDs": [{ "$oid": "60d9866f00a3e930009a6cdd" }]}`
+
+Defining multiple self-relations on the same model[​](http://www.prisma.io/docs/orm/prisma-schema/data-model/relations/self-relations#defining-multiple-self-relations-on-the-same-model "Direct link to Defining multiple self-relations on the same model")
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+You can also define multiple self-relations on the same model at once. Taking all relations from the previous sections as example, you could define a `User` model as follows:
+
+*   Relational databases
+*   MongoDB
+
+`model User {  id         Int     @id @default(autoincrement())  name       String?  teacherId  Int?  teacher    User?   @relation("TeacherStudents", fields: [teacherId], references: [id])  students   User[]  @relation("TeacherStudents")  followedBy User[]  @relation("UserFollows")  following  User[]  @relation("UserFollows")}`
+
+----
+## Notes / Comments / Lessons
+
+- Collection method: sitemap discovery, scoped to prisma-schema docs subtree.
+- Conversion path: r.jina.ai markdown proxy.
+- This file is one page-level external snapshot in markdown `.ext.md` format.
+----

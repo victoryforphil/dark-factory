@@ -16,7 +16,7 @@ Process:
    - source key (for folder and script naming)
    - docs root URL
    - page discovery strategy (`sitemap.xml` preferred)
-2. Create or update `scripts/scrape_<source>_docs.sh.ts`.
+2. Create or update `scripts/scrapes/scrape_<source>_docs.sh.ts`.
 3. Reuse helpers under `scripts/helpers/` and keep script conventions (`#!/usr/bin/env bun`, `*.sh.ts`).
 4. Implement resilient scraping:
    - primary: `r.jina.ai` markdown proxy
@@ -28,7 +28,7 @@ Process:
 Example usage:
 
 - Request example: "Scrape https://opencode.ai/docs into docs/external/opencode as split `.ext.md` pages with index."
-- Expected script: `scripts/scrape_opencode_docs.sh.ts`
+- Expected script: `scripts/scrapes/scrape_opencode_docs.sh.ts`
 - Expected outputs:
   - `docs/external/opencode/index.ext.md`
   - `docs/external/opencode/docs.ext.md`
@@ -41,4 +41,4 @@ Return:
 - Output directory generated
 - Discovery strategy used
 - Capture totals and notable failures
-- Exact rerun command (`bun scripts/scrape_<source>_docs.sh.ts`)
+- Exact rerun command (`bun scripts/scrapes/scrape_<source>_docs.sh.ts`)

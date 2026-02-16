@@ -32,8 +32,10 @@
 
 - Project shell-style scripts are Bun TypeScript files with shebangs: `#!/usr/bin/env bun`.
 - Shared helpers live in `scripts/helpers/`.
-- External docs snapshots can be generated with source scripts (for example `scripts/scrape_opencode_docs.sh.ts`, `scripts/scrape_elysia_docs.sh.ts`, and `scripts/scrape_prisma_docs.sh.ts`).
-- Use `bun scripts/scrape_docs.sh.ts <source>` to dispatch a source scraper (`opencode`, `elysia`, `prisma`).
+- Toolchain/bootstrap install runs through `bun scripts/install.sh.ts` (`proto install` -> root-driven Bun install -> `moon :install`).
+- Dev/test entrypoints are `bun scripts/dev.sh.ts` and `bun scripts/test.sh.ts`.
+- External docs snapshots can be generated with source scripts (for example `scripts/scrapes/scrape_opencode_docs.sh.ts`, `scripts/scrapes/scrape_elysia_docs.sh.ts`, and `scripts/scrapes/scrape_prisma_docs.sh.ts`).
+- Use `bun scripts/scrapes/scrape_docs.sh.ts <source>` to dispatch a source scraper (`opencode`, `elysia`, `prisma`, `moonrepo`).
 
 
 # Components
@@ -44,8 +46,10 @@
   - TBD: will either be stateless w/ DB and route all commands just to the agents
     - OR: a background API service (REST even) we can query from frontends
 - Currently looks like it will be Bun + Elysia JS
-- Moon support is configured for Core via `.moon/workspace.yml`, `.moon/toolchains.yml`, and `core/moon.yml`.
-- Core moon targets run protobuf codegen from `schemas/` before `start`/`dev`.
+- Moon support is configured via `.moon/workspace.yml`, `.moon/toolchains.yml`, `dark_core/moon.yml`, `prisma/moon.yml`, and `generated/moon.yml`.
+- `prisma:build` uses `bunx prisma generate --schema schema.prisma` and writes generated outputs to `generated/prisma/` and `generated/prismabox/`.
+- `dark_core` tasks (`install`, `build`, `dev`, `check`, `test`) depend on generated artifacts through `generated:build` -> `prisma:build`.
+- Verified command: `moon run dark_core:test` (passes and runs Prisma generation dependency chain).
 
 ## Frontends
 

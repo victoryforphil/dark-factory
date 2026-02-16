@@ -1,14 +1,15 @@
 #!/usr/bin/env bun
 
 import { resolve } from "node:path";
-import { findRepoRoot } from "./helpers/run_root.sh.ts";
+import { findRepoRoot } from "../helpers/run_root.sh.ts";
 
-type SourceKey = "opencode" | "elysia" | "prisma";
+type SourceKey = "opencode" | "elysia" | "prisma" | "moonrepo";
 
 const SCRAPER_SCRIPT_BY_SOURCE: Record<SourceKey, string> = {
-  opencode: "scripts/scrape_opencode_docs.sh.ts",
-  elysia: "scripts/scrape_elysia_docs.sh.ts",
-  prisma: "scripts/scrape_prisma_docs.sh.ts",
+  opencode: "scripts/scrapes/scrape_opencode_docs.sh.ts",
+  elysia: "scripts/scrapes/scrape_elysia_docs.sh.ts",
+  prisma: "scripts/scrapes/scrape_prisma_docs.sh.ts",
+  moonrepo: "scripts/scrapes/scrape_moonrepo_docs.sh.ts",
 };
 
 const sourceArg = Bun.argv[2] as SourceKey | undefined;

@@ -1,0 +1,9 @@
+$schema: "https://moonrepo.dev/schemas/workspace.json"
+
+projects:
+  dark_core: "dark_core"
+  prisma: "prisma"
+  generated: "generated"
+
+vcs:
+  manager: "git"

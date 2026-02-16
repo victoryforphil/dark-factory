@@ -142,6 +142,11 @@ vite.config.ts.timestamp-*
 .bun/
 bun.lockb
 
+# Moonrepo
+.moon/cache/
+.moon/docker/
+.moon/tasks/
+
 # Rust
 target/
 **/target/

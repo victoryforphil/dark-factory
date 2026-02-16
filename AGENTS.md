@@ -5,21 +5,22 @@ It reflects only what is currently true in this repository.
 
 ## 1) Current Repository Context
 
-- The repo is early-stage and mostly docs/config right now.
-- Tracked project files currently include:
-  - `README.md`
-  - `TODO.md`
-  - `AGENTS.md`
-  - `opencode.jsonc`
-  - `.opencode/agents/gitter.md`
-  - `.opencode/skills/gitter-commit/SKILL.md`
-- No application code tree is committed yet (`src/`, `apps/`, `crates/`, etc.).
+- The repository contains active Bun/TypeScript code under `dark_core/` and Prisma schema/config under `prisma/`.
+- Moon workspace/project config is present at:
+  - `.moon/workspace.yml`
+  - `.moon/toolchains.yml`
+  - `dark_core/moon.yml`
+  - `prisma/moon.yml`
+  - `generated/moon.yml`
+- Prisma generated outputs are written under `generated/` (for example `generated/prisma/` and `generated/prismabox/`).
 
 ## 2) Build/Lint/Test Status (Current Truth)
 
-- There are no validated build, lint, typecheck, or test commands yet.
-- Do not invent or assume project commands in commits or PR notes.
-- If new tooling is added, document only commands that are verified in this repo.
+- Verified via PTY in this repo:
+  - `bun scripts/install.sh.ts`
+  - `moon run dark_core:test`
+- `moon run dark_core:test` runs the dependency chain `generated:build` -> `prisma:build` and then executes `dark_core:test`.
+- Keep documenting only commands that are actually executed and validated.
 
 ## 3) Cursor and Copilot Rules
 
@@ -69,9 +70,11 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - Project scripts use shebanged Bun TypeScript files (`#!/usr/bin/env bun`) under `scripts/`.
 - Script naming uses `*.sh.ts` to indicate executable shell-style Bun scripts.
 - Shared script helpers live under `scripts/helpers/`.
-- `scripts/install.sh.ts` runs a reusable ordered list of install steps.
-- External docs snapshots can be generated with source scripts like `scripts/scrape_opencode_docs.sh.ts`, `scripts/scrape_elysia_docs.sh.ts`, and `scripts/scrape_prisma_docs.sh.ts`.
-- `scripts/scrape_docs.sh.ts` dispatches supported source scrapers (`opencode`, `elysia`, `prisma`).
+- `scripts/install.sh.ts` runs ordered bootstrap/install steps: `proto install`, Bun install (root-invoked), then `moon :install`.
+- `scripts/dev.sh.ts` runs `moon run dark_core:dev`.
+- `scripts/test.sh.ts` runs `moon run dark_core:test`.
+- External docs snapshots can be generated with source scripts like `scripts/scrapes/scrape_opencode_docs.sh.ts`, `scripts/scrapes/scrape_elysia_docs.sh.ts`, and `scripts/scrapes/scrape_prisma_docs.sh.ts`.
+- `scripts/scrapes/scrape_docs.sh.ts` dispatches supported source scrapers (`opencode`, `elysia`, `prisma`, `moonrepo`).
 
 ## 9) Keep This File Updated
 

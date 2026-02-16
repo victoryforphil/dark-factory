@@ -19,7 +19,7 @@ Use this skill when the request includes one or more of:
 
 ## Output contract
 
-- Script: `scripts/scrape_<source>_docs.sh.ts`
+- Script: `scripts/scrapes/scrape_<source>_docs.sh.ts`
 - Output directory: `docs/external/<source>/`
 - Output files:
   - Per-page files: `<stable-page-stem>.ext.md`
@@ -63,8 +63,8 @@ Use this skill when the request includes one or more of:
 
 ## Implementation workflow
 
-1. Inspect existing scraper scripts for reuse patterns (`scripts/scrape_*.sh.ts`).
-2. Create or update `scripts/scrape_<source>_docs.sh.ts`.
+1. Inspect existing scraper scripts for reuse patterns (`scripts/scrapes/scrape_*.sh.ts`).
+2. Create or update `scripts/scrapes/scrape_<source>_docs.sh.ts`.
 3. Run the script once to generate docs output.
 4. Report totals (`pages`, `ok`, `failed`) and notable blocked pages.
 5. If a new script entrypoint was introduced, update `README.md` and `AGENTS.md`.
@@ -81,4 +81,4 @@ Use this skill when the request includes one or more of:
 - Output directory generated/refreshed
 - Discovery strategy used
 - Capture totals and notable failures
-- Exact rerun command (`bun scripts/scrape_<source>_docs.sh.ts`)
+- Exact rerun command (`bun scripts/scrapes/scrape_<source>_docs.sh.ts`)
