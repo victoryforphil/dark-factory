@@ -7,6 +7,13 @@ import { runCommandSteps } from "./helpers/run_steps.sh.ts";
 const repoRoot = findRepoRoot(import.meta.dir);
 
 await runCommandSteps([
+  // bash <(curl -fsSL https://moonrepo.dev/install/proto.sh) 1.2.3 --yes
+  {
+    name: "Install proto",
+    command: "bash",
+    args: ["-c", "curl -fsSL https://moonrepo.dev/install/proto.sh | bash"],
+    cwd: repoRoot,
+  },
   {
     name: "Install proto toolchain",
     command: "proto",
@@ -25,4 +32,12 @@ await runCommandSteps([
     args: [":install"],
     cwd: repoRoot,
   },
+  // Install OpenCode
+  // curl -fsSL https://opencode.ai/install | bash
+  {
+    name: "Install OpenCode",
+    command: "bash",
+    args: ["-c", "curl -fsSL https://opencode.ai/install | bash"],
+    cwd: repoRoot,
+  }
 ]);
