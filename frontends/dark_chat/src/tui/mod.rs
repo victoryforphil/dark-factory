@@ -235,10 +235,10 @@ async fn run_loop(terminal: &mut TuiTerminal, backend: &ChatBackend, app: &mut A
             let size = terminal.size()?;
             let layout = MainView::layout(
                 ratatui::layout::Rect {
-                x: 0,
-                y: 0,
-                width: size.width,
-                height: size.height,
+                    x: 0,
+                    y: 0,
+                    width: size.width,
+                    height: size.height,
                 },
                 app,
             );
@@ -260,7 +260,8 @@ async fn run_loop(terminal: &mut TuiTerminal, backend: &ChatBackend, app: &mut A
                             app.set_status_message("Resizing panels...");
                         }
                     }
-                    MouseEventKind::Up(MouseButton::Left) | MouseEventKind::Up(MouseButton::Right) => {
+                    MouseEventKind::Up(MouseButton::Left)
+                    | MouseEventKind::Up(MouseButton::Right) => {
                         app.stop_resize();
                         app.set_status_message("Panel resize complete.");
                     }
@@ -697,10 +698,7 @@ fn split_area_for_layout(
 ) -> ratatui::layout::Rect {
     match target {
         ResizeTarget::Wide(_) => {
-            let right_edge = layout
-                .runtime
-                .x
-                .saturating_add(layout.runtime.width);
+            let right_edge = layout.runtime.x.saturating_add(layout.runtime.width);
             ratatui::layout::Rect {
                 x: layout.sessions.x,
                 y: layout.sessions.y,

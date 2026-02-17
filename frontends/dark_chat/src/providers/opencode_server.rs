@@ -156,7 +156,12 @@ impl ChatProvider for OpenCodeProvider {
         });
 
         let created = self
-            .request_json_with_fallback(Method::POST, &["/session", "/session/"], &query, Some(body))
+            .request_json_with_fallback(
+                Method::POST,
+                &["/session", "/session/"],
+                &query,
+                Some(body),
+            )
             .await?;
         let data = unwrap_data(created);
         let record: SessionWire = serde_json::from_value(data)
@@ -202,8 +207,8 @@ impl ChatProvider for OpenCodeProvider {
             .await?;
 
         let data = unwrap_data(payload);
-        let records: Vec<MessageWire> =
-            serde_json::from_value(data).context("OpenCode // Session // failed to decode messages")?;
+        let records: Vec<MessageWire> = serde_json::from_value(data)
+            .context("OpenCode // Session // failed to decode messages")?;
 
         let mut mapped = records
             .into_iter()

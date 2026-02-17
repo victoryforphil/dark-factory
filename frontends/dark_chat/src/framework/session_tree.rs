@@ -166,7 +166,7 @@ pub fn tree_prefix(depth: usize, is_last: bool, ancestors_are_last: &[bool]) -> 
 
 #[cfg(test)]
 mod tests {
-    use super::{tree_prefix, walk_session_tree, SessionLike};
+    use super::{SessionLike, tree_prefix, walk_session_tree};
 
     #[derive(Clone)]
     struct Session {

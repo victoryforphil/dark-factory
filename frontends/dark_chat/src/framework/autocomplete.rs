@@ -335,10 +335,12 @@ mod tests {
 
         assert!(autocomplete.is_open());
         assert_eq!(autocomplete.mode(), Some(AutocompleteMode::Slash));
-        assert!(autocomplete
-            .items()
-            .iter()
-            .any(|item| item.label == "/help"));
+        assert!(
+            autocomplete
+                .items()
+                .iter()
+                .any(|item| item.label == "/help")
+        );
     }
 
     #[test]

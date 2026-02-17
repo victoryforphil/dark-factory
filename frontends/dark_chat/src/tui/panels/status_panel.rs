@@ -1,10 +1,10 @@
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
-use ratatui::Frame;
 
-use dark_tui_components::{compact_tail, compact_text, PaneBlockComponent, StatusPill};
+use dark_tui_components::{PaneBlockComponent, StatusPill, compact_tail, compact_text};
 
 use crate::tui::app::{App, FocusPane};
 

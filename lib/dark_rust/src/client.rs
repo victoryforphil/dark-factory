@@ -5,7 +5,7 @@ use crate::error::DarkRustError;
 use crate::types::{
     ActorAttachQuery, ActorCommandInput, ActorCreateInput, ActorDeleteQuery, ActorListQuery,
     ActorMessageInput, ActorMessagesQuery, ActorUpdateInput, ProductCreateInput,
-    ProductIncludeQuery, ProductListQuery, ProductVariantCloneInput, ProductUpdateInput,
+    ProductIncludeQuery, ProductListQuery, ProductUpdateInput, ProductVariantCloneInput,
     VariantCreateInput, VariantDeleteQuery, VariantImportActorsInput, VariantListQuery,
     VariantUpdateInput,
 };

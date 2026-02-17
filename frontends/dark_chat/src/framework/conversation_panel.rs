@@ -1,14 +1,14 @@
 use dark_tui_components::{
-    compact_text, ChatComposerComponent, ChatComposerProps, ChatConversationHeaderComponent,
+    ChatComposerComponent, ChatComposerProps, ChatConversationHeaderComponent,
     ChatConversationHeaderProps, ChatMessageEntry, ChatMessageListComponent, ChatMessageListProps,
     ChatMessageRole, ChatPalette, ChatStatusTone, ComponentThemeLike, PaneBlockComponent,
-    StatusPill,
+    StatusPill, compact_text,
 };
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Color;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
-use ratatui::Frame;
 use std::borrow::Cow;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

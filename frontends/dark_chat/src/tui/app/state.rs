@@ -3,7 +3,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use dark_tui_components::{next_index, previous_index, ComponentTheme, HorizontalSplit};
+use dark_tui_components::{ComponentTheme, HorizontalSplit, next_index, previous_index};
 use serde::{Deserialize, Serialize};
 use tui_textarea::{CursorMove, TextArea};
 

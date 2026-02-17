@@ -1,11 +1,11 @@
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Wrap};
-use ratatui::Frame;
 
 use crate::theme::ComponentThemeLike;
-use crate::{rect_contains, with_cursor_tail, ListViewport, StatusPill};
+use crate::{ListViewport, StatusPill, rect_contains, with_cursor_tail};
 
 /// Display item for popup selection lists.
 #[derive(Debug, Clone)]

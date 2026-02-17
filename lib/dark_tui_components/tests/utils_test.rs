@@ -1,7 +1,7 @@
 use dark_tui_components::{
-    compact_id, compact_id_len, compact_label, compact_locator, compact_session_id, compact_tail,
-    compact_text, compact_text_normalized, compact_timestamp, inner_rect, next_index,
-    previous_index, rect_contains, with_cursor_tail, HorizontalSplit,
+    HorizontalSplit, compact_id, compact_id_len, compact_label, compact_locator,
+    compact_session_id, compact_tail, compact_text, compact_text_normalized, compact_timestamp,
+    inner_rect, next_index, previous_index, rect_contains, with_cursor_tail,
 };
 use ratatui::layout::Rect;
 

@@ -7,9 +7,8 @@ use dark_rust::types::{
     ActorAttachQuery, ActorCommandInput, ActorCreateInput, ActorDeleteQuery, ActorListQuery,
     ActorMessageInput, ActorMessagesQuery, ActorUpdateInput, ProductCreateInput,
     ProductIncludeQuery, ProductListQuery, ProductUpdateInput, ProductVariantCloneInput,
-    VariantCreateInput, VariantDeleteQuery,
-    VariantImportActorsInput, VariantListQuery, VariantProductConnectInput,
-    VariantProductRelationInput, VariantUpdateInput,
+    VariantCreateInput, VariantDeleteQuery, VariantImportActorsInput, VariantListQuery,
+    VariantProductConnectInput, VariantProductRelationInput, VariantUpdateInput,
 };
 use dark_rust::{DarkCoreClient, DarkRustError, LocatorId, LocatorKind, RawApiResponse};
 use serde_json::{Value, json};

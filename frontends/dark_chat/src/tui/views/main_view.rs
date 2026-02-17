@@ -1,5 +1,5 @@
-use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::Frame;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
 use crate::tui::app::{App, ResizeTarget};
 use crate::tui::panels::{

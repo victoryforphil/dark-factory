@@ -2,10 +2,10 @@ use dark_tui_components::{
     ComponentTheme, FooterBar, FooterBarProps, PopupAnchor, PopupHit, PopupItem, PopupOverlay,
     PopupOverlayProps,
 };
+use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
 use ratatui::text::Span;
-use ratatui::Terminal;
 
 #[test]
 fn popup_overlay_area_is_clamped_to_parent() {

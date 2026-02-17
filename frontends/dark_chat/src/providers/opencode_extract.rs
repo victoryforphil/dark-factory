@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use serde_json::Value;
 
 pub(crate) fn extract_session_id(payload: &Value) -> Option<String> {
