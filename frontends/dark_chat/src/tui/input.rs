@@ -17,12 +17,21 @@ pub enum LoopAction {
     ScrollRuntimeUp,
     ScrollRuntimeDown,
     ToggleHelp,
+    ToggleMessageDetails,
+    OpenMessageDetailPopup,
+    CloseMessageDetailPopup,
+    ScrollMessageDetailUp,
+    ScrollMessageDetailDown,
     OpenModelSelector,
 }
 
 pub fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
     if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
         return LoopAction::Quit;
+    }
+
+    if app.message_detail_popup_open() {
+        return handle_message_detail_popup_key(key);
     }
 
     if app.is_model_selector_open() {
@@ -71,6 +80,18 @@ pub fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
             LoopAction::None
         }
         KeyCode::Char('h') => LoopAction::ToggleHelp,
+        KeyCode::Char('z') => LoopAction::ToggleMessageDetails,
+        KeyCode::Char('v') => LoopAction::OpenMessageDetailPopup,
+        KeyCode::Enter if app.is_focus(FocusPane::Chat) => LoopAction::OpenMessageDetailPopup,
+        _ => LoopAction::None,
+    }
+}
+
+fn handle_message_detail_popup_key(key: KeyEvent) -> LoopAction {
+    match key.code {
+        KeyCode::Esc | KeyCode::Enter | KeyCode::Char('v') => LoopAction::CloseMessageDetailPopup,
+        KeyCode::Up | KeyCode::Char('k') => LoopAction::ScrollMessageDetailUp,
+        KeyCode::Down | KeyCode::Char('j') => LoopAction::ScrollMessageDetailDown,
         _ => LoopAction::None,
     }
 }

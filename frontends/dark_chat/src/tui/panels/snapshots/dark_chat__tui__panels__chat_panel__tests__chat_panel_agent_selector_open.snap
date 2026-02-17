@@ -21,8 +21,8 @@ expression: output
 ││                               │FILTER █                 │                      ││
 │└───────────────────────────────│enter select  esc close  │──────────────────────┘│
 │┌Composer───────────────────────└─────────────────────────┘──────────────────────┐│
-││model:anthropic/claude-sonnet-4  agent:developer_senior                         ││
-││ready  Press c to edit and Enter to send                                        ││
+││model:anthropic/claude-sonnet-4    agent:developer_senior                       ││
+││ready    c  compose   enter  send                                               ││
 ││                                                                                ││
 │└────────────────────────────────────────────────────────────────────────────────┘│
 └──────────────────────────────────────────────────────────────────────────────────┘

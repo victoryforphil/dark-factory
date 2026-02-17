@@ -1,14 +1,14 @@
-use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Style};
+use ratatui::style::Color;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::widgets::{Clear, Paragraph, Wrap};
+use ratatui::Frame;
 
 use dark_tui_components::{
-    ChatConversationHeaderComponent, ChatConversationHeaderProps, ChatMessageListComponent,
-    ChatMessageListProps, ChatPalette, ChatStatusTone, ComponentThemeLike, PaneBlockComponent,
-    PopupAnchor, PopupHit, PopupItem, PopupOverlay, PopupOverlayProps, StatusPill, compact_text,
-    rect_contains,
+    compact_text, rect_contains, ChatConversationHeaderComponent, ChatConversationHeaderProps,
+    ChatMessageListComponent, ChatMessageListProps, ChatPalette, ChatStatusTone,
+    ComponentThemeLike, KeyBind, PaneBlockComponent, PopupAnchor, PopupHit, PopupItem,
+    PopupOverlay, PopupOverlayProps, StatusPill,
 };
 
 use crate::tui::app::{App, FocusPane};
@@ -46,6 +46,12 @@ pub enum ComposerMetaHit {
     Agent,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MessageDetailPopupHit {
+    Outside,
+    Popup,
+}
+
 const COMPOSER_PANEL_HEIGHT: u16 = 5;
 
 impl ChatPanel {
@@ -80,8 +86,8 @@ impl ChatPanel {
                 status_tone: status_tone(&session.status),
             },
             None => ChatConversationHeaderProps {
-                title: "No session".to_string(),
-                subtitle: Some("Press n to create a session".to_string()),
+                title: "No active session".to_string(),
+                subtitle: Some("press n to create one".to_string()),
                 status_label: Some("idle".to_string()),
                 status_tone: ChatStatusTone::Muted,
             },
@@ -93,6 +99,28 @@ impl ChatPanel {
         render_model_selector_popup(frame, inner, rows[2], app, theme);
         render_agent_selector_popup(frame, inner, rows[2], app, theme);
         render_composer_autocomplete_popup(frame, inner, rows[2], app, theme);
+        render_message_detail_popup(frame, inner, app, theme);
+    }
+
+    pub fn message_detail_popup_hit(
+        conversation_area: Rect,
+        app: &App,
+        col: u16,
+        row: u16,
+    ) -> MessageDetailPopupHit {
+        if !app.message_detail_popup_open() {
+            return MessageDetailPopupHit::Outside;
+        }
+
+        let Some(popup) = message_detail_popup_area(conversation_area) else {
+            return MessageDetailPopupHit::Outside;
+        };
+
+        if rect_contains(popup, col, row) {
+            MessageDetailPopupHit::Popup
+        } else {
+            MessageDetailPopupHit::Outside
+        }
     }
 
     pub fn model_selector_hit(
@@ -227,7 +255,7 @@ fn render_messages(frame: &mut Frame, area: Rect, app: &App, theme: &impl Compon
         messages: &component_messages,
         empty_label: "No messages yet. Send a prompt to begin.",
         max_messages: 80,
-        max_body_lines_per_message: 30,
+        max_body_lines_per_message: app.chat_message_body_line_limit(),
         scroll_offset_lines: app.chat_scroll_lines(),
         palette: ChatPalette {
             text_primary: Color::White,
@@ -260,6 +288,7 @@ fn render_composer_panel(
         .constraints([Constraint::Length(1), Constraint::Min(1)])
         .split(inner);
 
+    // ── Meta pills: model + agent with tinted backgrounds ──────────
     frame.render_widget(
         Paragraph::new(Line::from(vec![
             StatusPill::accent(
@@ -269,46 +298,48 @@ fn render_composer_panel(
                 ),
                 theme,
             )
-            .span_compact(),
+            .span(),
             Span::raw("  "),
-            StatusPill::muted(
+            StatusPill::info(
                 format!(
                     "agent:{}",
                     compact_text(app.active_agent().unwrap_or("-"), 20)
                 ),
                 theme,
             )
-            .span_compact(),
+            .span(),
         ]))
         .wrap(Wrap { trim: true }),
         rows[0],
     );
 
+    // ── Active composing: render the editor widget ─────────────────
     if app.is_composing() && app.active_session().is_some() {
         let composer = app.composer().clone();
         frame.render_widget(&composer, rows[1]);
         return;
     }
 
+    // ── Idle state: styled key hints (tinyverse pattern) ───────────
     let ready = app.active_session().is_some();
-    let mode = if ready {
-        StatusPill::accent("ready", theme)
-    } else {
-        StatusPill::muted("session required", theme)
-    };
+    let mut spans: Vec<Span<'static>> = Vec::new();
 
-    let hint = if ready {
-        "Press c to edit and Enter to send"
+    if ready {
+        spans.push(StatusPill::ok("ready", theme).span());
+        spans.push(Span::raw("  "));
+        spans.extend(KeyBind::new("c", "compose").spans(theme));
+        spans.push(Span::raw("  "));
+        spans.extend(KeyBind::new("enter", "send").spans(theme));
     } else {
-        "Create or select a session to enable input"
-    };
+        spans.push(StatusPill::warn("no session", theme).span());
+        spans.push(Span::raw("  "));
+        spans.extend(KeyBind::new("n", "new session").spans(theme));
+    }
 
-    let lines = vec![Line::from(vec![
-        mode.span_compact(),
-        Span::raw("  "),
-        Span::styled(hint, Style::default().fg(theme.text_secondary())),
-    ])];
-    frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: true }), rows[1]);
+    frame.render_widget(
+        Paragraph::new(vec![Line::from(spans)]).wrap(Wrap { trim: true }),
+        rows[1],
+    );
 }
 
 fn render_model_selector_popup(
@@ -338,6 +369,72 @@ fn render_composer_autocomplete_popup(
     };
 
     PopupOverlay::render(frame, conversation_area, &props, theme);
+}
+
+fn render_message_detail_popup(
+    frame: &mut Frame,
+    conversation_area: Rect,
+    app: &App,
+    theme: &impl ComponentThemeLike,
+) {
+    if !app.message_detail_popup_open() {
+        return;
+    }
+
+    let Some(content) = app.message_detail_popup_text() else {
+        return;
+    };
+
+    let Some(area) = message_detail_popup_area(conversation_area) else {
+        return;
+    };
+
+    frame.render_widget(Clear, area);
+    let block = PaneBlockComponent::build("Detail Viewer", true, theme);
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    if inner.width < 4 || inner.height < 2 {
+        return;
+    }
+
+    let mut lines = vec![Line::from(vec![
+        StatusPill::muted("esc", theme).span_compact(),
+        Span::raw(" close  "),
+        StatusPill::muted("j/k", theme).span_compact(),
+        Span::raw(" scroll"),
+    ])];
+    lines.push(Line::raw(""));
+    lines.extend(content.lines().map(|line| Line::from(line.to_string())));
+
+    frame.render_widget(
+        Paragraph::new(lines)
+            .wrap(Wrap { trim: false })
+            .scroll((app.message_detail_popup_scroll_lines(), 0)),
+        inner,
+    );
+}
+
+fn message_detail_popup_area(conversation_area: Rect) -> Option<Rect> {
+    if conversation_area.width < 24 || conversation_area.height < 10 {
+        return None;
+    }
+
+    let width = (conversation_area.width.saturating_mul(9) / 10).max(24);
+    let height = (conversation_area.height.saturating_mul(8) / 10).max(10);
+    let width = width.min(conversation_area.width.saturating_sub(2));
+    let height = height.min(conversation_area.height.saturating_sub(2));
+
+    Some(Rect {
+        x: conversation_area
+            .x
+            .saturating_add((conversation_area.width.saturating_sub(width)) / 2),
+        y: conversation_area
+            .y
+            .saturating_add((conversation_area.height.saturating_sub(height)) / 2),
+        width,
+        height,
+    })
 }
 
 fn model_provider_tag(model: &str) -> String {
@@ -608,9 +705,9 @@ fn status_tone(status: &str) -> ChatStatusTone {
 #[cfg(test)]
 mod tests {
     use insta::assert_snapshot;
-    use ratatui::Terminal;
     use ratatui::backend::TestBackend;
     use ratatui::layout::Rect;
+    use ratatui::Terminal;
 
     use super::ChatPanel;
     use crate::core::{ChatSession, ChatSnapshot, ProviderHealth, ProviderRuntimeStatus};

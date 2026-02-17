@@ -35,7 +35,8 @@ use crate::tui::commands::{
 };
 use crate::tui::input::{LoopAction, handle_key};
 use crate::tui::panels::{
-    AgentSelectorHit, ComposerAutocompleteHit, ComposerMetaHit, ModelSelectorHit, SessionsPanel,
+    AgentSelectorHit, ComposerAutocompleteHit, ComposerMetaHit, MessageDetailPopupHit,
+    ModelSelectorHit, SessionsPanel,
 };
 use crate::tui::realtime::event_requires_refresh;
 use crate::tui::views::{MainView, PanelHit};
@@ -316,6 +317,37 @@ async fn run_loop(terminal: &mut TuiTerminal, backend: &ChatBackend, app: &mut A
                 continue;
             }
 
+            if app.message_detail_popup_open() {
+                let hit = crate::tui::panels::ChatPanel::message_detail_popup_hit(
+                    layout.chat,
+                    app,
+                    mouse.column,
+                    mouse.row,
+                );
+
+                match mouse.kind {
+                    MouseEventKind::Down(MouseButton::Left) => {
+                        if hit == MessageDetailPopupHit::Outside {
+                            app.close_message_detail_popup();
+                            app.set_status_message("Detail viewer closed.");
+                        }
+                    }
+                    MouseEventKind::ScrollUp => {
+                        if hit == MessageDetailPopupHit::Popup {
+                            app.scroll_message_detail_up(2);
+                        }
+                    }
+                    MouseEventKind::ScrollDown => {
+                        if hit == MessageDetailPopupHit::Popup {
+                            app.scroll_message_detail_down(2);
+                        }
+                    }
+                    _ => {}
+                }
+
+                continue;
+            }
+
             if app.is_agent_selector_open() {
                 let hit = crate::tui::panels::ChatPanel::agent_selector_hit(
                     layout.chat,
@@ -460,6 +492,16 @@ async fn run_loop(terminal: &mut TuiTerminal, backend: &ChatBackend, app: &mut A
                             app.set_status_message("Focused runtime panel.");
                         }
                         PanelHit::Other => {}
+                    }
+                }
+                MouseEventKind::Down(MouseButton::Right) => {
+                    if MainView::hit_test(&layout, mouse.column, mouse.row) == PanelHit::Chat {
+                        if app.open_message_detail_popup() {
+                            app.set_focus(FocusPane::Chat);
+                            app.set_status_message("Opened detail viewer for latest rich message.");
+                        } else {
+                            app.set_status_message("Detail viewer unavailable: no messages.");
+                        }
                     }
                 }
                 MouseEventKind::ScrollUp => {
@@ -639,6 +681,15 @@ async fn run_loop(terminal: &mut TuiTerminal, backend: &ChatBackend, app: &mut A
                                 }
                             }
                         }
+                        LocalSlashCommand::ToggleDetailExpansion => {
+                            app.toggle_message_detail_expanded();
+                            let mode = if app.message_detail_expanded() {
+                                "expanded"
+                            } else {
+                                "compact"
+                            };
+                            app.set_status_message(format!("Message detail mode: {mode}."));
+                        }
                     }
                     continue;
                 }
@@ -685,6 +736,32 @@ async fn run_loop(terminal: &mut TuiTerminal, backend: &ChatBackend, app: &mut A
             }
             LoopAction::ToggleHelp => {
                 app.toggle_help();
+            }
+            LoopAction::ToggleMessageDetails => {
+                app.toggle_message_detail_expanded();
+                let mode = if app.message_detail_expanded() {
+                    "expanded"
+                } else {
+                    "compact"
+                };
+                app.set_status_message(format!("Message detail mode: {mode}."));
+            }
+            LoopAction::OpenMessageDetailPopup => {
+                if app.open_message_detail_popup() {
+                    app.set_status_message("Opened detail viewer for latest rich message.");
+                } else {
+                    app.set_status_message("Detail viewer unavailable: no messages.");
+                }
+            }
+            LoopAction::CloseMessageDetailPopup => {
+                app.close_message_detail_popup();
+                app.set_status_message("Detail viewer closed.");
+            }
+            LoopAction::ScrollMessageDetailUp => {
+                app.scroll_message_detail_up(2);
+            }
+            LoopAction::ScrollMessageDetailDown => {
+                app.scroll_message_detail_down(2);
             }
         }
     }

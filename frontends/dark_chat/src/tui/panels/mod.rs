@@ -6,7 +6,8 @@ mod sessions_panel;
 mod status_panel;
 
 pub use chat_panel::{
-    AgentSelectorHit, ChatPanel, ComposerAutocompleteHit, ComposerMetaHit, ModelSelectorHit,
+    AgentSelectorHit, ChatPanel, ComposerAutocompleteHit, ComposerMetaHit, MessageDetailPopupHit,
+    ModelSelectorHit,
 };
 pub use footer_panel::FooterPanel;
 pub use header_panel::HeaderPanel;

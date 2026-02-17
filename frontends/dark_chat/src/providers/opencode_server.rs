@@ -439,10 +439,10 @@ mod tests {
 
         assert!(rendered.contains("### Thinking"));
         assert!(rendered.contains("Inspecting repository state"));
-        assert!(rendered.contains("### Tool Call (bash)"));
-        assert!(rendered.contains("Input:"));
+        assert!(rendered.contains("### Tool // bash"));
+        assert!(rendered.contains("#### IN"));
         assert!(rendered.contains("\"command\": \"git status\""));
-        assert!(rendered.contains("Output:"));
+        assert!(rendered.contains("#### OUT"));
         assert!(rendered.contains("All set."));
     }
 
@@ -454,6 +454,6 @@ mod tests {
         })];
 
         let rendered = extract_message_text(&parts);
-        assert_eq!(rendered, "### Tool Call (bash)");
+        assert_eq!(rendered, "### Tool // bash");
     }
 }

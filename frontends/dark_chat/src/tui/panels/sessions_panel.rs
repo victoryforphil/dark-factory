@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
-use ratatui::Frame;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
-use dark_tui_components::{PaneBlockComponent, StatusPill, compact_text};
+use dark_tui_components::{compact_text, PaneBlockComponent, StatusPill};
 
 use crate::core::ChatSession;
-use crate::framework::{SessionLike, SessionTreeRow, tree_prefix, walk_session_tree};
+use crate::framework::{tree_prefix, walk_session_tree, SessionLike, SessionTreeRow};
 use crate::tui::app::{App, FocusPane};
 
 pub struct SessionsPanel;

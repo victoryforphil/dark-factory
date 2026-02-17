@@ -1,9 +1,10 @@
+use crate::compact_text;
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::components::chat_types::{ChatMessageEntry, ChatMessageRole};
 use crate::theme::ComponentThemeLike;
@@ -71,8 +72,14 @@ impl<'a> ChatMessageListProps<'a> {
     }
 }
 
-/// Renderer for chat message history with markdown-aware formatting.
+/// Renderer for chat message history with tinyverse-style card layout.
 pub struct ChatMessageListComponent;
+
+#[derive(Clone)]
+struct RenderedRow {
+    line: Line<'static>,
+    message_index: Option<usize>,
+}
 
 impl ChatMessageListComponent {
     /// Renders the message list into the target area.
@@ -82,7 +89,8 @@ impl ChatMessageListComponent {
         theme: &impl ComponentThemeLike,
         props: ChatMessageListProps<'_>,
     ) {
-        let lines = Self::lines(theme, &props);
+        let rows = Self::rendered_rows(theme, &props, area.width as usize);
+        let lines = rows.into_iter().map(|row| row.line).collect::<Vec<_>>();
         let viewport_height = area.height as usize;
         let total_lines = lines.len();
         let base_scroll = total_lines.saturating_sub(viewport_height);
@@ -96,83 +104,684 @@ impl ChatMessageListComponent {
         );
     }
 
-    fn lines(
+    pub(crate) fn lines(
         theme: &impl ComponentThemeLike,
         props: &ChatMessageListProps<'_>,
+        area_width: usize,
     ) -> Vec<Line<'static>> {
-        if props.messages.is_empty() {
-            return vec![Line::styled(
-                props.empty_label.to_string(),
-                Style::default().fg(theme.text_muted()),
-            )];
+        Self::rendered_rows(theme, props, area_width)
+            .into_iter()
+            .map(|row| row.line)
+            .collect()
+    }
+
+    pub fn message_index_at_row(
+        theme: &impl ComponentThemeLike,
+        props: &ChatMessageListProps<'_>,
+        area_width: usize,
+        area_height: usize,
+        row_in_viewport: usize,
+    ) -> Option<usize> {
+        if area_height == 0 {
+            return None;
         }
+
+        let rows = Self::rendered_rows(theme, props, area_width);
+        if rows.is_empty() {
+            return None;
+        }
+
+        let total_lines = rows.len();
+        let base_scroll = total_lines.saturating_sub(area_height);
+        let scroll_top = base_scroll.saturating_sub(props.scroll_offset_lines as usize);
+        let visible_row = row_in_viewport.min(area_height.saturating_sub(1));
+        let absolute_row = scroll_top.saturating_add(visible_row);
+
+        rows.get(absolute_row).and_then(|row| row.message_index)
+    }
+
+    fn rendered_rows(
+        theme: &impl ComponentThemeLike,
+        props: &ChatMessageListProps<'_>,
+        area_width: usize,
+    ) -> Vec<RenderedRow> {
+        if props.messages.is_empty() {
+            return vec![RenderedRow {
+                line: Line::styled(
+                    props.empty_label.to_string(),
+                    Style::default().fg(theme.text_muted()),
+                ),
+                message_index: None,
+            }];
+        }
+
+        let w = area_width;
+        let content_width = w.saturating_sub(4).max(1);
 
         let mut lines = Vec::new();
         let cap = props.max_messages.max(1);
         let start = props.messages.len().saturating_sub(cap);
 
-        for message in &props.messages[start..] {
-            let role_style = Style::default()
-                .fg(props.palette.role_color(&message.role))
-                .add_modifier(Modifier::BOLD);
-
-            let mut header_spans = vec![Span::styled(
-                format!("[{}]", role_label(&message.role)),
-                role_style,
-            )];
-
-            if let Some(created_at) = message.created_at.as_ref() {
-                header_spans.push(Span::raw(" "));
-                header_spans.push(Span::styled(
-                    created_at.clone(),
-                    Style::default().fg(theme.text_muted()),
-                ));
+        for (msg_index, message) in props.messages[start..].iter().enumerate() {
+            let absolute_message_index = start + msg_index;
+            if msg_index > 0 {
+                lines.push(RenderedRow {
+                    line: Line::raw(""),
+                    message_index: Some(absolute_message_index),
+                });
             }
 
-            lines.push(Line::from(header_spans));
+            let role_fg = props.palette.role_color(&message.role);
+            let header_bg = role_header_bg(role_fg);
+            let border_fg = separator_tint(role_fg, theme.pane_unfocused_border());
 
-            let mut rendered_body = render_message_body(
+            // ── Top border ─────────────────────────────────────────
+            lines.push(RenderedRow {
+                line: boxed_rule('╭', '╮', w, border_fg),
+                message_index: Some(absolute_message_index),
+            });
+
+            // ── Role-tinted header band ────────────────────────────
+            let pill_text = format!(" {} ", role_label(&message.role));
+            let ts_text = message
+                .created_at
+                .as_ref()
+                .filter(|ts| !ts.trim().is_empty())
+                .map(|ts| format!("  {ts}"))
+                .unwrap_or_default();
+            let used = pill_text.chars().count() + ts_text.chars().count();
+            let pad = " ".repeat(content_width.saturating_sub(used));
+
+            lines.push(RenderedRow {
+                line: Line::from(vec![
+                    Span::styled("│ ", Style::default().fg(border_fg)),
+                    Span::styled(
+                        pill_text,
+                        Style::default()
+                            .fg(role_fg)
+                            .bg(header_bg)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(
+                        ts_text,
+                        Style::default().fg(theme.text_muted()).bg(header_bg),
+                    ),
+                    Span::styled(pad, Style::default().bg(header_bg)),
+                    Span::styled(" │", Style::default().fg(border_fg)),
+                ]),
+                message_index: Some(absolute_message_index),
+            });
+
+            // ── Body content ───────────────────────────────────────
+            let body_lines = render_card_body(
                 message,
-                props.palette,
+                &props.palette,
                 props.max_body_lines_per_message,
                 theme,
+                content_width,
             );
 
-            if rendered_body.is_empty() {
-                rendered_body.push(Line::from(Span::styled(
-                    "  (no content)",
-                    Style::default().fg(theme.text_muted()),
-                )));
+            if body_lines.is_empty() {
+                lines.push(RenderedRow {
+                    line: boxed_content_line(
+                        Line::from(Span::styled(
+                            "(no content)",
+                            Style::default().fg(theme.text_muted()),
+                        )),
+                        content_width,
+                        border_fg,
+                    ),
+                    message_index: Some(absolute_message_index),
+                });
+            } else {
+                for body_line in body_lines {
+                    lines.push(RenderedRow {
+                        line: boxed_content_line(body_line, content_width, border_fg),
+                        message_index: Some(absolute_message_index),
+                    });
+                }
             }
 
-            lines.extend(rendered_body);
-            lines.push(Line::from(Span::styled(
-                "------------------------",
-                Style::default().fg(theme.text_muted()),
-            )));
-            lines.push(Line::raw(""));
+            // ── Bottom border ──────────────────────────────────────
+            lines.push(RenderedRow {
+                line: boxed_rule('╰', '╯', w, border_fg),
+                message_index: Some(absolute_message_index),
+            });
         }
 
         lines
     }
 }
 
-fn render_message_body(
-    message: &ChatMessageEntry,
-    palette: ChatPalette,
-    max_body_lines: usize,
-    theme: &impl ComponentThemeLike,
-) -> Vec<Line<'static>> {
-    let normalized = message.text.replace("\r\n", "\n");
-    let mut lines = render_markdown_lines(&normalized, palette, theme);
+// ─────────────────────────────────────────────────────────────────────
+// Card chrome helpers (ported from tinyverse)
+// ─────────────────────────────────────────────────────────────────────
 
-    if lines.is_empty() {
-        return lines;
+fn boxed_rule(left: char, right: char, width: usize, color: Color) -> Line<'static> {
+    let style = Style::default().fg(color);
+    let middle = "─".repeat(width.saturating_sub(2));
+    Line::from(vec![
+        Span::styled(left.to_string(), style),
+        Span::styled(middle, style),
+        Span::styled(right.to_string(), style),
+    ])
+}
+
+fn boxed_content_line(
+    mut content: Line<'static>,
+    content_width: usize,
+    border_fg: Color,
+) -> Line<'static> {
+    let border_style = Style::default().fg(border_fg);
+    let mut spans = Vec::with_capacity(content.spans.len() + 3);
+    spans.push(Span::styled("│ ", border_style));
+
+    let mut used = 0usize;
+    for span in content.spans.drain(..) {
+        used += span.content.chars().count();
+        spans.push(span);
     }
 
-    trim_blank_edges(&mut lines);
-    compact_blank_lines(lines, max_body_lines.max(1), theme)
+    if used < content_width {
+        spans.push(Span::raw(" ".repeat(content_width - used)));
+    }
+
+    spans.push(Span::styled(" │", border_style));
+    Line::from(spans)
 }
+
+/// Blends role accent towards the base separator color for a subtle tint.
+fn separator_tint(role_fg: Color, base: Color) -> Color {
+    let (rb, gb, bb) = match base {
+        Color::Rgb(r, g, b) => (r, g, b),
+        _ => (50, 50, 58),
+    };
+    let (rr, gr, br) = match role_fg {
+        Color::Rgb(r, g, b) => (r, g, b),
+        _ => (rb, gb, bb),
+    };
+    // 80% base, 20% role accent
+    Color::Rgb(
+        ((rb as u16 * 8 + rr as u16 * 2) / 10) as u8,
+        ((gb as u16 * 8 + gr as u16 * 2) / 10) as u8,
+        ((bb as u16 * 8 + br as u16 * 2) / 10) as u8,
+    )
+}
+
+/// Produces a subtle dark background tint from the role accent color.
+fn role_header_bg(role_fg: Color) -> Color {
+    match role_fg {
+        Color::Rgb(r, g, b) => {
+            // Dark tint: 20% of accent over a very dark base
+            Color::Rgb(
+                ((r as u16 * 2 + 20 * 8) / 10).min(255) as u8,
+                ((g as u16 * 2 + 20 * 8) / 10).min(255) as u8,
+                ((b as u16 * 2 + 25 * 8) / 10).min(255) as u8,
+            )
+        }
+        _ => Color::Rgb(30, 30, 38),
+    }
+}
+
+fn role_label(role: &ChatMessageRole) -> &str {
+    match role {
+        ChatMessageRole::User => "YOU",
+        ChatMessageRole::Assistant => "AGENT",
+        ChatMessageRole::System => "SYSTEM",
+        ChatMessageRole::Tool => "TOOL",
+        ChatMessageRole::Other(value) => value.as_str(),
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Card body: section-aware rendering
+// ─────────────────────────────────────────────────────────────────────
+
+/// Renders message body with section-aware compact previews.
+///
+/// Detects `### Tool // name`, `### Shell Command`, `### Shell Output`,
+/// `### Thinking` section markers (produced by `extract_message_text`)
+/// and renders them as collapsible-style compact headers with one-line
+/// previews, matching tinyverse chat style.
+fn render_card_body(
+    message: &ChatMessageEntry,
+    palette: &ChatPalette,
+    max_body_lines: usize,
+    theme: &impl ComponentThemeLike,
+    content_width: usize,
+) -> Vec<Line<'static>> {
+    let normalized = message.text.replace("\r\n", "\n");
+    let sections = parse_message_sections(&normalized);
+
+    if sections.is_empty() {
+        return Vec::new();
+    }
+
+    let max_preview = content_width.saturating_sub(8).max(1);
+    let mut lines = Vec::new();
+
+    for section in &sections {
+        match section {
+            MessageSection::Text(text) => {
+                let rendered = render_markdown_lines(text, *palette, theme);
+                let mut trimmed = rendered;
+                trim_blank_edges(&mut trimmed);
+                let compacted = compact_blank_lines(trimmed, max_body_lines.max(1), theme);
+                for line in compacted {
+                    if !is_hidden_noise_line(&line_text(&line)) {
+                        lines.push(line);
+                    }
+                }
+            }
+            MessageSection::ToolCall {
+                name,
+                summary,
+                body,
+            } => {
+                let is_todo = name.eq_ignore_ascii_case("todowrite");
+                let header_label = if is_todo {
+                    "todo".to_string()
+                } else {
+                    format!("tool {name}")
+                };
+                let header_tag = if is_todo { "✓" } else { "tool" };
+                let header_fg = if is_todo {
+                    theme.pill_ok_fg()
+                } else {
+                    theme.pill_info_fg()
+                };
+
+                lines.push(collapsible_header(
+                    &header_label,
+                    header_tag,
+                    header_fg,
+                    content_width,
+                    theme,
+                ));
+
+                // For todo calls, the summary IS the content — show it directly.
+                // For other tools, fall back to body preview.
+                let preview = if is_todo {
+                    summary.as_deref().unwrap_or("todos updated").to_string()
+                } else {
+                    summary
+                        .as_deref()
+                        .or_else(|| first_meaningful_body_line(body))
+                        .unwrap_or("(details)")
+                        .to_string()
+                };
+                lines.push(Line::from(Span::styled(
+                    format!("    {}", compact_text(&preview, max_preview)),
+                    Style::default().fg(theme.text_muted()),
+                )));
+            }
+            MessageSection::ShellCommand { command } => {
+                let mut spans = vec![
+                    Span::styled(
+                        " CMD ",
+                        Style::default()
+                            .fg(theme.pill_info_fg())
+                            .bg(theme.pill_info_bg())
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::raw(" "),
+                    Span::styled("$ ", Style::default().fg(theme.pill_info_fg())),
+                    Span::styled(
+                        compact_text(command, max_preview),
+                        Style::default().fg(theme.text_secondary()),
+                    ),
+                ];
+                // Pad to avoid wrapping artifacts
+                let used: usize = spans.iter().map(|s| s.content.chars().count()).sum();
+                if used < content_width {
+                    spans.push(Span::raw(" ".repeat(content_width - used)));
+                }
+                lines.push(Line::from(spans));
+            }
+            MessageSection::ShellOutput { body } => {
+                lines.push(collapsible_header(
+                    "shell output",
+                    "shell",
+                    theme.text_muted(),
+                    content_width,
+                    theme,
+                ));
+
+                let preview = body.lines().next().unwrap_or("(empty)");
+                lines.push(Line::from(Span::styled(
+                    format!("    {}", compact_text(preview, max_preview)),
+                    Style::default().fg(theme.text_muted()),
+                )));
+            }
+            MessageSection::Thinking { body } => {
+                lines.push(collapsible_header(
+                    "Reasoning",
+                    "thinking",
+                    theme.pill_muted_fg(),
+                    content_width,
+                    theme,
+                ));
+
+                let preview = body.lines().next().unwrap_or("(no detail)");
+                lines.push(Line::from(Span::styled(
+                    format!("    {}", compact_text(preview, max_preview)),
+                    Style::default().fg(theme.text_muted()),
+                )));
+            }
+        }
+    }
+
+    // Apply total body line cap
+    if lines.len() > max_body_lines && max_body_lines > 1 {
+        lines.truncate(max_body_lines - 1);
+        lines.push(Line::from(Span::styled(
+            "  ...",
+            Style::default().fg(theme.text_muted()),
+        )));
+    }
+
+    lines
+}
+
+/// Collapsible-style section header: icon + label + spacer + tag pill.
+fn collapsible_header(
+    label: &str,
+    kind_tag: &str,
+    fg: Color,
+    width: usize,
+    theme: &impl ComponentThemeLike,
+) -> Line<'static> {
+    let icon = "◆";
+    let left = format!("  {icon} {label}");
+    let tag = format!(" {kind_tag} ");
+    let used = left.chars().count() + tag.chars().count();
+    let spacer = " ".repeat(width.saturating_sub(used).max(1));
+
+    let bg = theme.pill_muted_bg();
+    let tag_bg = theme.pane_unfocused_border();
+
+    Line::from(vec![
+        Span::styled(
+            left,
+            Style::default().fg(fg).bg(bg).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(spacer, Style::default().bg(bg)),
+        Span::styled(
+            tag,
+            Style::default()
+                .fg(fg)
+                .bg(tag_bg)
+                .add_modifier(Modifier::BOLD),
+        ),
+    ])
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Section parsing: extract structured sections from pre-rendered text
+// ─────────────────────────────────────────────────────────────────────
+
+#[derive(Debug)]
+enum MessageSection {
+    Text(String),
+    ToolCall {
+        name: String,
+        summary: Option<String>,
+        body: String,
+    },
+    ShellCommand {
+        command: String,
+    },
+    ShellOutput {
+        body: String,
+    },
+    Thinking {
+        body: String,
+    },
+}
+
+fn parse_message_sections(text: &str) -> Vec<MessageSection> {
+    let mut sections = Vec::new();
+    let mut current_text = String::new();
+    let mut in_code_block = false;
+
+    let mut lines_iter = text.lines().peekable();
+
+    while let Some(line) = lines_iter.next() {
+        let trimmed = line.trim();
+
+        // Track code fences (so we don't misparse ### inside code blocks)
+        if trimmed.starts_with("```") && !in_code_block {
+            in_code_block = true;
+        } else if trimmed.starts_with("```") && in_code_block {
+            in_code_block = false;
+        }
+
+        if in_code_block && !trimmed.starts_with("```") {
+            current_text.push_str(line);
+            current_text.push('\n');
+            continue;
+        }
+
+        // Detect section markers
+        if let Some(tool_name) = tool_marker_name(trimmed) {
+            flush_text(&mut sections, &mut current_text);
+            let (summary, body) = collect_tool_section_body(&mut lines_iter, &mut in_code_block);
+            sections.push(MessageSection::ToolCall {
+                name: tool_name.to_string(),
+                summary,
+                body,
+            });
+            continue;
+        }
+
+        if is_shell_command_marker(trimmed) {
+            flush_text(&mut sections, &mut current_text);
+            let body = collect_section_body(&mut lines_iter, &mut in_code_block);
+            // Extract the command from the code block body
+            let command = body
+                .lines()
+                .map(str::trim)
+                .find(|l| !l.is_empty())
+                .unwrap_or("(command)")
+                .to_string();
+            sections.push(MessageSection::ShellCommand { command });
+            continue;
+        }
+
+        if is_shell_output_marker(trimmed) {
+            flush_text(&mut sections, &mut current_text);
+            let body = collect_section_body(&mut lines_iter, &mut in_code_block);
+            sections.push(MessageSection::ShellOutput { body });
+            continue;
+        }
+
+        if is_thinking_marker(trimmed) {
+            flush_text(&mut sections, &mut current_text);
+            let body = collect_thinking_body(&mut lines_iter);
+            sections.push(MessageSection::Thinking { body });
+            continue;
+        }
+
+        current_text.push_str(line);
+        current_text.push('\n');
+    }
+
+    flush_text(&mut sections, &mut current_text);
+    sections
+}
+
+fn flush_text(sections: &mut Vec<MessageSection>, text: &mut String) {
+    let trimmed = text.trim();
+    if !trimmed.is_empty() {
+        sections.push(MessageSection::Text(trimmed.to_string()));
+    }
+    text.clear();
+}
+
+/// Collects body lines for a structured section until the next ### header or EOF.
+fn collect_section_body(
+    lines: &mut std::iter::Peekable<std::str::Lines<'_>>,
+    in_code_block: &mut bool,
+) -> String {
+    let mut body = String::new();
+
+    while let Some(line) = lines.peek() {
+        let trimmed = line.trim();
+
+        // Stop at the next section header (but only outside code blocks)
+        if !*in_code_block && is_section_header_line(trimmed) {
+            break;
+        }
+
+        let line = lines.next().unwrap();
+        let trimmed = line.trim();
+
+        // Track code fences
+        if trimmed.starts_with("```") {
+            *in_code_block = !*in_code_block;
+            continue; // Skip fence markers from body
+        }
+
+        // Skip #### sub-headers (IN/OUT) — these are noise in compact view
+        if trimmed.starts_with("####") {
+            continue;
+        }
+
+        // Skip "summary:" lines (already captured elsewhere)
+        if trimmed.starts_with("summary:") || trimmed.starts_with("summary: ") {
+            continue;
+        }
+
+        body.push_str(trimmed);
+        body.push('\n');
+    }
+
+    body.trim().to_string()
+}
+
+/// Collects thinking/reasoning body lines (strip blockquote markers).
+fn collect_thinking_body(lines: &mut std::iter::Peekable<std::str::Lines<'_>>) -> String {
+    let mut body = String::new();
+
+    while let Some(line) = lines.peek() {
+        let trimmed = line.trim();
+
+        // Stop at the next section header
+        if is_section_header_line(trimmed) {
+            break;
+        }
+
+        let line = lines.next().unwrap();
+        let clean = line.trim().strip_prefix("> ").unwrap_or(line.trim());
+
+        body.push_str(clean);
+        body.push('\n');
+    }
+
+    body.trim().to_string()
+}
+
+fn first_meaningful_body_line(body: &str) -> Option<&str> {
+    body.lines().map(str::trim).find(|line| {
+        !line.is_empty()
+            && !line.starts_with('{')
+            && !line.starts_with('}')
+            && !line.starts_with('[')
+            && !line.starts_with(']')
+            && !line.starts_with("\"callID\"")
+            && !line.starts_with("\"messageID\"")
+            && !line.starts_with("\"sessionID\"")
+            && !line.starts_with("\"metadata\"")
+            && !line.starts_with("\"type\"")
+            && !line.starts_with("\"state\"")
+            && !line.starts_with("\"openai\"")
+            && !line.starts_with("\"tool\"")
+    })
+}
+
+fn collect_tool_section_body(
+    lines: &mut std::iter::Peekable<std::str::Lines<'_>>,
+    in_code_block: &mut bool,
+) -> (Option<String>, String) {
+    let mut summary: Option<String> = None;
+    let mut body = String::new();
+
+    while let Some(line) = lines.peek() {
+        let trimmed = line.trim();
+
+        if !*in_code_block && is_section_header_line(trimmed) {
+            break;
+        }
+
+        let line = lines.next().unwrap();
+        let trimmed = line.trim();
+
+        if trimmed.starts_with("```") {
+            *in_code_block = !*in_code_block;
+            continue;
+        }
+
+        if trimmed.starts_with("summary:") && summary.is_none() {
+            let value = trimmed.trim_start_matches("summary:").trim();
+            if !value.is_empty() {
+                summary = Some(value.to_string());
+            }
+            continue;
+        }
+
+        if trimmed.starts_with("####") {
+            continue;
+        }
+
+        body.push_str(trimmed);
+        body.push('\n');
+    }
+
+    (summary, body.trim().to_string())
+}
+
+fn tool_marker_name(line: &str) -> Option<&str> {
+    line.strip_prefix("### Tool // ")
+        .or_else(|| line.strip_prefix("Tool // "))
+}
+
+fn is_shell_command_marker(line: &str) -> bool {
+    line == "### Shell Command" || line == "Shell Command"
+}
+
+fn is_shell_output_marker(line: &str) -> bool {
+    line == "### Shell Output" || line == "Shell Output"
+}
+
+fn is_thinking_marker(line: &str) -> bool {
+    line == "### Thinking" || line == "Thinking"
+}
+
+fn is_section_header_line(line: &str) -> bool {
+    tool_marker_name(line).is_some()
+        || is_shell_command_marker(line)
+        || is_shell_output_marker(line)
+        || is_thinking_marker(line)
+}
+
+fn is_hidden_noise_line(value: &str) -> bool {
+    let trimmed = value.trim_start();
+    trimmed.starts_with("step finished |")
+        || trimmed.starts_with("shell metadata:")
+        || trimmed.starts_with("shell call:")
+        || trimmed.starts_with("shell status:")
+}
+
+fn line_text(line: &Line<'_>) -> String {
+    line.spans
+        .iter()
+        .map(|span| span.content.as_ref())
+        .collect()
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Markdown rendering (preserved from existing impl)
+// ─────────────────────────────────────────────────────────────────────
 
 fn render_markdown_lines(
     text: &str,
@@ -642,6 +1251,136 @@ mod tests {
     use crate::theme::ComponentTheme;
 
     #[test]
+    fn renders_boxed_card_with_role_header() {
+        let theme = ComponentTheme::default();
+        let message = ChatMessageEntry::new(
+            ChatMessageRole::Assistant,
+            "Hello world",
+            Some("12:00".to_string()),
+        );
+        let props = ChatMessageListProps {
+            messages: &[message],
+            empty_label: "No messages",
+            max_messages: 10,
+            max_body_lines_per_message: 20,
+            scroll_offset_lines: 0,
+            palette: ChatPalette::from_theme(&theme),
+        };
+
+        let lines = ChatMessageListComponent::lines(&theme, &props, 60);
+        let rendered = lines
+            .iter()
+            .map(|line| {
+                line.spans
+                    .iter()
+                    .map(|span| span.content.as_ref())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(rendered.contains("╭"));
+        assert!(rendered.contains("╰"));
+        assert!(rendered.contains("AGENT"));
+        assert!(rendered.contains("12:00"));
+        assert!(rendered.contains("Hello world"));
+    }
+
+    #[test]
+    fn renders_tool_call_as_collapsible() {
+        let theme = ComponentTheme::default();
+        let text = "### Tool // bash\n\nsummary: git status\n\n#### IN\n```json\n\"git status\"\n```\n\n#### OUT\n```json\n\"clean\"\n```";
+        let message = ChatMessageEntry::new(ChatMessageRole::Assistant, text, None);
+        let props = ChatMessageListProps {
+            messages: &[message],
+            empty_label: "No messages",
+            max_messages: 10,
+            max_body_lines_per_message: 20,
+            scroll_offset_lines: 0,
+            palette: ChatPalette::from_theme(&theme),
+        };
+
+        let lines = ChatMessageListComponent::lines(&theme, &props, 60);
+        let rendered = lines
+            .iter()
+            .map(|line| {
+                line.spans
+                    .iter()
+                    .map(|span| span.content.as_ref())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(rendered.contains("◆"));
+        assert!(rendered.contains("tool bash"));
+        assert!(rendered.contains("tool"));
+    }
+
+    #[test]
+    fn renders_shell_command_with_cmd_pill() {
+        let theme = ComponentTheme::default();
+        let text = "### Shell Command\n```bash\ngit status --short\n```";
+        let message = ChatMessageEntry::new(ChatMessageRole::Assistant, text, None);
+        let props = ChatMessageListProps {
+            messages: &[message],
+            empty_label: "No messages",
+            max_messages: 10,
+            max_body_lines_per_message: 20,
+            scroll_offset_lines: 0,
+            palette: ChatPalette::from_theme(&theme),
+        };
+
+        let lines = ChatMessageListComponent::lines(&theme, &props, 60);
+        let rendered = lines
+            .iter()
+            .map(|line| {
+                line.spans
+                    .iter()
+                    .map(|span| span.content.as_ref())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(rendered.contains(" CMD "));
+        assert!(rendered.contains("$ "));
+        assert!(rendered.contains("git status --short"));
+    }
+
+    #[test]
+    fn renders_thinking_as_collapsible() {
+        let theme = ComponentTheme::default();
+        let text = "### Thinking\n> Let me analyze this carefully.\n> Checking the code.";
+        let message = ChatMessageEntry::new(ChatMessageRole::Assistant, text, None);
+        let props = ChatMessageListProps {
+            messages: &[message],
+            empty_label: "No messages",
+            max_messages: 10,
+            max_body_lines_per_message: 20,
+            scroll_offset_lines: 0,
+            palette: ChatPalette::from_theme(&theme),
+        };
+
+        let lines = ChatMessageListComponent::lines(&theme, &props, 60);
+        let rendered = lines
+            .iter()
+            .map(|line| {
+                line.spans
+                    .iter()
+                    .map(|span| span.content.as_ref())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(rendered.contains("◆"));
+        assert!(rendered.contains("Reasoning"));
+        assert!(rendered.contains("thinking"));
+        assert!(rendered.contains("Let me analyze"));
+    }
+
+    #[test]
     fn markdown_content_renders_structural_markers() {
         let theme = ComponentTheme::default();
         let message = ChatMessageEntry::new(
@@ -658,7 +1397,7 @@ mod tests {
             palette: ChatPalette::from_theme(&theme),
         };
 
-        let lines = ChatMessageListComponent::lines(&theme, &props);
+        let lines = ChatMessageListComponent::lines(&theme, &props, 80);
         let rendered = lines
             .iter()
             .map(|line| {
@@ -693,7 +1432,7 @@ mod tests {
             palette: ChatPalette::from_theme(&theme),
         };
 
-        let lines = ChatMessageListComponent::lines(&theme, &props);
+        let lines = ChatMessageListComponent::lines(&theme, &props, 80);
         let rendered = lines
             .iter()
             .map(|line| {
@@ -727,7 +1466,7 @@ mod tests {
             palette: ChatPalette::from_theme(&theme),
         };
 
-        let lines = ChatMessageListComponent::lines(&theme, &props);
+        let lines = ChatMessageListComponent::lines(&theme, &props, 80);
         let rendered_lines = lines
             .iter()
             .map(|line| {
@@ -738,30 +1477,43 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert!(
-            rendered_lines
-                .iter()
-                .any(|line| line.contains("- first line"))
-        );
-        assert!(
-            rendered_lines
-                .iter()
-                .any(|line| line.contains("  continuation line"))
-        );
-        assert!(
-            !rendered_lines
-                .iter()
-                .any(|line| line.contains("- continuation line"))
-        );
+        assert!(rendered_lines
+            .iter()
+            .any(|line| line.contains("- first line")));
+        assert!(rendered_lines
+            .iter()
+            .any(|line| line.contains("  continuation line")));
+        assert!(!rendered_lines
+            .iter()
+            .any(|line| line.contains("- continuation line")));
     }
-}
 
-fn role_label(role: &ChatMessageRole) -> &str {
-    match role {
-        ChatMessageRole::User => "YOU",
-        ChatMessageRole::Assistant => "AI",
-        ChatMessageRole::System => "SYS",
-        ChatMessageRole::Tool => "TOOL",
-        ChatMessageRole::Other(value) => value.as_str(),
+    #[test]
+    fn empty_messages_show_empty_label() {
+        let theme = ComponentTheme::default();
+        let props = ChatMessageListProps {
+            messages: &[],
+            empty_label: "Nothing here",
+            max_messages: 10,
+            max_body_lines_per_message: 20,
+            scroll_offset_lines: 0,
+            palette: ChatPalette::from_theme(&theme),
+        };
+
+        let lines = ChatMessageListComponent::lines(&theme, &props, 60);
+        let rendered = lines
+            .iter()
+            .map(|line| {
+                line.spans
+                    .iter()
+                    .map(|span| span.content.as_ref())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        assert!(rendered.contains("Nothing here"));
+        // No box chrome for empty state
+        assert!(!rendered.contains("╭"));
     }
 }

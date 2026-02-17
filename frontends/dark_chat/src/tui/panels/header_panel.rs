@@ -1,10 +1,10 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
-use dark_tui_components::{PaneBlockComponent, compact_label};
+use dark_tui_components::{compact_label, PaneBlockComponent, StatusPill};
 
 use crate::tui::app::App;
 
@@ -22,17 +22,22 @@ impl HeaderPanel {
                 format!("provider:{}", app.provider_name()),
                 Style::default().add_modifier(Modifier::BOLD),
             ),
+            Span::raw("  "),
+            StatusPill::accent(
+                format!("model:{}", compact_label(app.active_model(), 24)),
+                theme,
+            )
+            .span(),
+            Span::raw("  "),
+            StatusPill::info(
+                format!("agent:{}", compact_label(app.active_agent(), 20)),
+                theme,
+            )
+            .span(),
+            Span::raw("  "),
             Span::styled(
-                format!("  server:{}", app.base_url()),
-                Style::default().fg(theme.text_secondary),
-            ),
-            Span::styled(
-                format!("  model:{}", compact_label(app.active_model(), 24)),
-                Style::default().fg(theme.text_secondary),
-            ),
-            Span::styled(
-                format!("  agent:{}", compact_label(app.active_agent(), 20)),
-                Style::default().fg(theme.text_secondary),
+                format!("server:{}", app.base_url()),
+                Style::default().fg(theme.text_muted),
             ),
         ])];
 

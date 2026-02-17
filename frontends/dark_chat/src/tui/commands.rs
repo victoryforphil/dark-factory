@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{anyhow, Context, Result};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LocalSlashCommand {
@@ -14,6 +14,7 @@ pub enum LocalSlashCommand {
     SetAgent(String),
     SetModel(String),
     Grep(String),
+    ToggleDetailExpansion,
 }
 
 pub fn parse_local_slash_command(prompt: &str) -> Option<LocalSlashCommand> {
@@ -36,6 +37,7 @@ pub fn parse_local_slash_command(prompt: &str) -> Option<LocalSlashCommand> {
         "agent" if !arg.is_empty() => Some(LocalSlashCommand::SetAgent(arg.to_string())),
         "model" if !arg.is_empty() => Some(LocalSlashCommand::SetModel(arg.to_string())),
         "grep" if !arg.is_empty() => Some(LocalSlashCommand::Grep(arg.to_string())),
+        "expand" | "detail" | "details" => Some(LocalSlashCommand::ToggleDetailExpansion),
         _ => None,
     }
 }

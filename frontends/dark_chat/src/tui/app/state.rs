@@ -3,7 +3,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use dark_tui_components::{ComponentTheme, HorizontalSplit, next_index, previous_index};
+use dark_tui_components::{next_index, previous_index, ComponentTheme, HorizontalSplit};
 use serde::{Deserialize, Serialize};
 use tui_textarea::{CursorMove, TextArea};
 
@@ -99,6 +99,9 @@ pub struct App {
     realtime_last_event: Option<String>,
     realtime_event_count: u64,
     show_help: bool,
+    message_detail_expanded: bool,
+    message_detail_popup_open: bool,
+    message_detail_popup_scroll_lines: u16,
     last_synced: String,
 }
 
@@ -174,6 +177,9 @@ impl App {
             realtime_last_event: None,
             realtime_event_count: 0,
             show_help: true,
+            message_detail_expanded: false,
+            message_detail_popup_open: false,
+            message_detail_popup_scroll_lines: 0,
             last_synced: "-".to_string(),
         }
     }
@@ -342,6 +348,9 @@ impl App {
                 .then_with(|| left.title.cmp(&right.title))
         });
         self.messages = snapshot.messages;
+        if self.messages.is_empty() {
+            self.close_message_detail_popup();
+        }
         self.runtime_status = snapshot.runtime_status;
         self.agents = normalize_options(snapshot.agents);
         self.models = normalize_options(snapshot.models);
@@ -699,6 +708,7 @@ impl App {
     pub fn clear_messages(&mut self) {
         self.messages.clear();
         self.chat_scroll_lines = 0;
+        self.close_message_detail_popup();
     }
 
     pub fn close_composer_autocomplete(&mut self) {
@@ -1046,6 +1056,73 @@ impl App {
         self.show_help
     }
 
+    pub fn message_detail_expanded(&self) -> bool {
+        self.message_detail_expanded
+    }
+
+    pub fn toggle_message_detail_expanded(&mut self) {
+        self.message_detail_expanded = !self.message_detail_expanded;
+        self.reset_chat_scroll();
+    }
+
+    pub fn chat_message_body_line_limit(&self) -> usize {
+        if self.message_detail_expanded {
+            96
+        } else {
+            30
+        }
+    }
+
+    pub fn message_detail_popup_open(&self) -> bool {
+        self.message_detail_popup_open
+    }
+
+    pub fn open_message_detail_popup(&mut self) -> bool {
+        if self.messages.is_empty() {
+            return false;
+        }
+
+        self.message_detail_popup_open = true;
+        self.message_detail_popup_scroll_lines = 0;
+        true
+    }
+
+    pub fn close_message_detail_popup(&mut self) {
+        self.message_detail_popup_open = false;
+        self.message_detail_popup_scroll_lines = 0;
+    }
+
+    pub fn message_detail_popup_scroll_lines(&self) -> u16 {
+        self.message_detail_popup_scroll_lines
+    }
+
+    pub fn scroll_message_detail_up(&mut self, amount: u16) {
+        self.message_detail_popup_scroll_lines = self
+            .message_detail_popup_scroll_lines
+            .saturating_sub(amount);
+    }
+
+    pub fn scroll_message_detail_down(&mut self, amount: u16) {
+        self.message_detail_popup_scroll_lines = self
+            .message_detail_popup_scroll_lines
+            .saturating_add(amount);
+    }
+
+    pub fn message_detail_popup_text(&self) -> Option<String> {
+        let preferred = self
+            .messages
+            .iter()
+            .rev()
+            .find(|message| {
+                message.text.contains("### Tool //")
+                    || message.text.contains("### Shell")
+                    || message.text.contains("### Thinking")
+            })
+            .or_else(|| self.messages.last())?;
+
+        Some(preferred.text.clone())
+    }
+
     pub fn last_synced(&self) -> &str {
         &self.last_synced
     }
@@ -1180,7 +1257,7 @@ fn current_composer_trigger(value: &str, cursor_index: usize) -> Option<(char, S
 }
 
 fn slash_autocomplete_items(query: &str) -> Vec<ComposerAutocompleteItem> {
-    const COMMANDS: [(&str, &str); 8] = [
+    const COMMANDS: [(&str, &str); 9] = [
         ("help", "toggle help"),
         ("refresh", "refresh snapshot"),
         ("new", "create session"),
@@ -1189,6 +1266,7 @@ fn slash_autocomplete_items(query: &str) -> Vec<ComposerAutocompleteItem> {
         ("agent", "set agent"),
         ("model", "set model"),
         ("grep", "search workspace"),
+        ("expand", "toggle detail expansion"),
     ];
 
     let needle = query.trim().to_ascii_lowercase();

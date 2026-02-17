@@ -14,6 +14,18 @@ impl KeyBind {
     pub const fn new(key: &'static str, action: &'static str) -> Self {
         Self { key, action }
     }
+
+    /// Builds inline spans for a single key-action pair.
+    ///
+    /// Returns `[ " key " (styled), " ", "action" (styled) ]` so callers
+    /// can compose multiple hints into a single `Line` with separators.
+    pub fn spans(&self, theme: &impl ComponentThemeLike) -> Vec<Span<'static>> {
+        vec![
+            Span::styled(format!(" {} ", self.key), KeyHintBar::key_style(theme)),
+            Span::raw(" "),
+            Span::styled(self.action.to_owned(), KeyHintBar::action_style(theme)),
+        ]
+    }
 }
 
 #[allow(dead_code)]
@@ -53,14 +65,14 @@ impl<'a> KeyHintBar<'a> {
         self
     }
 
-    fn key_style(theme: &impl ComponentThemeLike) -> Style {
+    pub(crate) fn key_style(theme: &impl ComponentThemeLike) -> Style {
         Style::default()
             .fg(theme.key_hint_key_fg())
             .bg(theme.key_hint_key_bg())
             .add_modifier(Modifier::BOLD)
     }
 
-    fn action_style(theme: &impl ComponentThemeLike) -> Style {
+    pub(crate) fn action_style(theme: &impl ComponentThemeLike) -> Style {
         Style::default().fg(theme.key_hint_action_fg())
     }
 

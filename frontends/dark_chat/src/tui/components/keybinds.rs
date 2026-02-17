@@ -1,6 +1,6 @@
 use dark_tui_components::KeyBind;
 
-pub const KEY_BINDS: [KeyBind; 11] = [
+pub const KEY_BINDS: [KeyBind; 13] = [
     KeyBind::new("q", "quit"),
     KeyBind::new("tab", "focus panel"),
     KeyBind::new("j/k", "focus nav/scroll"),
@@ -9,6 +9,8 @@ pub const KEY_BINDS: [KeyBind; 11] = [
     KeyBind::new("a", "agent"),
     KeyBind::new("m", "model picker"),
     KeyBind::new("c", "compose"),
+    KeyBind::new("v", "detail popup"),
+    KeyBind::new("z", "detail mode"),
     KeyBind::new("enter", "send; S-enter nl"),
     KeyBind::new("esc", "cancel"),
     KeyBind::new("h", "help"),

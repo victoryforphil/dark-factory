@@ -1,10 +1,10 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::Frame;
 
-use dark_tui_components::{PaneBlockComponent, StatusPill, compact_tail, compact_text};
+use dark_tui_components::{compact_tail, compact_text, KeyBind, PaneBlockComponent, StatusPill};
 
 use crate::tui::app::{App, FocusPane};
 
@@ -24,6 +24,7 @@ impl StatusPanel {
         let mut lines = vec![
             health_line(app, theme),
             selection_line(app, theme),
+            detail_mode_line(app, theme),
             realtime_line(app, theme),
             service_line("lsp", app.runtime_status().lsp.as_slice(), theme),
             service_line("fmt", app.runtime_status().formatter.as_slice(), theme),
@@ -39,12 +40,14 @@ impl StatusPanel {
                 Span::raw(" "),
                 Span::styled("navigation", Style::default().fg(theme.text_secondary)),
             ]));
-            lines.push(help_line("j/k", "sessions or scroll focus", theme));
-            lines.push(help_line("n", "new session", theme));
-            lines.push(help_line("a/m", "cycle agent/model", theme));
-            lines.push(help_line("c", "open composer", theme));
-            lines.push(help_line("Enter", "send prompt", theme));
-            lines.push(help_line("h", "toggle help", theme));
+            lines.push(help_line_styled("j/k", "sessions or scroll focus", theme));
+            lines.push(help_line_styled("n", "new session", theme));
+            lines.push(help_line_styled("a/m", "cycle agent/model", theme));
+            lines.push(help_line_styled("c", "open composer", theme));
+            lines.push(help_line_styled("v", "open/close detail popup", theme));
+            lines.push(help_line_styled("Enter", "send prompt", theme));
+            lines.push(help_line_styled("z", "toggle detail expansion", theme));
+            lines.push(help_line_styled("h", "toggle help", theme));
         } else {
             lines.push(Line::from(vec![
                 StatusPill::muted("help", theme).span_compact(),
@@ -96,6 +99,23 @@ fn realtime_line(app: &App, theme: &dark_tui_components::ComponentTheme) -> Line
     }
 
     Line::from(spans)
+}
+
+fn detail_mode_line(app: &App, theme: &dark_tui_components::ComponentTheme) -> Line<'static> {
+    let mode = if app.message_detail_expanded() {
+        StatusPill::info("details:expanded", theme)
+    } else {
+        StatusPill::muted("details:compact", theme)
+    };
+
+    Line::from(vec![
+        mode.span_compact(),
+        Span::raw(" "),
+        Span::styled(
+            "tool and shell blocks",
+            Style::default().fg(theme.text_muted),
+        ),
+    ])
 }
 
 fn selection_line(app: &App, theme: &dark_tui_components::ComponentTheme) -> Line<'static> {
@@ -170,14 +190,10 @@ fn config_line(app: &App, theme: &dark_tui_components::ComponentTheme) -> Line<'
     ])
 }
 
-fn help_line(
-    key: &str,
-    action: &str,
+fn help_line_styled(
+    key: &'static str,
+    action: &'static str,
     theme: &dark_tui_components::ComponentTheme,
 ) -> Line<'static> {
-    Line::from(vec![
-        StatusPill::muted(key, theme).span_compact(),
-        Span::raw(" "),
-        Span::styled(action.to_string(), Style::default().fg(theme.text_muted)),
-    ])
+    Line::from(KeyBind::new(key, action).spans(theme))
 }

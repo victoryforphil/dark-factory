@@ -1,6 +1,6 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
 use dark_tui_components::KeyHintBar;
 
