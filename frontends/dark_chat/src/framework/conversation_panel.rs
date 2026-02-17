@@ -152,42 +152,61 @@ pub fn render_conversation_panel(
         return;
     }
 
-    let composer_rows = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Min(1)])
-        .split(composer_inner);
+    let show_context_labels =
+        !props.active_model_label.trim().is_empty() || !props.active_agent_label.trim().is_empty();
 
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            StatusPill::accent(
-                format!("model:{}", compact_text(props.active_model_label, 24)),
-                theme,
-            )
-            .span_compact(),
-            Span::raw("  "),
-            StatusPill::muted(
-                format!("agent:{}", compact_text(props.active_agent_label, 18)),
-                theme,
-            )
-            .span_compact(),
-        ]))
-        .wrap(Wrap { trim: true }),
-        composer_rows[0],
-    );
+    if show_context_labels {
+        let composer_rows = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Length(1), Constraint::Min(1)])
+            .split(composer_inner);
 
-    ChatComposerComponent::render(
-        frame,
-        composer_rows[1],
-        theme,
-        ChatComposerProps {
-            enabled: props.composer.enabled,
-            composing: props.composer.composing,
-            draft: props.composer.draft,
-            cursor_index: props.composer.cursor_index,
-            idle_hint: props.composer.idle_hint,
-            disabled_hint: props.composer.disabled_hint,
-        },
-    );
+        frame.render_widget(
+            Paragraph::new(Line::from(vec![
+                StatusPill::accent(
+                    format!("model:{}", compact_text(props.active_model_label, 24)),
+                    theme,
+                )
+                .span_compact(),
+                Span::raw("  "),
+                StatusPill::muted(
+                    format!("agent:{}", compact_text(props.active_agent_label, 18)),
+                    theme,
+                )
+                .span_compact(),
+            ]))
+            .wrap(Wrap { trim: true }),
+            composer_rows[0],
+        );
+
+        ChatComposerComponent::render(
+            frame,
+            composer_rows[1],
+            theme,
+            ChatComposerProps {
+                enabled: props.composer.enabled,
+                composing: props.composer.composing,
+                draft: props.composer.draft,
+                cursor_index: props.composer.cursor_index,
+                idle_hint: props.composer.idle_hint,
+                disabled_hint: props.composer.disabled_hint,
+            },
+        );
+    } else {
+        ChatComposerComponent::render(
+            frame,
+            composer_inner,
+            theme,
+            ChatComposerProps {
+                enabled: props.composer.enabled,
+                composing: props.composer.composing,
+                draft: props.composer.draft,
+                cursor_index: props.composer.cursor_index,
+                idle_hint: props.composer.idle_hint,
+                disabled_hint: props.composer.disabled_hint,
+            },
+        );
+    }
 }
 
 pub fn status_tone_for_status(status: &str) -> ConversationStatusTone {

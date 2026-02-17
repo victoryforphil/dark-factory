@@ -409,6 +409,10 @@ fn model_selector_popup_props(
     composer_area: Rect,
     app: &App,
 ) -> Option<PopupOverlayProps> {
+    if !app.is_model_selector_open() {
+        return None;
+    }
+
     if conversation_area.width < 28 || conversation_area.height < 8 {
         return None;
     }
@@ -473,6 +477,10 @@ fn agent_selector_popup_props(
     composer_area: Rect,
     app: &App,
 ) -> Option<PopupOverlayProps> {
+    if !app.is_agent_selector_open() {
+        return None;
+    }
+
     if conversation_area.width < 28 || conversation_area.height < 8 {
         return None;
     }
@@ -594,5 +602,99 @@ fn status_tone(status: &str) -> ChatStatusTone {
         "retry" | "retrying" => ChatStatusTone::Warn,
         "error" | "failed" => ChatStatusTone::Error,
         _ => ChatStatusTone::Muted,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use insta::assert_snapshot;
+    use ratatui::backend::TestBackend;
+    use ratatui::layout::Rect;
+    use ratatui::Terminal;
+
+    use super::ChatPanel;
+    use crate::core::{ChatSession, ChatSnapshot, ProviderHealth, ProviderRuntimeStatus};
+    use crate::tui::app::App;
+
+    #[test]
+    fn chat_panel_default_snapshot() {
+        let app = build_test_app();
+        let output = render_panel(&app, 84, 24);
+        assert_snapshot!("chat_panel_default", output);
+    }
+
+    #[test]
+    fn chat_panel_model_selector_snapshot() {
+        let mut app = build_test_app();
+        app.open_model_selector();
+        let output = render_panel(&app, 84, 24);
+        assert_snapshot!("chat_panel_model_selector_open", output);
+    }
+
+    #[test]
+    fn chat_panel_agent_selector_snapshot() {
+        let mut app = build_test_app();
+        app.open_agent_selector();
+        let output = render_panel(&app, 84, 24);
+        assert_snapshot!("chat_panel_agent_selector_open", output);
+    }
+
+    fn build_test_app() -> App {
+        let mut app = App::new(
+            "http://127.0.0.1:4150".to_string(),
+            "/tmp".to_string(),
+            "opencode_server".to_string(),
+            5,
+        );
+
+        app.apply_snapshot(ChatSnapshot {
+            health: ProviderHealth {
+                healthy: true,
+                version: Some("test".to_string()),
+            },
+            sessions: vec![ChatSession {
+                id: "ses_123".to_string(),
+                title: "Snapshot Session".to_string(),
+                status: "ready".to_string(),
+                ..ChatSession::default()
+            }],
+            active_session_id: Some("ses_123".to_string()),
+            messages: Vec::new(),
+            agents: vec!["general".to_string(), "developer_senior".to_string()],
+            models: vec![
+                "openai/gpt-5.3-codex".to_string(),
+                "anthropic/claude-sonnet-4".to_string(),
+            ],
+            runtime_status: ProviderRuntimeStatus::default(),
+        });
+
+        app
+    }
+
+    fn render_panel(app: &App, width: u16, height: u16) -> String {
+        let backend = TestBackend::new(width, height);
+        let mut terminal = Terminal::new(backend).expect("terminal should initialize");
+
+        terminal
+            .draw(|frame| ChatPanel::render(frame, Rect::new(0, 0, width, height), app))
+            .expect("draw should succeed");
+
+        let mut lines = Vec::with_capacity(height as usize);
+        for y in 0..height {
+            let mut line = String::with_capacity(width as usize);
+            for x in 0..width {
+                line.push_str(
+                    terminal
+                        .backend()
+                        .buffer()
+                        .cell((x, y))
+                        .expect("cell")
+                        .symbol(),
+                );
+            }
+            lines.push(line.trim_end().to_string());
+        }
+
+        lines.join("\n")
     }
 }

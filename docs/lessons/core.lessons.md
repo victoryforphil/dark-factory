@@ -9,3 +9,4 @@
 - Read lessons files early in each task before planning implementation details.
 - Prune duplicates and stale bullets so signal stays high as work evolves.
 - When logging metadata in `dark_core`, prefer `meta={...}` JSON via `formatLogMetadata` instead of comma-separated `key=value` strings.
+- For TUI overlays/popups, gate render prop builders with the same `is_*_open()` state used by input handling; hit-test guards alone do not prevent default-open rendering artifacts.

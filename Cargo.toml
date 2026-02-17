@@ -1,4 +1,5 @@
 [workspace]
+resolver = "3"
 members = [
     "frontends/dark_cli",
     "frontends/dark_chat",

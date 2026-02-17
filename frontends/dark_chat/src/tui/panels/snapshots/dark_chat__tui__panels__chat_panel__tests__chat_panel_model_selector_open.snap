@@ -1,0 +1,28 @@
+---
+source: frontends/dark_chat/src/tui/panels/chat_panel.rs
+expression: output
+---
+┌Conversation──────────────────────────────────────────────────────────────────────┐
+│Snapshot Session                                                                  │
+│session:ses_123   ready                                                           │
+│                                                                                  │
+│┌Messages────────────────────────────────────────────────────────────────────────┐│
+││No messages yet. Send a prompt to begin.                                        ││
+││                                                                                ││
+││                                                                                ││
+││                                                                                ││
+││                                                                                ││
+││                                                                                ││
+││                                                                                ││
+││                                                                                ││
+│┌ Model Picker ──────────────────────────────┐                                   ││
+││▸ anthropic/claude-sonnet-4 anthropic active│                                   ││
+││openai/gpt-5.3-codex openai                 │                                   ││
+││FILTER █                                    │                                   ││
+││enter select  tab raw  esc close            │───────────────────────────────────┘│
+│└────────────────────────────────────────────┘───────────────────────────────────┐│
+││model:anthropic/claude-sonnet-4  agent:developer_senior                         ││
+││ready  Press c to edit and Enter to send                                        ││
+││                                                                                ││
+│└────────────────────────────────────────────────────────────────────────────────┘│
+└──────────────────────────────────────────────────────────────────────────────────┘

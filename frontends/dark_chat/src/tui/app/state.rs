@@ -206,10 +206,6 @@ impl App {
         &self.sessions
     }
 
-    pub fn selected_session_index(&self) -> usize {
-        self.selected_session
-    }
-
     pub fn messages(&self) -> &[ChatMessage] {
         &self.messages
     }

@@ -103,7 +103,8 @@ fn handle_model_selector_key(app: &mut App, key: KeyEvent) -> LoopAction {
             if let Some(model) = app.confirm_model_selector() {
                 app.set_status_message(format!("Model selected: {model}"));
             } else {
-                app.set_status_message("No model selected.");
+                app.close_model_selector();
+                app.set_status_message("No model selected; model selector closed.");
             }
             LoopAction::None
         }
@@ -145,7 +146,8 @@ fn handle_agent_selector_key(app: &mut App, key: KeyEvent) -> LoopAction {
             if let Some(agent) = app.confirm_agent_selector() {
                 app.set_status_message(format!("Agent selected: {agent}"));
             } else {
-                app.set_status_message("No agent selected.");
+                app.close_agent_selector();
+                app.set_status_message("No agent selected; agent selector closed.");
             }
             LoopAction::None
         }
