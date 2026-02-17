@@ -32,4 +32,5 @@ export * from './system/system.config';
 export * from './system/system.controller';
 export * from './system/system.routes';
 export * from './variants/variants.controller';
+export * from './variants/variants.config';
 export * from './variants/variants.routes';

@@ -4,6 +4,7 @@ import { opencodeServerConfigSection } from '../modules/providers/opencode_serve
 import { providersConfigSection } from '../modules/providers/providers.config';
 import { prismaConfigSection } from '../modules/prisma/prisma.config';
 import { serverConfigSection } from '../modules/system/system.config';
+import { variantsConfigSection } from '../modules/variants/variants.config';
 import { coreEnvironmentConfigValue, coreEnvironmentEnvBinding } from './env.config';
 import { createSubsystemSchema } from './lib/subsystem';
 import type { EnvBinding } from './lib/types';
@@ -29,6 +30,9 @@ export const coreConfigDefinition = {
 
   /** Provider enablement/default selection for actors. */
   providers: providersConfigSection,
+
+  /** Variant runtime defaults. */
+  variants: variantsConfigSection,
 } as const;
 
 /**
@@ -40,6 +44,7 @@ export const coreConfigEnvBindings: ReadonlyArray<EnvBinding> = [
   ...coreConfigDefinition.prisma.env,
   ...coreConfigDefinition.opencode.env,
   ...coreConfigDefinition.providers.env,
+  ...coreConfigDefinition.variants.env,
 ];
 
 /**
@@ -53,6 +58,7 @@ export const createCoreConfigSchema = (strict: boolean) => {
     prisma: createSubsystemSchema(coreConfigDefinition.prisma, strict),
     opencode: createSubsystemSchema(coreConfigDefinition.opencode, strict),
     providers: createSubsystemSchema(coreConfigDefinition.providers, strict),
+    variants: createSubsystemSchema(coreConfigDefinition.variants, strict),
   };
 
   return strict ? z.object(rootShape).strict() : z.object(rootShape).passthrough();

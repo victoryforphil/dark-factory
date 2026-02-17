@@ -19,6 +19,7 @@ model Product {
   id          String    @id
   locator     String    @unique
   displayName String?   @map("display_name")
+  workspaceLocator String? @map("workspace_locator")
   gitInfo     Json?     @map("git_info")
   variants    Variant[]
   createdAt   DateTime  @default(now()) @map("created_at")
