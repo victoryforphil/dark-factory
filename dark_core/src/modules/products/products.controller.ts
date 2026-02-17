@@ -1,12 +1,16 @@
 import { Prisma, type Product, type Variant } from '../../../../generated/prisma/client';
+import { dirname } from 'node:path';
 
 import { getPrismaClient } from '../prisma/prisma.client';
 import {
   buildGitLocator,
   buildDeterministicIdFromLocator,
+  hostAbsolutePathToLocatorId,
   isGitLocator,
   isLocalLocator,
+  locatorIdToHostPath,
   normalizeLocator,
+  parseLocatorId,
 } from '../../utils/locator';
 import { buildRandomVariantId } from '../../utils/id';
 import { scanProductGitInfo } from '../git/git.scan';
@@ -33,6 +37,7 @@ export type ProductRecord = Product | ProductWithVariants;
 export interface CreateProductInput {
   locator: string;
   displayName?: string | null;
+  workspaceLocator?: string | null;
 }
 
 const DEFAULT_LIST_LIMIT = 25;
@@ -127,7 +132,56 @@ const resolveProductLocator = (canonicalLocator: string, gitInfo: Product['gitIn
 export interface UpdateProductInput {
   locator?: string;
   displayName?: string | null;
+  workspaceLocator?: string | null;
 }
+
+const normalizeWorkspaceLocator = (value: string | null | undefined): string | null => {
+  if (value === undefined) {
+    return null;
+  }
+
+  if (value === null) {
+    return null;
+  }
+
+  const normalized = normalizeLocator(value);
+  const parsed = parseLocatorId(normalized);
+
+  if (parsed.type !== 'local') {
+    throw new Error(
+      `Products // Workspace // Expected @local:// workspace locator ${formatLogMetadata({
+        value,
+      })}`,
+    );
+  }
+
+  return parsed.locator;
+};
+
+const deriveWorkspaceLocator = (
+  canonicalLocator: string,
+  gitInfo: Product['gitInfo'],
+): string | null => {
+  if (!isLocalLocator(canonicalLocator)) {
+    return null;
+  }
+
+  try {
+    const localPath = locatorIdToHostPath(canonicalLocator);
+    let workspaceBasePath = localPath;
+
+    if (gitInfo && typeof gitInfo === 'object' && !Array.isArray(gitInfo)) {
+      const gitSnapshot = gitInfo as Record<string, unknown>;
+      if (typeof gitSnapshot.repoRoot === 'string' && gitSnapshot.repoRoot.trim().length > 0) {
+        workspaceBasePath = gitSnapshot.repoRoot;
+      }
+    }
+
+    return hostAbsolutePathToLocatorId(dirname(workspaceBasePath));
+  } catch {
+    return null;
+  }
+};
 
 export const listProducts = async (query: ListProductsQuery = {}): Promise<ProductRecord[]> => {
   const prisma = getPrismaClient();
@@ -179,6 +233,9 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
   const canonicalLocator = normalizeLocator(input.locator);
   const gitInfo = await scanProductGitInfo(canonicalLocator);
   const productLocator = resolveProductLocator(canonicalLocator, gitInfo);
+  const explicitWorkspaceLocator = normalizeWorkspaceLocator(input.workspaceLocator);
+  const derivedWorkspaceLocator = deriveWorkspaceLocator(canonicalLocator, gitInfo);
+  const workspaceLocator = explicitWorkspaceLocator ?? derivedWorkspaceLocator;
   const productId = buildDeterministicIdFromLocator(productLocator);
   const defaultVariantLocator = isLocalLocator(canonicalLocator) ? canonicalLocator : null;
   let defaultVariantCreated = false;
@@ -231,6 +288,7 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
             where: { id: existingProductByLegacyLocator.id },
             data: {
               locator: productLocator,
+              workspaceLocator: existingProductByLegacyLocator.workspaceLocator ?? workspaceLocator,
               gitInfo: gitInfo ?? Prisma.DbNull,
             },
           });
@@ -250,6 +308,7 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
           id: productId,
           locator: productLocator,
           displayName: input.displayName ?? null,
+          workspaceLocator,
           gitInfo: gitInfo ?? Prisma.DbNull,
         },
       });
@@ -264,6 +323,7 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
       id: product.id,
       locator: product.locator,
       sourceLocator: canonicalLocator,
+      workspaceLocator: product.workspaceLocator,
     })}`,
   );
 
@@ -300,6 +360,9 @@ export const updateProductById = async (
     data: {
       ...(input.locator !== undefined ? { locator: normalizeLocator(input.locator) } : {}),
       ...(input.displayName !== undefined ? { displayName: input.displayName } : {}),
+      ...(input.workspaceLocator !== undefined
+        ? { workspaceLocator: normalizeWorkspaceLocator(input.workspaceLocator) }
+        : {}),
     },
   });
 
