@@ -15,11 +15,13 @@ It reflects only what is currently true in this repository.
   - `Product.gitInfo` and `Variant.gitInfo` are optional JSON snapshots populated from local git metadata when available.
   - Variant git polling timestamps are tracked via `gitInfoUpdatedAt` and `gitInfoLastPolledAt`.
   - Actors attach to variants (`Variant 1 -> N Actors`) and store provider/runtime snapshots (`actorLocator`, `workingLocator`, `providerSessionId`, `attachCommand`, `connectionInfo`).
+  - Actors now include optional `subAgents` JSON snapshots for provider-defined nested read-only sub-agent/thread metadata.
 - Rust workspace code now includes:
   - `frontends/dark_cli/` for the CLI binary.
   - `frontends/dark_chat/` for the OpenCode-focused chat TUI frontend (library + binary).
     - `framework/` is the shared chat UI/state surface consumed by `dark_chat` and `dark_tui`.
     - `providers/opencode_*` modules now split provider surface, transport, realtime, extract helpers, and wire DTOs.
+    - Tinyverse-style `insta` snapshots now cover `tui/panels/chat_panel.rs` under `frontends/dark_chat/src/tui/panels/snapshots/` for default + selector-open render states.
   - `frontends/dark_tui/` for the Ratatui dashboard frontend.
     - service internals are split across `service.rs`, `service_wire.rs`, and `service_convert.rs`.
     - unified catalog rendering helpers are split into `ui/render/views/catalog_cards.rs`.
@@ -95,7 +97,7 @@ It reflects only what is currently true in this repository.
 - `.opencode/agents/designer.md` is the UI/UX-focused Ratatui design subagent for component-first TUI polish.
 - `.opencode/agents/planner.md` is a planning-first subagent for interactive scope gathering before implementation.
 - `.opencode/agents/developer_senior.md` is a general senior coding subagent for complex, logic-heavy implementation tasks.
-- `.opencode/agents/developer_jr.md` is a lightweight coding subagent for simpler cleanup/refactor/script tasks (model: `openrouter/z-ai/glm-5`).
+- `.opencode/agents/developer_jr.md` is a lightweight coding subagent for simpler cleanup/refactor/script tasks (model: `opencode/big-pickle`).
 - `.opencode/skills/builder/SKILL.md` documents parallel divide-and-conquer delegation between `@developer_senior` and `@developer_jr`.
 - `.opencode/skills/gitter-commit/SKILL.md` documents when to route commit tasks to `@gitter`.
 - `.opencode/skills/tsc-fix/SKILL.md` documents safe-first TypeScript error remediation.
@@ -103,11 +105,13 @@ It reflects only what is currently true in this repository.
 - `.opencode/skills/script-authoring/SKILL.md` documents how to build reusable Bun scripts from prompt/example/bash/context.
 - `.opencode/skills/devcontainer-workflows/SKILL.md` documents layered Docker devcontainer workflows and helper script usage.
 - `.opencode/skills/docs-scraping/SKILL.md` documents reusable external docs scraping workflows.
+- `.opencode/skills/research/SKILL.md` documents inspection-first, evidence-backed research workflows using `@explore`.
 - `.opencode/skills/reflect/SKILL.md` documents quick end-of-task reflection and lesson capture.
 - `.opencode/skills/reflect-constant/SKILL.md` documents periodic background reflection with `@reflector`.
 - `.opencode/commands/scrape_docs.md` provides the command entrypoint for docs scraping tasks.
 - `.opencode/commands/adhd.md` provides a two-phase plan-then-build entrypoint that pairs `@planner` with parallel `@developer_senior`/`@developer_jr` execution.
 - `.opencode/commands/tsc_fix.md` provides the command entrypoint for safe TypeScript fixing loops.
+- `.opencode/commands/rust_lint.md` provides the command entrypoint for Rust lint/build diagnostics with parallel `@developer_jr` safe-fix batches.
 - `.opencode/commands/crtique.md` provides the command entrypoint for critique-driven fix-then-rule updates.
 - `.opencode/commands/critique.md` provides an alias entrypoint for the same critique-driven workflow.
 - `.opencode/commands/reflect.md` provides the command entrypoint for reflection/lesson capture.
@@ -119,10 +123,15 @@ It reflects only what is currently true in this repository.
 - Use `@reflector` when you want transcript/session-aware reflection (including one-agent-reviewing-another-agent workflows).
 - Use `@sweeper` when you need repo-wide hygiene audits (style conformance, dead code, and stale docs checks).
 - Use `@designer` when you need visual/UI direction, reusable TUI component design, or Ratatui-focused UX polish.
+  - For `dark_chat` component debugging/iteration, use the `insta` snapshot tests in `frontends/dark_chat/src/tui/panels/chat_panel.rs` and snapshot fixtures in `frontends/dark_chat/src/tui/panels/snapshots/`.
+  - Recommended loop: `cargo test -p dark_chat tui::panels::chat_panel::tests` for verification and `INSTA_UPDATE=always cargo test -p dark_chat tui::panels::chat_panel::tests` when intentionally accepting UI snapshot updates.
 - Use `@planner` when work is still being shaped and you need interactive clarification before implementation.
+- Use `@explore` when inspecting code or gathering implementation context before editing.
+- Launch multiple `@explore` tasks in parallel when inspection tracks are independent.
 - Use `@developer_senior` for free-form or tricky implementation where reasoning depth matters.
 - Use `@developer_jr` for smaller, bounded coding work such as script cleanup and low-risk refactors.
 - Use `builder` skill when a task splits into multiple tracks so parent agents can orchestrate these subagents in parallel.
+- Use `research` skill when a task is analysis-heavy and requires file-backed findings before implementation.
 
 ## 8) Dark Core API Coverage
 
@@ -130,7 +139,10 @@ It reflects only what is currently true in this repository.
   - product-scoped variant routes: `GET /products/:id/variants`, `POST /products/:id/variants`, and `POST /products/:id/variants/clone`.
   - `POST /variants/:id/poll` for on-demand variant git metadata refresh.
   - `POST /variants/:id/actors/import` for opt-in import of provider-managed active sessions into actor rows.
+    - OpenCode provider imports treat root sessions as actors and attach nested child sessions as `subAgents` snapshots on the parent actor.
   - actor lifecycle/interaction endpoints: `POST /actors/:id/poll`, `GET /actors/:id/attach`, `POST /actors/:id/messages`, `GET /actors/:id/messages`, `POST /actors/:id/commands`.
+  - `PATCH /actors/:id` accepts optional `variantId` and updates `workingLocator` to the destination variant locator so actors can move between variants.
+  - actor create/update payloads may include optional `subAgents` snapshots; actor responses can return `subAgents` alongside existing actor fields.
   - provider config discovery endpoint: `GET /system/providers`.
 - Realtime websocket coverage now includes `GET /ws` (upgrade) with JSON RPC-like envelopes:
   - client `rpc_request` payloads (`method`, `path`, optional `query`/`body`) dispatch through the same HTTP route handlers.
@@ -142,6 +154,7 @@ It reflects only what is currently true in this repository.
 - Provider selection defaults are configured in core config TOML under `providers`.
 - `providers.defaultProvider` controls spawn fallback when `/actors` create payload omits `provider`.
 - `providers.enabledProviders` controls which provider keys are allowed for actor operations.
+- OpenCode import fallback now supports loading recent sessions when the status map is empty via `opencode.includeRecentSessionsWhenStatusEmpty`, `opencode.recentSessionWindowHours`, and `opencode.recentSessionLimit`.
 - Client/frontends should query `GET /system/providers` when they need current runtime provider configuration.
 
 ## 10) Script Conventions

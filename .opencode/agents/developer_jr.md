@@ -1,7 +1,7 @@
 ---
 description: Junior implementation subagent for straightforward cleanup, refactors, and scoped tasks
 mode: subagent
-model: openrouter/z-ai/glm-5
+model: openrouter/x-ai/grok-code-fast-1
 temperature: 0.2
 tools:
   bash: true

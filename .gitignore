@@ -158,3 +158,5 @@ target/
 *.db
 *.db-shm
 *.db-wal
+# Generated OpenCode chat exports
+docs/chats/

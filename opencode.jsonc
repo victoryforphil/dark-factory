@@ -2,7 +2,19 @@
   "$schema": "https://opencode.ai/config.json",
   "plugin": ["opencode-pty"],
   "agent": {
+    "general": {
+      "model": "openrouter/z-ai/glm-4.7-flash",
+    },
     "explore": {
+      "model": "openrouter/x-ai/grok-4.1-fast",
+    },
+    "compaction": {
+      "model": "openrouter/google/gemini-3-flash-preview",
+    },
+    "title": {
+      "model": "openrouter/x-ai/grok-4.1-fast",
+    },
+    "summary": {
       "model": "openrouter/x-ai/grok-4.1-fast",
     },
   },
