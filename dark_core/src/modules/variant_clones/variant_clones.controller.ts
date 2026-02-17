@@ -49,7 +49,7 @@ interface GitCommandResult {
 }
 
 const DEFAULT_VARIANT_NAME_PREFIX = 'clone';
-const DEFAULT_CLONE_DIR_SUFFIX_WIDTH = 4;
+const DEFAULT_CLONE_DIR_SUFFIX_WIDTH = 2;
 
 const trimToNull = (value: string | null | undefined): string | null => {
   if (!value) {
@@ -213,8 +213,16 @@ const deriveDirectoryPrefix = (product: Product): string => {
   return toSlug(preferred);
 };
 
-const createAutoTargetPath = async (workspaceRootPath: string, product: Product): Promise<string> => {
-  const prefix = deriveDirectoryPrefix(product);
+const createAutoTargetPath = async (
+  workspaceRootPath: string,
+  product: Product,
+  requestedName?: string,
+): Promise<string> => {
+  const productPrefix = deriveDirectoryPrefix(product);
+  const requestedNamePrefix = trimToNull(requestedName);
+  const prefix = requestedNamePrefix
+    ? `${productPrefix}_${toSlug(requestedNamePrefix)}`
+    : productPrefix;
 
   for (let index = 0; index < 10_000; index += 1) {
     const suffix = String(index).padStart(DEFAULT_CLONE_DIR_SUFFIX_WIDTH, '0');
@@ -229,6 +237,7 @@ const createAutoTargetPath = async (workspaceRootPath: string, product: Product)
 
 const resolveCloneTarget = async (
   product: Product,
+  requestedName: string | undefined,
   targetPath?: string,
 ): Promise<ResolvedCloneTarget> => {
   if (targetPath && targetPath.trim().length > 0) {
@@ -255,7 +264,7 @@ const resolveCloneTarget = async (
   }
 
   await mkdir(workspaceRootPath, { recursive: true });
-  const generatedPath = await createAutoTargetPath(workspaceRootPath, product);
+  const generatedPath = await createAutoTargetPath(workspaceRootPath, product, requestedName);
 
   return {
     targetPath: generatedPath,
@@ -383,14 +392,51 @@ export const cloneVariantForProduct = async (
 
   const sourceLocator = await resolveSourceVariantLocator(product, input.sourceVariantId);
   const resolvedCloneType = resolveCloneType(product.locator, input.cloneType ?? 'auto');
-  const { targetPath, generatedTargetPath } = await resolveCloneTarget(product, input.targetPath);
+  const { targetPath, generatedTargetPath } = await resolveCloneTarget(
+    product,
+    input.name,
+    input.targetPath,
+  );
   const branch = buildBranchName(product, input.branchName);
 
+  Log.info(
+    `Core // Variant Clones Controller // Clone plan resolved ${formatLogMetadata({
+      cloneType: resolvedCloneType,
+      generatedBranchName: branch.generated,
+      generatedTargetPath,
+      productId: product.id,
+      sourceLocator,
+      targetPath,
+      workspaceLocator: product.workspaceLocator,
+    })}`,
+  );
+
   await mkdir(resolve(targetPath, '..'), { recursive: true });
+  Log.debug(
+    `Core // Variant Clones Controller // Clone target parent ensured ${formatLogMetadata({
+      productId: product.id,
+      targetPath,
+    })}`,
+  );
 
   if (resolvedCloneType === 'local.copy') {
+    Log.info(
+      `Core // Variant Clones Controller // Clone execution local copy ${formatLogMetadata({
+        productId: product.id,
+        sourceLocator,
+        targetPath,
+      })}`,
+    );
     await cloneFromLocalSource(sourceLocator, targetPath);
   } else {
+    Log.info(
+      `Core // Variant Clones Controller // Clone execution git clone+branch ${formatLogMetadata({
+        branchName: branch.value,
+        productId: product.id,
+        productLocator: product.locator,
+        targetPath,
+      })}`,
+    );
     await cloneFromGitRemote(product.locator, targetPath, branch.value);
   }
 

@@ -109,6 +109,14 @@ const parsePollQuery = (poll?: string): boolean => {
   return poll !== 'false' && poll !== '0';
 };
 
+const parseDryQuery = (dry?: string): boolean => {
+  if (!dry) {
+    return false;
+  }
+
+  return dry === 'true' || dry === '1';
+};
+
 export const createVariantsRoutes = (
   dependencies: VariantsRoutesDependencies = {
     createVariant,
@@ -412,9 +420,18 @@ export const createVariantsRoutes = (
     )
     .delete(
       '/:id',
-      async ({ params, set }) => {
+      async ({ params, query, set }) => {
+        const startedAt = logRouteStart('Variants // Delete', {
+          dry: query.dry ?? null,
+          id: params.id,
+        });
         try {
-          const deletedVariant = await dependencies.deleteVariantById(params.id);
+          const deletedVariant = await dependencies.deleteVariantById(params.id, {
+            dry: parseDryQuery(query.dry),
+          });
+          logRouteSuccess('Variants // Delete', startedAt, {
+            id: params.id,
+          });
           return success(deletedVariant);
         } catch (error) {
           if (isNotFoundError(error)) {
@@ -425,20 +442,38 @@ export const createVariantsRoutes = (
             return failure('VARIANTS_NOT_FOUND', error.message);
           }
 
+          const message = toErrorMessage(error);
+          if (message.includes('Undo blocked')) {
+            set.status = 400;
+            Log.warn(
+              `Core // Variants Route // Delete undo blocked ${formatLogMetadata({
+                dry: query.dry ?? null,
+                error: message,
+                id: params.id,
+              })}`,
+            );
+            return failure('VARIANTS_DELETE_UNDO_BLOCKED', message);
+          }
+
           Log.error(
             `Core // Variants Route // Delete failed ${formatLogMetadata({
-              error: toErrorMessage(error),
+              dry: query.dry ?? null,
+              error: message,
               id: params.id,
             })}`,
           );
           set.status = 500;
-          return failure('VARIANTS_DELETE_FAILED', toErrorMessage(error));
+          return failure('VARIANTS_DELETE_FAILED', message);
         }
       },
       {
         params: t.Object({ id: t.String() }),
+        query: t.Object({
+          dry: t.Optional(t.String()),
+        }),
         response: {
           200: variantDeleteResponse,
+          400: apiFailureResponse,
           404: notFoundResponse,
           500: apiFailureResponse,
         },

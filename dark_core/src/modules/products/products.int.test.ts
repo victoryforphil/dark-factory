@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { buildApp } from '../../app';
@@ -362,6 +362,7 @@ describe('products module integration', () => {
       expect(cloned.data.variant.name).toBe('clone-a');
       expect(cloned.data.clone.cloneType).toBe('local.copy');
       expect(cloned.data.clone.generatedTargetPath).toBe(true);
+      expect(basename(cloned.data.clone.targetPath)).toMatch(/source-product_clone-a_\d{2}$/);
 
       const copiedReadme = await readFile(join(cloned.data.clone.targetPath, 'README.md'), 'utf8');
       expect(copiedReadme).toContain('# source');

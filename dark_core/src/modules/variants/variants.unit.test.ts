@@ -194,4 +194,37 @@ describe('variants module unit', () => {
       },
     });
   });
+
+  it('forwards dry query on variant delete route', async () => {
+    let receivedDry: boolean | undefined;
+
+    const app = new Elysia().use(
+      createVariantsRoutes({
+        ...dependenciesBase,
+        deleteVariantById: async (_id, options) => {
+          receivedDry = options?.dry;
+          return {
+            id: 'v_1',
+            productId: 'p_1',
+            name: 'default',
+            locator: '@local:///tmp/demo',
+            gitInfo: null,
+            gitInfoUpdatedAt: null,
+            gitInfoLastPolledAt: null,
+            createdAt: new Date('2026-01-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          };
+        },
+      }),
+    );
+
+    const response = await app.handle(
+      new Request('http://localhost/variants/v_1?dry=true', {
+        method: 'DELETE',
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(receivedDry).toBe(true);
+  });
 });

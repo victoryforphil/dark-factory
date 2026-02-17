@@ -1,4 +1,5 @@
 import { Prisma, type Variant } from '../../../../generated/prisma/client';
+import { rm, stat } from 'node:fs/promises';
 
 import { getPrismaClient } from '../prisma/prisma.client';
 import Log, { formatLogMetadata } from '../../utils/logging';
@@ -6,6 +7,7 @@ import { NotFoundError } from '../common/controller.errors';
 import type { CursorListQuery } from '../common/controller.types';
 import { scanVariantGitInfo } from '../git/git.scan';
 import { buildRandomVariantId } from '../../utils/id';
+import { isLocalLocator, locatorIdToHostPath } from '../../utils/locator';
 
 const DEFAULT_LIST_LIMIT = 25;
 const MAX_LIST_LIMIT = 100;
@@ -35,6 +37,10 @@ export interface CreateVariantInput {
 export interface UpdateVariantInput {
   name?: string;
   locator?: string;
+}
+
+export interface DeleteVariantOptions {
+  dry?: boolean;
 }
 
 const normalizeLimit = (value?: number): number => {
@@ -210,8 +216,19 @@ export const updateVariantById = async (
   return updatedVariant;
 };
 
-export const deleteVariantById = async (id: string): Promise<Variant> => {
+export const deleteVariantById = async (
+  id: string,
+  options: DeleteVariantOptions = {},
+): Promise<Variant> => {
   const prisma = getPrismaClient();
+  const dry = options.dry ?? false;
+
+  Log.info(
+    `Core // Variants Controller // Delete requested ${formatLogMetadata({
+      dry,
+      id,
+    })}`,
+  );
 
   const existingVariant = await prisma.variant.findUnique({ where: { id } });
 
@@ -222,7 +239,235 @@ export const deleteVariantById = async (id: string): Promise<Variant> => {
     throw new NotFoundError(`Variant ${id} was not found`);
   }
 
+  Log.debug(
+    `Core // Variants Controller // Delete resolved target ${formatLogMetadata({
+      dry,
+      id,
+      locator: existingVariant.locator,
+      productId: existingVariant.productId,
+      variantName: existingVariant.name,
+    })}`,
+  );
+
+  await undoVariantCloneIfRequested(existingVariant, dry);
+
   const deletedVariant = await prisma.variant.delete({ where: { id } });
-  Log.info(`Core // Variants Controller // Variant deleted ${formatLogMetadata({ id })}`);
+  Log.info(
+    `Core // Variants Controller // Variant deleted ${formatLogMetadata({
+      dry,
+      id,
+    })}`,
+  );
   return deletedVariant;
+};
+
+interface GitCommandResult {
+  ok: boolean;
+  stdout: string;
+  stderr: string;
+  exitCode: number;
+}
+
+const trimToNull = (value: string | null | undefined): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+const runGit = async (args: string[], cwd: string): Promise<GitCommandResult> => {
+  const child = Bun.spawn(['git', ...args], {
+    cwd,
+    stdout: 'pipe',
+    stderr: 'pipe',
+    stdin: 'ignore',
+  });
+
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+
+  return {
+    ok: exitCode === 0,
+    stdout,
+    stderr,
+    exitCode,
+  };
+};
+
+const ensureGitCloneSafeToDelete = async (path: string): Promise<void> => {
+  Log.debug(
+    `Core // Variants Controller // Undo git checks started ${formatLogMetadata({ path })}`,
+  );
+  const insideWorkTree = await runGit(['rev-parse', '--is-inside-work-tree'], path);
+  Log.debug(
+    `Core // Variants Controller // Undo git check inside worktree ${formatLogMetadata({
+      ok: insideWorkTree.ok,
+      path,
+      stdout: trimToNull(insideWorkTree.stdout),
+    })}`,
+  );
+  if (!insideWorkTree.ok || !insideWorkTree.stdout.trim().includes('true')) {
+    Log.info(
+      `Core // Variants Controller // Undo git checks skipped, not a git worktree ${formatLogMetadata({
+        path,
+      })}`,
+    );
+    return;
+  }
+
+  const status = await runGit(['status', '--porcelain'], path);
+  Log.debug(
+    `Core // Variants Controller // Undo git status check ${formatLogMetadata({
+      exitCode: status.exitCode,
+      hasChanges: Boolean(trimToNull(status.stdout)),
+      ok: status.ok,
+      path,
+    })}`,
+  );
+  if (!status.ok) {
+    throw new Error(
+      `Variants // Delete // Undo blocked: unable to read git status ${formatLogMetadata({
+        exitCode: status.exitCode,
+        path,
+        stderr: trimToNull(status.stderr),
+      })}`,
+    );
+  }
+
+  if (trimToNull(status.stdout)) {
+    throw new Error(
+      `Variants // Delete // Undo blocked: working tree has changes ${formatLogMetadata({ path })}`,
+    );
+  }
+
+  const branchResult = await runGit(['rev-parse', '--abbrev-ref', 'HEAD'], path);
+  const branch = trimToNull(branchResult.stdout);
+  Log.debug(
+    `Core // Variants Controller // Undo git branch check ${formatLogMetadata({
+      branch,
+      exitCode: branchResult.exitCode,
+      ok: branchResult.ok,
+      path,
+    })}`,
+  );
+  if (!branchResult.ok || !branch || branch === 'HEAD') {
+    throw new Error(
+      `Variants // Delete // Undo blocked: expected active branch ${formatLogMetadata({
+        path,
+      })}`,
+    );
+  }
+
+  const fetchResult = await runGit(
+    ['fetch', 'origin', `${branch}:refs/remotes/origin/${branch}`],
+    path,
+  );
+  Log.debug(
+    `Core // Variants Controller // Undo git fetch remote branch ${formatLogMetadata({
+      branch,
+      exitCode: fetchResult.exitCode,
+      ok: fetchResult.ok,
+      path,
+    })}`,
+  );
+  if (!fetchResult.ok) {
+    throw new Error(
+      `Variants // Delete // Undo blocked: failed to fetch origin branch ${formatLogMetadata({
+        branch,
+        exitCode: fetchResult.exitCode,
+        path,
+        stderr: trimToNull(fetchResult.stderr),
+      })}`,
+    );
+  }
+
+  const pushedResult = await runGit(
+    ['merge-base', '--is-ancestor', 'HEAD', `origin/${branch}`],
+    path,
+  );
+  Log.debug(
+    `Core // Variants Controller // Undo git pushed check ${formatLogMetadata({
+      branch,
+      exitCode: pushedResult.exitCode,
+      ok: pushedResult.ok,
+      path,
+    })}`,
+  );
+  if (!pushedResult.ok) {
+    throw new Error(
+      `Variants // Delete // Undo blocked: branch head not pushed to origin ${formatLogMetadata({
+        branch,
+        path,
+      })}`,
+    );
+  }
+};
+
+const undoVariantCloneIfRequested = async (variant: Variant, dry: boolean): Promise<void> => {
+  Log.info(
+    `Core // Variants Controller // Undo clone decision ${formatLogMetadata({
+      dry,
+      id: variant.id,
+      locator: variant.locator,
+    })}`,
+  );
+  if (dry) {
+    Log.info(
+      `Core // Variants Controller // Undo clone skipped by dry flag ${formatLogMetadata({
+        id: variant.id,
+      })}`,
+    );
+    return;
+  }
+
+  if (!isLocalLocator(variant.locator)) {
+    throw new Error(
+      `Variants // Delete // Undo blocked: variant locator must be local ${formatLogMetadata({
+        id: variant.id,
+        locator: variant.locator,
+      })}`,
+    );
+  }
+
+  const path = locatorIdToHostPath(variant.locator);
+  Log.debug(
+    `Core // Variants Controller // Undo clone resolved path ${formatLogMetadata({
+      id: variant.id,
+      path,
+    })}`,
+  );
+  const existing = await stat(path).catch(() => null);
+  if (!existing) {
+    Log.warn(
+      `Core // Variants Controller // Undo skipped, target path missing ${formatLogMetadata({
+        id: variant.id,
+        path,
+      })}`,
+    );
+    return;
+  }
+
+  if (!existing.isDirectory()) {
+    throw new Error(
+      `Variants // Delete // Undo blocked: target path is not a directory ${formatLogMetadata({
+        id: variant.id,
+        path,
+      })}`,
+    );
+  }
+
+  await ensureGitCloneSafeToDelete(path);
+  await rm(path, { recursive: true, force: false });
+
+  Log.info(
+    `Core // Variants Controller // Clone directory removed ${formatLogMetadata({
+      id: variant.id,
+      path,
+    })}`,
+  );
 };

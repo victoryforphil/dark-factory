@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { access, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 import { buildApp } from '../../app';
 import { createSqliteTestDatabase, type SqliteTestDatabase } from '../../test/helpers/sqlite-test-db';
@@ -182,6 +185,68 @@ describe('variants module integration', () => {
     const afterDelete = await listVariants({ productId: product.id });
     expect(afterDelete.length).toBe(1);
     expect(afterDelete[0]?.name).toBe('default');
+  });
+
+  it('deletes clone directory when variant delete uses dry=false', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'dark-factory-variant-delete-'));
+    const clonePath = join(workspace, 'clone-dir');
+
+    try {
+      await mkdir(clonePath, { recursive: true });
+      await Bun.write(join(clonePath, 'README.md'), '# clone');
+
+      const product = await createProduct({ locator: `@local://${workspace}` });
+      const createdVariant = await createVariant({
+        product: {
+          connect: {
+            id: product.id,
+          },
+        },
+        name: 'clone-delete',
+        locator: `@local://${clonePath}`,
+      });
+
+      await deleteVariantById(createdVariant.id, { dry: false });
+
+      const exists = await access(clonePath).then(
+        () => true,
+        () => false,
+      );
+      expect(exists).toBeFalse();
+    } finally {
+      await rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps clone directory when variant delete uses dry=true', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'dark-factory-variant-delete-'));
+    const clonePath = join(workspace, 'clone-dir-keep');
+
+    try {
+      await mkdir(clonePath, { recursive: true });
+      await Bun.write(join(clonePath, 'README.md'), '# clone');
+
+      const product = await createProduct({ locator: `@local://${workspace}` });
+      const createdVariant = await createVariant({
+        product: {
+          connect: {
+            id: product.id,
+          },
+        },
+        name: 'clone-keep',
+        locator: `@local://${clonePath}`,
+      });
+
+      await deleteVariantById(createdVariant.id, { dry: true });
+
+      const exists = await access(clonePath).then(
+        () => true,
+        () => false,
+      );
+      expect(exists).toBeTrue();
+    } finally {
+      await rm(workspace, { recursive: true, force: true });
+    }
   });
 
   it('honors poll query defaults and overrides on variant read routes', async () => {

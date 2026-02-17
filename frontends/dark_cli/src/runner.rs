@@ -7,7 +7,7 @@ use dark_rust::types::{
     ActorAttachQuery, ActorCommandInput, ActorCreateInput, ActorDeleteQuery, ActorListQuery,
     ActorMessageInput, ActorMessagesQuery, ActorUpdateInput, ProductCreateInput,
     ProductIncludeQuery, ProductListQuery, ProductUpdateInput, ProductVariantCloneInput,
-    VariantCreateInput,
+    VariantCreateInput, VariantDeleteQuery,
     VariantImportActorsInput, VariantListQuery, VariantProductConnectInput,
     VariantProductRelationInput, VariantUpdateInput,
 };
@@ -216,7 +216,10 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
                 )
                 .await
                 .map_err(Into::into),
-            VariantsAction::Delete { id } => api.variants_delete(id).await.map_err(Into::into),
+            VariantsAction::Delete { id } => api
+                .variants_delete(id, &VariantDeleteQuery { dry: Some(true) })
+                .await
+                .map_err(Into::into),
         },
         Command::Actors(command) => match &command.action {
             ActorsAction::List {

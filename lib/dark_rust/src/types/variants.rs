@@ -58,6 +58,11 @@ pub struct VariantListQuery {
     pub poll: Option<bool>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct VariantDeleteQuery {
+    pub dry: Option<bool>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VariantGitStatus {
     pub clean: bool,

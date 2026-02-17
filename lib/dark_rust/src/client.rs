@@ -6,7 +6,8 @@ use crate::types::{
     ActorAttachQuery, ActorCommandInput, ActorCreateInput, ActorDeleteQuery, ActorListQuery,
     ActorMessageInput, ActorMessagesQuery, ActorUpdateInput, ProductCreateInput,
     ProductIncludeQuery, ProductListQuery, ProductVariantCloneInput, ProductUpdateInput,
-    VariantCreateInput, VariantImportActorsInput, VariantListQuery, VariantUpdateInput,
+    VariantCreateInput, VariantDeleteQuery, VariantImportActorsInput, VariantListQuery,
+    VariantUpdateInput,
 };
 
 #[derive(Debug, Clone)]
@@ -295,8 +296,24 @@ impl DarkCoreClient {
         .await
     }
 
-    pub async fn variants_delete(&self, variant_id: &str) -> Result<RawApiResponse, DarkRustError> {
-        self.delete(&format!("/variants/{variant_id}"), None).await
+    pub async fn variants_delete(
+        &self,
+        variant_id: &str,
+        query: &VariantDeleteQuery,
+    ) -> Result<RawApiResponse, DarkRustError> {
+        let mut query_parts = Vec::new();
+
+        if let Some(dry) = query.dry {
+            query_parts.push(("dry".to_string(), dry.to_string()));
+        }
+
+        let query = if query_parts.is_empty() {
+            None
+        } else {
+            Some(query_parts.as_slice())
+        };
+
+        self.delete(&format!("/variants/{variant_id}"), query).await
     }
 
     pub async fn actors_list(
