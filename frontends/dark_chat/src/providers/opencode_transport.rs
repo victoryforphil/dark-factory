@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use reqwest::Method;
 use serde_json::{Value, json};
 
@@ -15,6 +15,15 @@ struct RawResponse {
 }
 
 impl OpenCodeProvider {
+    fn is_html_payload(value: &Value) -> bool {
+        let Some(text) = value.as_str() else {
+            return false;
+        };
+
+        let normalized = text.trim_start().to_ascii_lowercase();
+        normalized.starts_with("<!doctype html") || normalized.starts_with("<html")
+    }
+
     async fn raw_request(
         &self,
         method: Method,
@@ -60,28 +69,36 @@ impl OpenCodeProvider {
         query: &[(String, String)],
         body: Option<Value>,
     ) -> Result<Value> {
-        let mut first_non_404_error: Option<anyhow::Error> = None;
+        let mut first_error: Option<anyhow::Error> = None;
 
         for path in paths {
             let raw = self
                 .raw_request(method.clone(), path, query, body.clone())
                 .await?;
 
-            if raw.status == 404 {
-                continue;
-            }
-
             match ensure_success(raw.status, &raw.path, raw.body) {
-                Ok(value) => return Ok(value),
+                Ok(value) => {
+                    if Self::is_html_payload(&value) {
+                        if first_error.is_none() {
+                            first_error = Some(anyhow!(
+                                "OpenCode // API // unexpected HTML payload (path={})",
+                                path
+                            ));
+                        }
+                        continue;
+                    }
+
+                    return Ok(value);
+                }
                 Err(error) => {
-                    if first_non_404_error.is_none() {
-                        first_non_404_error = Some(error);
+                    if first_error.is_none() {
+                        first_error = Some(error);
                     }
                 }
             }
         }
 
-        if let Some(error) = first_non_404_error {
+        if let Some(error) = first_error {
             return Err(error);
         }
 
@@ -104,12 +121,15 @@ impl OpenCodeProvider {
 
         let query = vec![("directory".to_string(), directory.to_string())];
         let mut body = json!({
-            "noReply": no_reply,
             "parts": [{
                 "type": "text",
                 "text": trimmed,
             }],
         });
+
+        if no_reply {
+            body["noReply"] = Value::Bool(true);
+        }
 
         if let Some(model) = model.and_then(parse_model_selector) {
             body["model"] = json!({
@@ -126,12 +146,12 @@ impl OpenCodeProvider {
             body["agent"] = Value::String(agent);
         }
 
-        let path_message = format!("/session/{session_id}/message");
         let path_prompt = format!("/session/{session_id}/prompt");
+        let path_message = format!("/session/{session_id}/message");
         let _ = self
             .request_json_with_fallback(
                 Method::POST,
-                &[path_message.as_str(), path_prompt.as_str()],
+                &[path_prompt.as_str(), path_message.as_str()],
                 &query,
                 Some(body),
             )
