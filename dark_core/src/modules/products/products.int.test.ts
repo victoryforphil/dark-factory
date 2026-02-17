@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 import { buildApp } from '../../app';
 import { createSqliteTestDatabase, type SqliteTestDatabase } from '../../test/helpers/sqlite-test-db';
@@ -11,6 +14,16 @@ import {
   listProducts,
   updateProductById,
 } from './products.controller';
+
+const runGit = (args: string[], cwd: string): void => {
+  const result = Bun.spawnSync(['git', ...args], { cwd, stdout: 'pipe', stderr: 'pipe' });
+
+  if (result.exitCode !== 0) {
+    throw new Error(
+      `git ${args.join(' ')} failed (code=${result.exitCode}): ${result.stderr.toString()}`,
+    );
+  }
+};
 
 describe('products module integration', () => {
   let testDatabase: SqliteTestDatabase;
@@ -264,5 +277,31 @@ describe('products module integration', () => {
 
     const products = await listProducts({ limit: 1.9 });
     expect(products.length).toBe(1);
+  });
+
+  it('promotes local product locator to git identifier when remote and branch are present', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'dark-factory-products-git-'));
+
+    try {
+      runGit(['init'], workspace);
+      runGit(['checkout', '-b', 'git-test-main'], workspace);
+      runGit(['config', 'user.name', 'Dark Factory Test'], workspace);
+      runGit(['config', 'user.email', 'test@example.com'], workspace);
+      runGit(['remote', 'add', 'origin', 'https://github.com/acme/demo.git'], workspace);
+
+      await writeFile(join(workspace, 'README.md'), '# git product test\n', 'utf8');
+      runGit(['add', '.'], workspace);
+      runGit(['commit', '-m', 'init'], workspace);
+
+      const localLocator = `@local://${workspace}`;
+      const created = await createProduct({ locator: localLocator });
+      const variants = await listVariants({ productId: created.id });
+
+      expect(created.locator).toBe('@git://https://github.com/acme/demo.git#git-test-main');
+      expect(variants.length).toBe(1);
+      expect(variants[0]?.locator).toBe(localLocator);
+    } finally {
+      await rm(workspace, { recursive: true, force: true });
+    }
   });
 });

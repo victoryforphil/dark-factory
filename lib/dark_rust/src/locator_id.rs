@@ -3,10 +3,12 @@ use std::path::{Path, PathBuf};
 use crate::error::DarkRustError;
 
 const LOCAL_LOCATOR_PREFIX: &str = "@local://";
+const GIT_LOCATOR_PREFIX: &str = "@git://";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LocatorKind {
     Local,
+    Git,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,8 +17,15 @@ pub struct LocalLocator {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitLocator {
+    pub remote: String,
+    pub reference: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LocatorId {
     Local(LocalLocator),
+    Git(GitLocator),
     Unknown(String),
 }
 
@@ -27,6 +36,11 @@ impl LocatorId {
         if let Some(local_path) = trimmed.strip_prefix(LOCAL_LOCATOR_PREFIX) {
             let canonical_path = normalize_local_path(local_path)?;
             return Ok(Self::Local(LocalLocator { canonical_path }));
+        }
+
+        if let Some(git_locator) = trimmed.strip_prefix(GIT_LOCATOR_PREFIX) {
+            let (remote, reference) = parse_git_locator(git_locator)?;
+            return Ok(Self::Git(GitLocator { remote, reference }));
         }
 
         Ok(Self::Unknown(trimmed.to_string()))
@@ -49,12 +63,21 @@ impl LocatorId {
                 let canonical_path = normalize_local_path(&input)?;
                 Ok(Self::Local(LocalLocator { canonical_path }))
             }
+            LocatorKind::Git => Err(DarkRustError::InvalidLocator {
+                message: format!(
+                    "cannot derive git locator from host path, expected remote and branch (path={})",
+                    path.display()
+                ),
+            }),
         }
     }
 
     pub fn to_locator_id(&self) -> String {
         match self {
             Self::Local(local) => format!("{LOCAL_LOCATOR_PREFIX}{}", local.canonical_path),
+            Self::Git(git) => {
+                format!("{GIT_LOCATOR_PREFIX}{}#{}", git.remote, git.reference)
+            }
             Self::Unknown(raw) => raw.clone(),
         }
     }
@@ -68,6 +91,12 @@ impl LocatorId {
                     Ok(PathBuf::from(local.canonical_path.clone()))
                 }
             }
+            Self::Git(git) => Err(DarkRustError::InvalidLocator {
+                message: format!(
+                    "unsupported git locator format for host path conversion (locator={})",
+                    Self::Git(git.clone()).to_locator_id()
+                ),
+            }),
             Self::Unknown(raw) => Err(DarkRustError::InvalidLocator {
                 message: format!(
                     "unsupported locator format for host path conversion (locator={})",
@@ -117,6 +146,26 @@ fn normalize_local_path(path: &str) -> Result<String, DarkRustError> {
     Ok(format!("/{}", segments.join("/")))
 }
 
+fn parse_git_locator(value: &str) -> Result<(String, String), DarkRustError> {
+    let trimmed = value.trim();
+    let Some((remote, reference)) = trimmed.split_once('#') else {
+        return Err(DarkRustError::InvalidLocator {
+            message: format!("expected git locator with remote and ref (locator={value})"),
+        });
+    };
+
+    let remote_trimmed = remote.trim();
+    let reference_trimmed = reference.trim();
+
+    if remote_trimmed.is_empty() || reference_trimmed.is_empty() {
+        return Err(DarkRustError::InvalidLocator {
+            message: format!("expected git locator with remote and ref (locator={value})"),
+        });
+    }
+
+    Ok((remote_trimmed.to_string(), reference_trimmed.to_string()))
+}
+
 fn split_drive_prefix(path: &str) -> (Option<String>, &str) {
     let bytes = path.as_bytes();
 
@@ -151,6 +200,18 @@ mod tests {
             LocatorId::parse("repo://dark-factory/product-a").expect("parse unknown locator");
 
         assert_eq!(parsed.to_locator_id(), "repo://dark-factory/product-a");
+        assert!(parsed.to_host_path().is_err());
+    }
+
+    #[test]
+    fn parses_git_locator() {
+        let parsed = LocatorId::parse("@git://https://github.com/acme/dark-factory.git#main")
+            .expect("parse git locator");
+
+        assert_eq!(
+            parsed.to_locator_id(),
+            "@git://https://github.com/acme/dark-factory.git#main"
+        );
         assert!(parsed.to_host_path().is_err());
     }
 

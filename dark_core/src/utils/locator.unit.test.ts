@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'bun:test';
 
 import {
+  buildGitLocator,
   buildDeterministicIdFromLocator,
+  canonicalizeGitLocator,
   canonicalizeLocalLocator,
   hostAbsolutePathToLocatorId,
   locatorIdToHostPath,
@@ -28,6 +30,18 @@ describe('locator utilities', () => {
     expect(locator).toBe('repo://dark-factory/product-a');
   });
 
+  it('canonicalizes git locator strings', () => {
+    const locator = canonicalizeGitLocator('@git:// https://github.com/acme/dark-factory.git # main ');
+
+    expect(locator).toBe('@git://https://github.com/acme/dark-factory.git#main');
+  });
+
+  it('builds git locator identifiers from remote and branch', () => {
+    const locator = buildGitLocator('git@github.com:acme/dark-factory.git', 'master');
+
+    expect(locator).toBe('@git://git@github.com:acme/dark-factory.git#master');
+  });
+
   it('builds deterministic short product IDs', () => {
     const productId = buildDeterministicIdFromLocator('@local:///tmp/project');
 
@@ -36,12 +50,19 @@ describe('locator utilities', () => {
 
   it('parses locator ids by type', () => {
     const local = parseLocatorId('@local:///tmp/project');
+    const git = parseLocatorId('@git://https://github.com/acme/dark-factory.git#main');
     const unknown = parseLocatorId('repo://dark-factory/product-a');
 
     expect(local).toEqual({
       type: 'local',
       locator: '@local:///tmp/project',
       canonicalPath: '/tmp/project',
+    });
+    expect(git).toEqual({
+      type: 'git',
+      locator: '@git://https://github.com/acme/dark-factory.git#main',
+      remote: 'https://github.com/acme/dark-factory.git',
+      ref: 'main',
     });
     expect(unknown).toEqual({
       type: 'unknown',

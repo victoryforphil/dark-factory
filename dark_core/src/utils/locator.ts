@@ -1,6 +1,7 @@
 import { normalize, posix } from 'node:path';
 
 const LOCAL_LOCATOR_PREFIX = '@local://';
+const GIT_LOCATOR_PREFIX = '@git://';
 const PRODUCT_ID_PREFIX = 'prd_';
 const PRODUCT_ID_WIDTH = 13;
 const WINDOWS_ABSOLUTE_PATH_PATTERN = /^[A-Za-z]:[\\/]/;
@@ -11,6 +12,12 @@ export type LocatorId =
       type: 'local';
       locator: string;
       canonicalPath: string;
+    }
+  | {
+      type: 'git';
+      locator: string;
+      remote: string;
+      ref: string;
     }
   | {
       type: 'unknown';
@@ -81,8 +88,47 @@ export const isLocalLocator = (locator: string): boolean => {
   return locator.startsWith(LOCAL_LOCATOR_PREFIX);
 };
 
+export const isGitLocator = (locator: string): boolean => {
+  return locator.startsWith(GIT_LOCATOR_PREFIX);
+};
+
+export const canonicalizeGitLocator = (locator: string): string => {
+  if (!isGitLocator(locator)) {
+    throw new Error(`Products // Locator // Expected @git:// locator (locator=${locator})`);
+  }
+
+  const gitValue = locator.slice(GIT_LOCATOR_PREFIX.length).trim();
+  const [rawRemote, rawRef] = gitValue.split('#');
+  const remote = rawRemote?.trim();
+  const ref = rawRef?.trim();
+
+  if (!remote || !ref) {
+    throw new Error(
+      `Products // Locator // Expected git locator with remote and ref (locator=${locator})`,
+    );
+  }
+
+  return `${GIT_LOCATOR_PREFIX}${remote}#${ref}`;
+};
+
+export const buildGitLocator = (remote: string, ref: string): string => {
+  return canonicalizeGitLocator(`${GIT_LOCATOR_PREFIX}${remote}#${ref}`);
+};
+
 export const parseLocatorId = (locator: string): LocatorId => {
   const trimmedLocator = locator.trim();
+
+  if (isGitLocator(trimmedLocator)) {
+    const canonicalLocator = canonicalizeGitLocator(trimmedLocator);
+    const [remote, ref] = canonicalLocator.slice(GIT_LOCATOR_PREFIX.length).split('#');
+
+    return {
+      type: 'git',
+      locator: canonicalLocator,
+      remote: remote as string,
+      ref: ref as string,
+    };
+  }
 
   if (!isLocalLocator(trimmedLocator)) {
     return {
@@ -119,6 +165,10 @@ export const canonicalizeLocalLocator = (locator: string): string => {
 export const normalizeLocator = (locator: string): string => {
   const trimmedLocator = locator.trim();
 
+  if (isGitLocator(trimmedLocator)) {
+    return canonicalizeGitLocator(trimmedLocator);
+  }
+
   if (isLocalLocator(trimmedLocator)) {
     return canonicalizeLocalLocator(trimmedLocator);
   }
@@ -137,6 +187,10 @@ export const locatorIdToHostPath = (locator: string): string => {
   switch (parsed.type) {
     case 'local':
       return localPathToHostPath(parsed.canonicalPath);
+    case 'git':
+      throw new Error(
+        `Products // Locator // Unsupported git locator format for host path conversion (locator=${parsed.locator})`,
+      );
     case 'unknown':
       throw new Error(
         `Products // Locator // Unsupported locator format for host path conversion (locator=${parsed.locator})`,

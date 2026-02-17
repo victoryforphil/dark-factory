@@ -2,7 +2,9 @@ import { Prisma, type Product, type Variant } from '../../../../generated/prisma
 
 import { getPrismaClient } from '../prisma/prisma.client';
 import {
+  buildGitLocator,
   buildDeterministicIdFromLocator,
+  isGitLocator,
   isLocalLocator,
   normalizeLocator,
 } from '../../utils/locator';
@@ -66,21 +68,22 @@ const buildProductInclude = (include: ProductIncludeOption): Prisma.ProductInclu
   };
 };
 
-const ensureLocalDefaultVariant = async (
+const ensureDefaultVariant = async (
   tx: Prisma.TransactionClient,
-  product: Product,
+  productId: string,
+  variantLocator: string | null,
 ): Promise<boolean> => {
-  if (!isLocalLocator(product.locator)) {
+  if (!variantLocator || !isLocalLocator(variantLocator)) {
     return false;
   }
 
   const existingDefaultVariant = await tx.variant.findUnique({
     where: {
-      productId_name: {
-        productId: product.id,
-        name: DEFAULT_VARIANT_NAME,
+        productId_name: {
+          productId,
+          name: DEFAULT_VARIANT_NAME,
+        },
       },
-    },
   });
 
   if (existingDefaultVariant) {
@@ -90,13 +93,35 @@ const ensureLocalDefaultVariant = async (
   await tx.variant.create({
     data: {
       id: buildRandomVariantId(),
-      productId: product.id,
+      productId,
       name: DEFAULT_VARIANT_NAME,
-      locator: product.locator,
+      locator: variantLocator,
     },
   });
 
   return true;
+};
+
+const resolveProductLocator = (canonicalLocator: string, gitInfo: Product['gitInfo']): string => {
+  if (!isLocalLocator(canonicalLocator)) {
+    return canonicalLocator;
+  }
+
+  if (!gitInfo || typeof gitInfo !== 'object' || Array.isArray(gitInfo)) {
+    return canonicalLocator;
+  }
+
+  const gitSnapshot = gitInfo as Record<string, unknown>;
+
+  const remoteUrl =
+    typeof gitSnapshot.remoteUrl === 'string' ? gitSnapshot.remoteUrl.trim() : '';
+  const branch = typeof gitSnapshot.branch === 'string' ? gitSnapshot.branch.trim() : '';
+
+  if (!remoteUrl || !branch) {
+    return canonicalLocator;
+  }
+
+  return buildGitLocator(remoteUrl, branch);
 };
 
 export interface UpdateProductInput {
@@ -152,50 +177,84 @@ export const getProductById = async (
 export const createProduct = async (input: CreateProductInput): Promise<Product> => {
   const prisma = getPrismaClient();
   const canonicalLocator = normalizeLocator(input.locator);
-  const productId = buildDeterministicIdFromLocator(canonicalLocator);
   const gitInfo = await scanProductGitInfo(canonicalLocator);
+  const productLocator = resolveProductLocator(canonicalLocator, gitInfo);
+  const productId = buildDeterministicIdFromLocator(productLocator);
+  const defaultVariantLocator = isLocalLocator(canonicalLocator) ? canonicalLocator : null;
   let defaultVariantCreated = false;
 
   const product = await prisma.$transaction(async (tx) => {
-    const existingProductById = await tx.product.findUnique({
-      where: { id: productId },
-    });
+      const existingProductById = await tx.product.findUnique({
+        where: { id: productId },
+      });
 
-    if (existingProductById) {
-      if (existingProductById.locator !== canonicalLocator) {
-        throw new IdCollisionDetectedError(
-          `Products // Create // ID collision detected ${formatLogMetadata({
-            canonicalLocator,
-            existingLocator: existingProductById.locator,
-            id: productId,
-          })}`,
+      if (existingProductById) {
+        if (existingProductById.locator !== productLocator) {
+          throw new IdCollisionDetectedError(
+            `Products // Create // ID collision detected ${formatLogMetadata({
+              canonicalLocator: productLocator,
+              existingLocator: existingProductById.locator,
+              id: productId,
+            })}`,
+          );
+        }
+
+        defaultVariantCreated = await ensureDefaultVariant(
+          tx,
+          existingProductById.id,
+          defaultVariantLocator,
         );
+
+        return existingProductById;
       }
 
-      defaultVariantCreated = await ensureLocalDefaultVariant(tx, existingProductById);
+      const existingProductByLocator = await tx.product.findUnique({
+        where: { locator: productLocator },
+      });
 
-      return existingProductById;
-    }
+      if (existingProductByLocator) {
+        defaultVariantCreated = await ensureDefaultVariant(
+          tx,
+          existingProductByLocator.id,
+          defaultVariantLocator,
+        );
+        return existingProductByLocator;
+      }
 
-    const existingProductByLocator = await tx.product.findUnique({
-      where: { locator: canonicalLocator },
-    });
+      if (productLocator !== canonicalLocator && isGitLocator(productLocator)) {
+        const existingProductByLegacyLocator = await tx.product.findUnique({
+          where: { locator: canonicalLocator },
+        });
 
-    if (existingProductByLocator) {
-      defaultVariantCreated = await ensureLocalDefaultVariant(tx, existingProductByLocator);
-      return existingProductByLocator;
-    }
+        if (existingProductByLegacyLocator) {
+          const updatedLegacyProduct = await tx.product.update({
+            where: { id: existingProductByLegacyLocator.id },
+            data: {
+              locator: productLocator,
+              gitInfo: gitInfo ?? Prisma.DbNull,
+            },
+          });
 
-    const createdProduct = await tx.product.create({
-      data: {
-        id: productId,
-        locator: canonicalLocator,
-        displayName: input.displayName ?? null,
-        gitInfo: gitInfo ?? Prisma.DbNull,
-      },
-    });
+          defaultVariantCreated = await ensureDefaultVariant(
+            tx,
+            updatedLegacyProduct.id,
+            defaultVariantLocator,
+          );
 
-    defaultVariantCreated = await ensureLocalDefaultVariant(tx, createdProduct);
+          return updatedLegacyProduct;
+        }
+      }
+
+      const createdProduct = await tx.product.create({
+        data: {
+          id: productId,
+          locator: productLocator,
+          displayName: input.displayName ?? null,
+          gitInfo: gitInfo ?? Prisma.DbNull,
+        },
+      });
+
+      defaultVariantCreated = await ensureDefaultVariant(tx, createdProduct.id, defaultVariantLocator);
 
     return createdProduct;
   });
@@ -204,13 +263,14 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
     `Core // Products Controller // Product created ${formatLogMetadata({
       id: product.id,
       locator: product.locator,
+      sourceLocator: canonicalLocator,
     })}`,
   );
 
   if (defaultVariantCreated) {
     Log.info(
       `Core // Products Controller // Local default variant ensured ${formatLogMetadata({
-        locator: product.locator,
+        locator: defaultVariantLocator,
         name: DEFAULT_VARIANT_NAME,
         productId: product.id,
       })}`,
