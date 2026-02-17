@@ -401,16 +401,16 @@ impl GraphCatalogView {
         inner: Rect,
         offset_x: i32,
         offset_y: i32,
+        app: &App,
         layout: &GraphLayout,
         theme: &Theme,
     ) {
-        let product_edge = Style::default().fg(Self::dim_color(theme.entity_product));
-        let variant_edge = Style::default().fg(Self::dim_color(theme.entity_variant));
-
         for group in &layout.groups {
             if group.variants.is_empty() {
                 continue;
             }
+
+            let product_edge = Self::product_edge_style(app, group, theme);
 
             let product_mid_y = group.rect.y + 1;
             let product_right_x = group.rect.x + group.rect.width as i32;
@@ -460,6 +460,7 @@ impl GraphCatalogView {
             variant_refs.sort_by_key(|variant| variant.rect.y);
 
             for (index, variant) in variant_refs.iter().enumerate() {
+                let variant_edge = Self::variant_edge_style(app, variant, theme);
                 let variant_mid_y = variant.rect.y + 1;
                 let junction = if index == variant_refs.len().saturating_sub(1) {
                     "└"
@@ -537,6 +538,7 @@ impl GraphCatalogView {
                 );
 
                 for (actor_index, actor) in variant.actors.iter().enumerate() {
+                    let actor_edge = Self::actor_edge_style(app, actor, theme);
                     let actor_mid_y = actor.rect.y + 1;
                     let actor_junction = if actor_index == variant.actors.len().saturating_sub(1) {
                         "└"
@@ -552,7 +554,7 @@ impl GraphCatalogView {
                         variant.actor_trunk_x,
                         actor_mid_y,
                         actor_junction,
-                        variant_edge,
+                        actor_edge,
                     );
                     Self::draw_world_hline(
                         buf,
@@ -562,7 +564,7 @@ impl GraphCatalogView {
                         actor_mid_y,
                         variant.actor_trunk_x + 1,
                         actor.rect.x - 1,
-                        variant_edge,
+                        actor_edge,
                         "─",
                     );
                 }
