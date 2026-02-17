@@ -227,6 +227,10 @@ pub struct App {
     chat_visible: bool,
     chat_actor_id: Option<String>,
     chat_messages: Vec<ActorChatMessageRow>,
+    chat_history_limit: usize,
+    chat_render_limit: usize,
+    chat_max_body_lines: usize,
+    chat_message_max_chars: usize,
     chat_scroll_lines: u16,
     chat_draft: String,
     chat_composing: bool,
@@ -295,6 +299,10 @@ impl App {
             chat_visible: false,
             chat_actor_id: None,
             chat_messages: Vec::new(),
+            chat_history_limit: 80,
+            chat_render_limit: 40,
+            chat_max_body_lines: 24,
+            chat_message_max_chars: 12_000,
             chat_scroll_lines: 0,
             chat_draft: String::new(),
             chat_composing: false,
@@ -879,6 +887,43 @@ impl App {
         &self.chat_messages
     }
 
+    pub fn configure_chat_performance(
+        &mut self,
+        history_limit: u32,
+        render_limit: usize,
+        max_body_lines: usize,
+        message_max_chars: usize,
+    ) {
+        self.chat_history_limit = history_limit as usize;
+        self.chat_render_limit = render_limit.max(1);
+        self.chat_max_body_lines = max_body_lines.max(1);
+        self.chat_message_max_chars = message_max_chars;
+
+        if self.chat_history_limit > 0 && self.chat_messages.len() > self.chat_history_limit {
+            let keep_from = self
+                .chat_messages
+                .len()
+                .saturating_sub(self.chat_history_limit);
+            self.chat_messages = self.chat_messages.split_off(keep_from);
+        }
+    }
+
+    pub fn chat_history_limit_query(&self) -> Option<u32> {
+        if self.chat_history_limit == 0 {
+            None
+        } else {
+            Some(self.chat_history_limit.min(u32::MAX as usize) as u32)
+        }
+    }
+
+    pub fn chat_render_limit(&self) -> usize {
+        self.chat_render_limit.max(1)
+    }
+
+    pub fn chat_max_body_lines(&self) -> usize {
+        self.chat_max_body_lines.max(1)
+    }
+
     pub fn chat_scroll_lines(&self) -> u16 {
         self.chat_scroll_lines
     }
@@ -1448,6 +1493,25 @@ impl App {
         }
 
         messages.sort_by(|left, right| left.created_at.cmp(&right.created_at));
+        if self.chat_history_limit > 0 && messages.len() > self.chat_history_limit {
+            let keep_from = messages.len().saturating_sub(self.chat_history_limit);
+            messages = messages.split_off(keep_from);
+        }
+        if self.chat_message_max_chars > 0 {
+            for message in &mut messages {
+                if message.text.chars().count() > self.chat_message_max_chars {
+                    let clipped = message
+                        .text
+                        .chars()
+                        .take(self.chat_message_max_chars)
+                        .collect::<String>();
+                    message.text = format!(
+                        "{clipped}\n\n... (message truncated at {} chars)",
+                        self.chat_message_max_chars
+                    );
+                }
+            }
+        }
         self.chat_messages = messages;
         if self.chat_messages.is_empty() {
             self.close_chat_detail_popup();
