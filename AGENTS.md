@@ -8,6 +8,7 @@ It reflects only what is currently true in this repository.
 - The repository contains active Bun/TypeScript code under `dark_core/` and Prisma schema/config under `prisma/`.
 - Prisma models currently include `Product`, `Variant`, and `Actor` with these core assumptions:
   - Creating a local product (`@local://`) should also create a default variant at the same locator path.
+  - Product identifiers can canonicalize to git locators (`@git://{remote}#{branch}`) when local product creation detects a valid git remote+branch; default variants still keep local working locators.
   - Variant locator values are not globally unique; multiple variants can share a locator and are differentiated by `(productId, name)`.
   - Product IDs are deterministic `prd_{token}` values derived from normalized locator text (SHA-256 first 64 bits encoded as fixed-width base36); repeated creates for the same canonical locator are idempotent.
   - `Product.gitInfo` and `Variant.gitInfo` are optional JSON snapshots populated from local git metadata when available.
@@ -16,9 +17,14 @@ It reflects only what is currently true in this repository.
 - Rust workspace code now includes:
   - `frontends/dark_cli/` for the CLI binary.
   - `frontends/dark_chat/` for the OpenCode-focused chat TUI frontend (library + binary).
+    - `framework/` is the shared chat UI/state surface consumed by `dark_chat` and `dark_tui`.
+    - `providers/opencode_*` modules now split provider surface, transport, realtime, extract helpers, and wire DTOs.
   - `frontends/dark_tui/` for the Ratatui dashboard frontend.
+    - service internals are split across `service.rs`, `service_wire.rs`, and `service_convert.rs`.
+    - unified catalog rendering helpers are split into `ui/render/views/catalog_cards.rs`.
   - `lib/dark_rust/` for shared dark_core API client/types used by Rust frontends.
   - `lib/dark_tui_components/` for reusable Ratatui component primitives shared by Rust TUIs.
+    - includes shared `utils/` helpers (`compact`, `rect`, `index`, `viewport`) and component framework primitives (`Action`, `Event`, `Component`).
 - TUI work in this repo uses Ratatui; local scraped references live at `docs/external/ratatui_web/index.ext.md` and `docs/external/ratatui_docs/index.ext.md`.
 - Moon workspace/project config is present at:
   - `.moon/workspace.yml`

@@ -1,6 +1,11 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": ["opencode-pty"],
+  "agent": {
+    "explore": {
+      "model": "openrouter/x-ai/grok-4.1-fast",
+    },
+  },
   "mcp": {
     "websearch": {
       "type": "remote",
