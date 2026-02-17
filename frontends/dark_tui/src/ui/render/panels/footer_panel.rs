@@ -36,10 +36,17 @@ impl FooterPanel {
             StatusPill::muted("chat:off", theme)
         };
 
-        // --- Entity count pills (moved from header overview) ---
-        let products_pill = StatusPill::info(format!("{}P", app.products().len()), theme);
-        let variants_pill = StatusPill::info(format!("{}V", app.variants().len()), theme);
-        let actors_pill = StatusPill::info(format!("{}A", app.actors().len()), theme);
+        let core_runtime_hint = app.core_runtime_hint();
+        let core_runtime_pill = if core_runtime_hint.contains("running")
+            || core_runtime_hint.contains("existing")
+            || core_runtime_hint.contains("launched")
+        {
+            StatusPill::ok(core_runtime_hint, theme)
+        } else if core_runtime_hint.contains("remote") || core_runtime_hint.contains("unknown") {
+            StatusPill::muted(core_runtime_hint, theme)
+        } else {
+            StatusPill::warn(core_runtime_hint, theme)
+        };
 
         // --- Runtime pill ---
         let runtime = app.runtime_status();
@@ -95,9 +102,7 @@ impl FooterPanel {
                     focus_pill.span(),
                     filter_pill.span(),
                     chat_pill.span(),
-                    products_pill.span(),
-                    variants_pill.span(),
-                    actors_pill.span(),
+                    core_runtime_pill.span(),
                     runtime_pill.span(),
                     activity_pill.span(),
                     status_span,

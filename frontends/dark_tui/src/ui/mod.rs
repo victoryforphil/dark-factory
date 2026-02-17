@@ -109,7 +109,7 @@ struct ActorDragState {
     moved: bool,
 }
 
-pub async fn run(cli: Cli) -> Result<()> {
+pub async fn run(cli: Cli, core_runtime_hint: String) -> Result<()> {
     let directory = resolve_directory(cli.directory.as_deref())?;
     let log_path = logging::init(&directory)?;
     info!(
@@ -141,6 +141,7 @@ pub async fn run(cli: Cli) -> Result<()> {
     };
 
     let mut app = App::new(directory, cli.refresh_seconds, theme);
+    app.set_core_runtime_hint(core_runtime_hint);
     app.configure_chat_performance(
         cli.chat_history_limit,
         cli.chat_render_limit,
@@ -1712,20 +1713,37 @@ fn process_loop_action(
         }
         LoopAction::SendChatMessage => {
             let Some(actor) = app.chat_actor().cloned() else {
+                info!("Dark TUI // Chat // Send skipped: no actor selected");
                 app.set_status("Chat send skipped: no actor selected.");
                 return;
             };
             let actor_id = actor.id.clone();
             let Some(prompt) = app.current_chat_prompt() else {
+                info!(
+                    draft_len = app.chat_draft().len(),
+                    composing = app.is_chat_composing(),
+                    "Dark TUI // Chat // Send skipped: prompt empty or compose disabled"
+                );
                 app.set_status("Chat send skipped: prompt is empty.");
                 return;
             };
 
             if chat_send_task.is_some() {
+                info!(
+                    actor_id = %actor_id,
+                    "Dark TUI // Chat // Send skipped: task already in progress"
+                );
                 app.set_status("Chat send already in progress.");
                 return;
             }
 
+            info!(
+                actor_id = %actor_id,
+                prompt_len = prompt.len(),
+                model = ?app.chat_active_model(),
+                agent = ?app.chat_active_agent(),
+                "Dark TUI // Chat // Queueing prompt send"
+            );
             app.set_status("Queueing prompt to OpenCode session...");
             let service = service.clone();
             let selected_model = app.chat_active_model().map(ToString::to_string);

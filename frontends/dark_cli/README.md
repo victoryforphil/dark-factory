@@ -47,6 +47,12 @@ Global options:
 | `--base-url <URL>` | `DARK_CORE_BASE_URL` | `http://localhost:4150` | Base URL for `dark_core` |
 | `--format <pretty\|json\|toml>` | `DARK_CLI_FORMAT` | `pretty` | Output format |
 
+Runtime behavior:
+
+- For local base URLs (`localhost`/`127.0.0.1`), `dark_cli` now ensures `dark_core` is running in a tmux session before command dispatch.
+- If the `dark_core` executable is missing, `dark_cli` auto-runs `bun run build:exec` in `dark_core` first.
+- Disable this behavior with `DARK_CLI_AUTO_START_DARK_CORE=false`.
+
 Commands:
 
 | CLI Command | HTTP Route | Description |

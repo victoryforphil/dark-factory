@@ -34,6 +34,7 @@ Script aliases:
 ```bash
 bun run config:export
 bun run config:print
+bun run build:exec
 ```
 
 ## Product and Variant API

@@ -13,7 +13,7 @@ tasks:
       cache: false
 
   build:
-    command: "bun build src/index.ts --outdir dist --target bun"
+    command: "bun build --compile src/index.ts ../prisma/schema.prisma --outfile darkcore"
     deps:
       - "generated:build"
     inputs:
@@ -22,7 +22,7 @@ tasks:
       - "tsconfig.json"
       - "/prisma/schema.prisma"
     outputs:
-      - "dist/**/*"
+      - "darkcore"
 
   dev:
     command: "bun run dev"

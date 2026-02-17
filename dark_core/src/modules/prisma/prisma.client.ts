@@ -1,15 +1,83 @@
 import { PrismaClient } from '../../../../generated/prisma/client';
 import { PrismaLibSql } from '@prisma/adapter-libsql';
-import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { mkdtemp, writeFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
 
 import { getConfig } from '../../config';
 import Log, { formatLogMetadata } from '../../utils/logging';
 
 let prismaClient: PrismaClient | undefined;
 let prismaSchemaEnsurePromise: Promise<void> | undefined;
+let prismaSchemaPathPromise: Promise<string> | undefined;
 
 const REPO_ROOT = resolve(import.meta.dir, '../../../../');
-const PRISMA_SCHEMA_PATH = 'prisma/schema.prisma';
+const PRISMA_SCHEMA_CANDIDATES = [
+  resolve(REPO_ROOT, 'prisma/schema.prisma'),
+  resolve(REPO_ROOT, '../prisma/schema.prisma'),
+  resolve(process.cwd(), 'prisma/schema.prisma'),
+];
+
+const resolveEmbeddedPrismaSchemaPath = async (): Promise<string | undefined> => {
+  const embeddedSchema = Bun.embeddedFiles.find((file) => file.name.endsWith('.prisma') && file.name.includes('schema'));
+
+  if (!embeddedSchema) {
+    return undefined;
+  }
+
+  const schemaText = await embeddedSchema.text();
+  const tempDir = await mkdtemp(join(tmpdir(), 'darkfactory-prisma-'));
+  const schemaPath = join(tempDir, 'schema.prisma');
+
+  await writeFile(schemaPath, schemaText, 'utf8');
+  return schemaPath;
+};
+
+const resolvePrismaSchemaPath = async (): Promise<string> => {
+  if (prismaSchemaPathPromise) {
+    return prismaSchemaPathPromise;
+  }
+
+  prismaSchemaPathPromise = (async () => {
+    for (const schemaPath of PRISMA_SCHEMA_CANDIDATES) {
+      if (existsSync(schemaPath)) {
+        return schemaPath;
+      }
+    }
+
+    const embeddedSchemaPath = await resolveEmbeddedPrismaSchemaPath();
+    if (embeddedSchemaPath) {
+      return embeddedSchemaPath;
+    }
+
+    throw new Error(
+      'Core // Client Prisma // Missing schema.prisma (include prisma/schema.prisma on disk or embed it in bun build --compile)',
+    );
+  })();
+
+  return prismaSchemaPathPromise;
+};
+
+const normalizePrismaCliDatabaseUrl = (databaseUrl: string): string => {
+  if (!databaseUrl.startsWith('file:')) {
+    return databaseUrl;
+  }
+
+  const fileValue = databaseUrl.slice('file:'.length);
+
+  if (fileValue === ':memory:') {
+    return databaseUrl;
+  }
+
+  const [pathPart, queryPart] = fileValue.split('?');
+  if (!pathPart || pathPart.startsWith('/')) {
+    return databaseUrl;
+  }
+
+  const absolutePath = resolve(process.cwd(), pathPart);
+  return queryPart ? `file:${absolutePath}?${queryPart}` : `file:${absolutePath}`;
+};
 
 const createPrismaClient = (): PrismaClient => {
   const prismaDatabaseUrl = getConfig().prisma.databaseUrl;
@@ -41,10 +109,12 @@ export const getPrismaClient = (): PrismaClient => {
 };
 
 const runPrismaDbPush = async (databaseUrl: string): Promise<void> => {
+  const schemaPath = await resolvePrismaSchemaPath();
+  const prismaCliDatabaseUrl = normalizePrismaCliDatabaseUrl(databaseUrl);
   const command = Bun.spawn(
-    ['bunx', 'prisma', 'db', 'push', '--schema', PRISMA_SCHEMA_PATH, '--url', databaseUrl],
+    ['bunx', 'prisma', 'db', 'push', '--schema', schemaPath, '--url', prismaCliDatabaseUrl],
     {
-      cwd: REPO_ROOT,
+      cwd: existsSync(REPO_ROOT) ? REPO_ROOT : undefined,
       env: {
         ...process.env,
         RUST_LOG: 'info',
@@ -92,4 +162,5 @@ export const resetPrismaClientForTests = async (): Promise<void> => {
 
   prismaClient = undefined;
   prismaSchemaEnsurePromise = undefined;
+  prismaSchemaPathPromise = undefined;
 };

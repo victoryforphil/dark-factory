@@ -9,6 +9,7 @@
     "test:int:watch": "bun test \"src/**/*.int.test.ts\" --watch --max-concurrency 1",
     "start": "bun run src/index.ts",
     "dev": "bun run --watch src/index.ts",
+    "build:exec": "bun build --compile src/index.ts ../prisma/schema.prisma --outfile darkcore",
     "config:export": "bun run src/index.ts config export",
     "config:print": "bun run src/index.ts config print",
     "format": "prettier . --write",

@@ -50,6 +50,12 @@ Ratatui-based TUI frontend for monitoring and operating `dark_core`.
 | `--actor-auto-poll-seconds <n>` | `DARK_TUI_ACTOR_AUTO_POLL_SECONDS` | `5` | Base actor status polling cadence (boosts to 2s while actors/sub-agents are busy) |
 | `--poll-variants <true\|false>` | `DARK_TUI_POLL_VARIANTS` | `true` | Poll variant git metadata while listing |
 
+Runtime behavior:
+
+- For local base URLs (`localhost`/`127.0.0.1`), `dark_tui` now ensures `dark_core` is running in a tmux session before launching the TUI.
+- If the `dark_core` executable is missing, `dark_tui` auto-runs `bun run build:exec` in `dark_core` first.
+- Disable this behavior with `DARK_TUI_AUTO_START_DARK_CORE=false`.
+
 ## Keybindings
 
 - `q` or `Ctrl+C`: quit

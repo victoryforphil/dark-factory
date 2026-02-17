@@ -54,4 +54,7 @@ pub enum DarkRustError {
 
     #[error("Dark Rust // Locator // Invalid locator value (message={message})")]
     InvalidLocator { message: String },
+
+    #[error("Dark Rust // Runtime // {message}")]
+    Runtime { message: String },
 }

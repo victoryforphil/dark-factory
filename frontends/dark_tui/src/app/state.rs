@@ -206,6 +206,7 @@ pub struct App {
     /// Current viz-mode node selection.
     viz_selection: Option<VizSelection>,
     status_message: String,
+    core_runtime_hint: String,
     command_message: String,
     runtime_status: String,
     last_updated: String,
@@ -281,6 +282,7 @@ impl App {
             selected_actor: 0,
             viz_selection: None,
             status_message: "Booting dashboard".to_string(),
+            core_runtime_hint: "core:unknown".to_string(),
             command_message: String::new(),
             runtime_status: "unknown".to_string(),
             last_updated: "-".to_string(),
@@ -369,6 +371,10 @@ impl App {
 
     pub fn runtime_status(&self) -> &str {
         &self.runtime_status
+    }
+
+    pub fn core_runtime_hint(&self) -> &str {
+        &self.core_runtime_hint
     }
 
     #[allow(dead_code)]
@@ -1492,6 +1498,9 @@ impl App {
             return;
         }
 
+        let was_scrolled_up = self.chat_scroll_lines > 0;
+        let previous_tail = self.chat_messages.last().cloned();
+
         messages.sort_by(|left, right| left.created_at.cmp(&right.created_at));
         if self.chat_history_limit > 0 && messages.len() > self.chat_history_limit {
             let keep_from = messages.len().saturating_sub(self.chat_history_limit);
@@ -1512,6 +1521,29 @@ impl App {
                 }
             }
         }
+
+        if was_scrolled_up {
+            let appended_count = previous_tail
+                .as_ref()
+                .and_then(|tail| {
+                    messages
+                        .iter()
+                        .position(|message| {
+                            message.created_at == tail.created_at
+                                && message.role == tail.role
+                                && message.text == tail.text
+                        })
+                        .map(|index| messages.len().saturating_sub(index + 1))
+                })
+                .unwrap_or(0);
+
+            if appended_count > 0 {
+                self.chat_scroll_lines = self
+                    .chat_scroll_lines
+                    .saturating_add(appended_count.min(u16::MAX as usize) as u16);
+            }
+        }
+
         self.chat_messages = messages;
         if self.chat_messages.is_empty() {
             self.close_chat_detail_popup();
@@ -1519,6 +1551,15 @@ impl App {
             let last = self.chat_messages.len().saturating_sub(1);
             self.chat_detail_popup_message_index = Some(index.min(last));
         }
+
+        // Keep scroll offsets bounded so repeated background refreshes cannot
+        // accumulate unbounded offsets when messages are pruned.
+        let max_scroll = self
+            .chat_messages
+            .len()
+            .saturating_mul(8)
+            .min(u16::MAX as usize) as u16;
+        self.chat_scroll_lines = self.chat_scroll_lines.min(max_scroll);
     }
 
     pub fn apply_snapshot(&mut self, snapshot: DashboardSnapshot) {
@@ -1566,6 +1607,10 @@ impl App {
 
     pub fn set_status(&mut self, status: impl Into<String>) {
         self.status_message = status.into();
+    }
+
+    pub fn set_core_runtime_hint(&mut self, value: impl Into<String>) {
+        self.core_runtime_hint = value.into();
     }
 
     pub fn set_command_message(&mut self, command: impl Into<String>) {
@@ -1668,7 +1713,6 @@ impl App {
                 self.selected_product = *product_index;
                 self.ensure_variant_selection(None);
                 self.focus = FocusPane::Products;
-                self.chat_composing = false;
             }
             VizSelection::Variant {
                 product_index,
@@ -1677,7 +1721,6 @@ impl App {
                 self.selected_product = *product_index;
                 self.ensure_variant_selection(Some(variant_id));
                 self.focus = FocusPane::Variants;
-                self.chat_composing = false;
             }
             VizSelection::Actor {
                 actor_id,
