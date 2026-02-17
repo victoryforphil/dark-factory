@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" viewBox="0 0 960 520">
+  <rect width="960" height="520" fill="#0f141b"/>
+  <text x="24" y="34" fill="#d9e4f2" font-family="Menlo, monospace" font-size="20">Orbit Rings</text>
+  <rect x="24" y="52" width="912" height="440" rx="14" fill="#141c25" stroke="#2f4359" stroke-width="2"/>
+
+  <circle cx="300" cy="250" r="48" fill="#1a2a3b" stroke="#64c5ff" stroke-width="2"/>
+  <text x="252" y="254" fill="#d9e4f2" font-family="Menlo, monospace" font-size="13">prd_2o02...</text>
+
+  <circle cx="300" cy="250" r="116" fill="none" stroke="#52657b" stroke-dasharray="7 6"/>
+  <circle cx="300" cy="250" r="182" fill="none" stroke="#3f5064" stroke-dasharray="4 8"/>
+
+  <rect x="386" y="128" width="200" height="56" rx="20" fill="#1b2330" stroke="#5a6b80"/>
+  <text x="404" y="160" fill="#c2cedd" font-family="Menlo, monospace" font-size="12">clone_0000 clean</text>
+  <line x1="344" y1="206" x2="386" y2="156" stroke="#7ca3c8" stroke-width="1.4"/>
+
+  <rect x="386" y="320" width="200" height="56" rx="20" fill="#231f25" stroke="#7e6847"/>
+  <text x="404" y="352" fill="#ccb58c" font-family="Menlo, monospace" font-size="12">default dirty</text>
+  <line x1="344" y1="294" x2="386" y2="348" stroke="#7ca3c8" stroke-width="1.4"/>
+
+  <rect x="650" y="98" width="230" height="68" rx="10" fill="#1b2430" stroke="#8878c6"/>
+  <text x="668" y="124" fill="#d9e4f2" font-family="Menlo, monospace" font-size="12">act_0y4hm8xs... stopped</text>
+  <text x="668" y="146" fill="#98a8ba" font-family="Menlo, monospace" font-size="11">o quick-frontend  o quick-routing</text>
+  <line x1="586" y1="156" x2="650" y2="132" stroke="#8aa2bb" stroke-width="1.2"/>
+
+  <rect x="650" y="334" width="230" height="68" rx="10" fill="#1b2430" stroke="#8878c6"/>
+  <text x="668" y="360" fill="#d9e4f2" font-family="Menlo, monospace" font-size="12">act_2h2bd5ph... stopped</text>
+  <text x="668" y="382" fill="#98a8ba" font-family="Menlo, monospace" font-size="11">o test-explore  o explore-scripts</text>
+  <line x1="586" y1="348" x2="650" y2="368" stroke="#8aa2bb" stroke-width="1.2"/>
+
+  <text x="44" y="470" fill="#7f93a8" font-family="Menlo, monospace" font-size="12">Ring-first grouping; keeps map feel but more conceptual than structural.</text>
+</svg>

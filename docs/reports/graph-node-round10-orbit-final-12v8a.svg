@@ -1,0 +1,382 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="920" viewBox="0 0 1400 920">
+  <!-- ═══ BACKGROUND ═══ -->
+  <rect width="1400" height="920" fill="#0c0e12"/>
+
+  <!-- Top chrome bar -->
+  <rect x="0" y="0" width="1400" height="2" fill="#2a2a2a"/>
+  <rect x="0" y="0" width="160" height="2" fill="#a0a0a0"/>
+
+  <!-- Title block -->
+  <rect x="24" y="12" width="5" height="16" fill="#c0c0c0"/>
+  <text x="36" y="26" fill="#e0e0e0" font-family="monospace" font-size="14" font-weight="bold" letter-spacing="1.5">ROUND 10 ORBIT FINAL</text>
+  <text x="326" y="26" fill="#505050" font-family="monospace" font-size="10">12 variants · 8 actors · final topology · monochrome</text>
+
+  <!-- Outer frame -->
+  <rect x="20" y="38" width="1360" height="846" fill="none" stroke="#222222" stroke-width="1"/>
+
+  <!-- ═══ GUIDE GEOMETRY ═══ -->
+  <!-- Crosshairs through center -->
+  <line x1="700" y1="56" x2="700" y2="866" stroke="#151515" stroke-width="1" stroke-dasharray="2 8"/>
+  <line x1="38" y1="452" x2="1362" y2="452" stroke="#151515" stroke-width="1" stroke-dasharray="2 8"/>
+
+  <!-- Variant orbit zone -->
+  <rect x="418" y="252" width="564" height="410" fill="none" stroke="#1a1a1a" stroke-width="1" stroke-dasharray="6 5"/>
+
+  <!-- Actor zone -->
+  <rect x="50" y="64" width="1300" height="796" fill="none" stroke="#141414" stroke-width="1" stroke-dasharray="8 7"/>
+
+  <!-- Zone labels -->
+  <text x="428" y="248" fill="#252525" font-family="monospace" font-size="9">variant orbit</text>
+  <text x="66" y="80" fill="#1e1e1e" font-family="monospace" font-size="9">actor zone</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- CENTER: PRODUCT NODE                                              -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <rect x="636" y="418" width="128" height="68" fill="#111315" stroke="#a0a0a0" stroke-width="1.5"/>
+  <!-- Corner brackets -->
+  <line x1="636" y1="418" x2="652" y2="418" stroke="#d0d0d0" stroke-width="2"/>
+  <line x1="636" y1="418" x2="636" y2="434" stroke="#d0d0d0" stroke-width="2"/>
+  <line x1="764" y1="418" x2="748" y2="418" stroke="#d0d0d0" stroke-width="2"/>
+  <line x1="764" y1="418" x2="764" y2="434" stroke="#d0d0d0" stroke-width="2"/>
+  <line x1="636" y1="486" x2="652" y2="486" stroke="#d0d0d0" stroke-width="2"/>
+  <line x1="636" y1="486" x2="636" y2="470" stroke="#d0d0d0" stroke-width="2"/>
+  <line x1="764" y1="486" x2="748" y2="486" stroke="#d0d0d0" stroke-width="2"/>
+  <line x1="764" y1="486" x2="764" y2="470" stroke="#d0d0d0" stroke-width="2"/>
+  <!-- Product text -->
+  <text x="656" y="445" fill="#e8e8e8" font-family="monospace" font-size="12" font-weight="bold">PRODUCT</text>
+  <text x="656" y="462" fill="#808080" font-family="monospace" font-size="10">prd_2o02ef</text>
+  <text x="656" y="478" fill="#505050" font-family="monospace" font-size="9">dirty · 12v · 8a</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- VARIANTS: 12 nodes in 3 tiers around product center              -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+
+  <!-- ─── TIER 1: Cardinal (close orbit) ─── -->
+
+  <!-- V1: north (12 o'clock) — main -->
+  <rect x="648" y="304" width="104" height="36" fill="#111315" stroke="#808080" stroke-width="1"/>
+  <rect x="648" y="304" width="3" height="36" fill="#a0a0a0"/>
+  <text x="662" y="320" fill="#d0d0d0" font-family="monospace" font-size="10" font-weight="bold">v1</text>
+  <text x="682" y="320" fill="#808080" font-family="monospace" font-size="9">main</text>
+  <text x="662" y="334" fill="#505050" font-family="monospace" font-size="8">clean · HEAD</text>
+
+  <!-- V2: east (3 o'clock) — feature -->
+  <rect x="832" y="434" width="104" height="36" fill="#111315" stroke="#808080" stroke-width="1"/>
+  <rect x="832" y="434" width="3" height="36" fill="#a0a0a0"/>
+  <text x="846" y="450" fill="#d0d0d0" font-family="monospace" font-size="10" font-weight="bold">v2</text>
+  <text x="866" y="450" fill="#808080" font-family="monospace" font-size="9">feature</text>
+  <text x="846" y="464" fill="#505050" font-family="monospace" font-size="8">dirty · +3</text>
+
+  <!-- V3: south (6 o'clock) — staging -->
+  <rect x="648" y="564" width="104" height="36" fill="#111315" stroke="#808080" stroke-width="1"/>
+  <rect x="648" y="564" width="3" height="36" fill="#a0a0a0"/>
+  <text x="662" y="580" fill="#d0d0d0" font-family="monospace" font-size="10" font-weight="bold">v3</text>
+  <text x="682" y="580" fill="#808080" font-family="monospace" font-size="9">staging</text>
+  <text x="662" y="594" fill="#505050" font-family="monospace" font-size="8">clean</text>
+
+  <!-- V4: west (9 o'clock) — hotfix -->
+  <rect x="464" y="434" width="104" height="36" fill="#111315" stroke="#808080" stroke-width="1"/>
+  <rect x="464" y="434" width="3" height="36" fill="#a0a0a0"/>
+  <text x="478" y="450" fill="#d0d0d0" font-family="monospace" font-size="10" font-weight="bold">v4</text>
+  <text x="498" y="450" fill="#808080" font-family="monospace" font-size="9">hotfix</text>
+  <text x="478" y="464" fill="#505050" font-family="monospace" font-size="8">dirty · +1</text>
+
+  <!-- ─── TIER 2: Diagonal (middle orbit) ─── -->
+
+  <!-- V5: northeast — dev-a -->
+  <rect x="832" y="304" width="104" height="36" fill="#111315" stroke="#686868" stroke-width="1"/>
+  <rect x="832" y="304" width="3" height="36" fill="#808080"/>
+  <text x="846" y="320" fill="#c0c0c0" font-family="monospace" font-size="10" font-weight="bold">v5</text>
+  <text x="866" y="320" fill="#686868" font-family="monospace" font-size="9">dev-a</text>
+  <text x="846" y="334" fill="#484848" font-family="monospace" font-size="8">clean</text>
+
+  <!-- V6: southeast — dev-b -->
+  <rect x="832" y="564" width="104" height="36" fill="#111315" stroke="#686868" stroke-width="1"/>
+  <rect x="832" y="564" width="3" height="36" fill="#808080"/>
+  <text x="846" y="580" fill="#c0c0c0" font-family="monospace" font-size="10" font-weight="bold">v6</text>
+  <text x="866" y="580" fill="#686868" font-family="monospace" font-size="9">dev-b</text>
+  <text x="846" y="594" fill="#484848" font-family="monospace" font-size="8">dirty</text>
+
+  <!-- V7: southwest — dev-c -->
+  <rect x="464" y="564" width="104" height="36" fill="#111315" stroke="#686868" stroke-width="1"/>
+  <rect x="464" y="564" width="3" height="36" fill="#808080"/>
+  <text x="478" y="580" fill="#c0c0c0" font-family="monospace" font-size="10" font-weight="bold">v7</text>
+  <text x="498" y="580" fill="#686868" font-family="monospace" font-size="9">dev-c</text>
+  <text x="478" y="594" fill="#484848" font-family="monospace" font-size="8">clean</text>
+
+  <!-- V8: northwest — dev-d -->
+  <rect x="464" y="304" width="104" height="36" fill="#111315" stroke="#686868" stroke-width="1"/>
+  <rect x="464" y="304" width="3" height="36" fill="#808080"/>
+  <text x="478" y="320" fill="#c0c0c0" font-family="monospace" font-size="10" font-weight="bold">v8</text>
+  <text x="498" y="320" fill="#686868" font-family="monospace" font-size="9">dev-d</text>
+  <text x="478" y="334" fill="#484848" font-family="monospace" font-size="8">dirty</text>
+
+  <!-- ─── TIER 3: Outer orbit ─── -->
+
+  <!-- V9: above V8 (northwest outer) — exp-1 -->
+  <rect x="464" y="262" width="104" height="28" fill="#111315" stroke="#505050" stroke-width="1"/>
+  <rect x="464" y="262" width="3" height="28" fill="#606060"/>
+  <text x="478" y="280" fill="#989898" font-family="monospace" font-size="9" font-weight="bold">v9</text>
+  <text x="500" y="280" fill="#505050" font-family="monospace" font-size="8">exp-1</text>
+
+  <!-- V10: above V5 (northeast outer) — exp-2 -->
+  <rect x="832" y="262" width="104" height="28" fill="#111315" stroke="#505050" stroke-width="1"/>
+  <rect x="832" y="262" width="3" height="28" fill="#606060"/>
+  <text x="846" y="280" fill="#989898" font-family="monospace" font-size="9" font-weight="bold">v10</text>
+  <text x="872" y="280" fill="#505050" font-family="monospace" font-size="8">exp-2</text>
+
+  <!-- V11: below V6 (southeast outer) — exp-3 -->
+  <rect x="832" y="614" width="104" height="28" fill="#111315" stroke="#505050" stroke-width="1"/>
+  <rect x="832" y="614" width="3" height="28" fill="#606060"/>
+  <text x="846" y="632" fill="#989898" font-family="monospace" font-size="9" font-weight="bold">v11</text>
+  <text x="872" y="632" fill="#505050" font-family="monospace" font-size="8">exp-3</text>
+
+  <!-- V12: below V7 (southwest outer) — exp-4 -->
+  <rect x="464" y="614" width="104" height="28" fill="#111315" stroke="#505050" stroke-width="1"/>
+  <rect x="464" y="614" width="3" height="28" fill="#606060"/>
+  <text x="478" y="632" fill="#989898" font-family="monospace" font-size="9" font-weight="bold">v12</text>
+  <text x="504" y="632" fill="#505050" font-family="monospace" font-size="8">exp-4</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- SPOKES: product → tier 1 variants (solid lines)                  -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <line x1="700" y1="418" x2="700" y2="340" stroke="#606060" stroke-width="1"/>
+  <line x1="764" y1="452" x2="832" y2="452" stroke="#606060" stroke-width="1"/>
+  <line x1="700" y1="486" x2="700" y2="564" stroke="#606060" stroke-width="1"/>
+  <line x1="636" y1="452" x2="568" y2="452" stroke="#606060" stroke-width="1"/>
+
+  <!-- SPOKES: product → tier 2 variants (solid, dimmer) -->
+  <line x1="750" y1="425" x2="832" y2="335" stroke="#404040" stroke-width="1"/>
+  <line x1="750" y1="480" x2="832" y2="575" stroke="#404040" stroke-width="1"/>
+  <line x1="650" y1="480" x2="568" y2="575" stroke="#404040" stroke-width="1"/>
+  <line x1="650" y1="425" x2="568" y2="335" stroke="#404040" stroke-width="1"/>
+
+  <!-- SPOKES: tier 2 → tier 3 (short stub connectors) -->
+  <line x1="516" y1="304" x2="516" y2="290" stroke="#303030" stroke-width="1" stroke-dasharray="2 3"/>
+  <line x1="884" y1="304" x2="884" y2="290" stroke="#303030" stroke-width="1" stroke-dasharray="2 3"/>
+  <line x1="884" y1="600" x2="884" y2="614" stroke="#303030" stroke-width="1" stroke-dasharray="2 3"/>
+  <line x1="516" y1="600" x2="516" y2="614" stroke="#303030" stroke-width="1" stroke-dasharray="2 3"/>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- ACTORS: 8 nodes, mirrored 4-left / 4-right                       -->
+  <!--   Left column:  A1-A4 at x=66,  evenly spaced                    -->
+  <!--   Right column: A5-A8 at x=1120, evenly spaced                   -->
+  <!--   Actor card: 214x56                                              -->
+  <!--   Sub-agent grid: 214x24, 2-col compact boxes, always below      -->
+  <!--   Total actor unit height: 56 + 4 + 24 = 84                      -->
+  <!--   Vertical slots: y=92, y=284, y=484, y=680 (gap ~196)           -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+
+  <!-- ─── LEFT COLUMN ─── -->
+
+  <!-- A1: top-left (linked to V1, V8) — running -->
+  <rect x="66" y="92" width="214" height="56" fill="#111315" stroke="#909090" stroke-width="1"/>
+  <rect x="66" y="92" width="214" height="3" fill="#a0a0a0"/>
+  <text x="78" y="114" fill="#e0e0e0" font-family="monospace" font-size="10" font-weight="bold">ACTOR a1</text>
+  <text x="176" y="114" fill="#707070" font-family="monospace" font-size="9">running</text>
+  <text x="78" y="128" fill="#707070" font-family="monospace" font-size="9">v1,v8 · opencode</text>
+  <text x="78" y="142" fill="#484848" font-family="monospace" font-size="8">ses_01abc · pid 4821</text>
+  <!-- A1 sub-agent grid (2-col, below card) -->
+  <rect x="66" y="152" width="214" height="24" fill="#0e1012" stroke="#303030" stroke-width="1"/>
+  <line x1="173" y1="152" x2="173" y2="176" stroke="#303030" stroke-width="1"/>
+  <text x="74" y="167" fill="#585858" font-family="monospace" font-size="8">sa_frontend</text>
+  <text x="181" y="167" fill="#585858" font-family="monospace" font-size="8">sa_routing</text>
+
+  <!-- A2: upper-mid-left (linked to V4) — running -->
+  <rect x="66" y="284" width="214" height="56" fill="#111315" stroke="#909090" stroke-width="1"/>
+  <rect x="66" y="284" width="214" height="3" fill="#a0a0a0"/>
+  <text x="78" y="306" fill="#e0e0e0" font-family="monospace" font-size="10" font-weight="bold">ACTOR a2</text>
+  <text x="176" y="306" fill="#707070" font-family="monospace" font-size="9">running</text>
+  <text x="78" y="320" fill="#707070" font-family="monospace" font-size="9">v4 · opencode</text>
+  <text x="78" y="334" fill="#484848" font-family="monospace" font-size="8">ses_02def · pid 5103</text>
+  <!-- A2 sub-agent grid -->
+  <rect x="66" y="344" width="214" height="24" fill="#0e1012" stroke="#303030" stroke-width="1"/>
+  <line x1="173" y1="344" x2="173" y2="368" stroke="#303030" stroke-width="1"/>
+  <text x="74" y="359" fill="#585858" font-family="monospace" font-size="8">sa_testing</text>
+  <text x="181" y="359" fill="#585858" font-family="monospace" font-size="8">sa_docs</text>
+
+  <!-- A3: lower-mid-left (linked to V7) — idle -->
+  <rect x="66" y="484" width="214" height="56" fill="#111315" stroke="#707070" stroke-width="1"/>
+  <rect x="66" y="484" width="214" height="3" fill="#585858"/>
+  <text x="78" y="506" fill="#c0c0c0" font-family="monospace" font-size="10" font-weight="bold">ACTOR a3</text>
+  <text x="176" y="506" fill="#585858" font-family="monospace" font-size="9">idle</text>
+  <text x="78" y="520" fill="#606060" font-family="monospace" font-size="9">v7 · opencode</text>
+  <text x="78" y="534" fill="#404040" font-family="monospace" font-size="8">ses_03ghi · pid 5590</text>
+  <!-- A3 sub-agent grid -->
+  <rect x="66" y="544" width="214" height="24" fill="#0e1012" stroke="#303030" stroke-width="1"/>
+  <line x1="173" y1="544" x2="173" y2="568" stroke="#303030" stroke-width="1"/>
+  <text x="74" y="559" fill="#585858" font-family="monospace" font-size="8">sa_review</text>
+  <text x="181" y="559" fill="#585858" font-family="monospace" font-size="8">sa_verify</text>
+
+  <!-- A4: bottom-left (linked to V12) — stopped -->
+  <rect x="66" y="680" width="214" height="56" fill="#111315" stroke="#505050" stroke-width="1"/>
+  <rect x="66" y="680" width="214" height="3" fill="#353535"/>
+  <text x="78" y="702" fill="#989898" font-family="monospace" font-size="10" font-weight="bold">ACTOR a4</text>
+  <text x="176" y="702" fill="#404040" font-family="monospace" font-size="9">stopped</text>
+  <text x="78" y="716" fill="#505050" font-family="monospace" font-size="9">v12 · opencode</text>
+  <text x="78" y="730" fill="#353535" font-family="monospace" font-size="8">ses_04jkl · pid 6280</text>
+  <!-- A4 sub-agent grid -->
+  <rect x="66" y="740" width="214" height="24" fill="#0e1012" stroke="#303030" stroke-width="1"/>
+  <line x1="173" y1="740" x2="173" y2="764" stroke="#303030" stroke-width="1"/>
+  <text x="74" y="755" fill="#585858" font-family="monospace" font-size="8">sa_cleanup</text>
+  <text x="181" y="755" fill="#585858" font-family="monospace" font-size="8">sa_migrate</text>
+
+  <!-- ─── RIGHT COLUMN ─── -->
+
+  <!-- A5: top-right (linked to V5, V10) — running -->
+  <rect x="1120" y="92" width="214" height="56" fill="#111315" stroke="#909090" stroke-width="1"/>
+  <rect x="1120" y="92" width="214" height="3" fill="#a0a0a0"/>
+  <text x="1132" y="114" fill="#e0e0e0" font-family="monospace" font-size="10" font-weight="bold">ACTOR a5</text>
+  <text x="1230" y="114" fill="#707070" font-family="monospace" font-size="9">running</text>
+  <text x="1132" y="128" fill="#707070" font-family="monospace" font-size="9">v5,v10 · opencode</text>
+  <text x="1132" y="142" fill="#484848" font-family="monospace" font-size="8">ses_05mno · pid 7012</text>
+  <!-- A5 sub-agent grid -->
+  <rect x="1120" y="152" width="214" height="24" fill="#0e1012" stroke="#303030" stroke-width="1"/>
+  <line x1="1227" y1="152" x2="1227" y2="176" stroke="#303030" stroke-width="1"/>
+  <text x="1128" y="167" fill="#585858" font-family="monospace" font-size="8">sa_deploy</text>
+  <text x="1235" y="167" fill="#585858" font-family="monospace" font-size="8">sa_infra</text>
+
+  <!-- A6: upper-mid-right (linked to V2) — running -->
+  <rect x="1120" y="284" width="214" height="56" fill="#111315" stroke="#909090" stroke-width="1"/>
+  <rect x="1120" y="284" width="214" height="3" fill="#a0a0a0"/>
+  <text x="1132" y="306" fill="#e0e0e0" font-family="monospace" font-size="10" font-weight="bold">ACTOR a6</text>
+  <text x="1230" y="306" fill="#707070" font-family="monospace" font-size="9">running</text>
+  <text x="1132" y="320" fill="#707070" font-family="monospace" font-size="9">v2 · opencode</text>
+  <text x="1132" y="334" fill="#484848" font-family="monospace" font-size="8">ses_06pqr · pid 7201</text>
+  <!-- A6 sub-agent grid -->
+  <rect x="1120" y="344" width="214" height="24" fill="#0e1012" stroke="#303030" stroke-width="1"/>
+  <line x1="1227" y1="344" x2="1227" y2="368" stroke="#303030" stroke-width="1"/>
+  <text x="1128" y="359" fill="#585858" font-family="monospace" font-size="8">sa_lint</text>
+  <text x="1235" y="359" fill="#585858" font-family="monospace" font-size="8">sa_format</text>
+
+  <!-- A7: lower-mid-right (linked to V6) — idle -->
+  <rect x="1120" y="484" width="214" height="56" fill="#111315" stroke="#707070" stroke-width="1"/>
+  <rect x="1120" y="484" width="214" height="3" fill="#585858"/>
+  <text x="1132" y="506" fill="#c0c0c0" font-family="monospace" font-size="10" font-weight="bold">ACTOR a7</text>
+  <text x="1230" y="506" fill="#585858" font-family="monospace" font-size="9">idle</text>
+  <text x="1132" y="520" fill="#606060" font-family="monospace" font-size="9">v6 · opencode</text>
+  <text x="1132" y="534" fill="#404040" font-family="monospace" font-size="8">ses_07stu · pid 7450</text>
+  <!-- A7 sub-agent grid -->
+  <rect x="1120" y="544" width="214" height="24" fill="#0e1012" stroke="#303030" stroke-width="1"/>
+  <line x1="1227" y1="544" x2="1227" y2="568" stroke="#303030" stroke-width="1"/>
+  <text x="1128" y="559" fill="#585858" font-family="monospace" font-size="8">sa_watch</text>
+  <text x="1235" y="559" fill="#585858" font-family="monospace" font-size="8">sa_debug</text>
+
+  <!-- A8: bottom-right (linked to V3, V11) — running -->
+  <rect x="1120" y="680" width="214" height="56" fill="#111315" stroke="#909090" stroke-width="1"/>
+  <rect x="1120" y="680" width="214" height="3" fill="#a0a0a0"/>
+  <text x="1132" y="702" fill="#e0e0e0" font-family="monospace" font-size="10" font-weight="bold">ACTOR a8</text>
+  <text x="1230" y="702" fill="#707070" font-family="monospace" font-size="9">running</text>
+  <text x="1132" y="716" fill="#707070" font-family="monospace" font-size="9">v3,v11 · opencode</text>
+  <text x="1132" y="730" fill="#484848" font-family="monospace" font-size="8">ses_08vwx · pid 7680</text>
+  <!-- A8 sub-agent grid -->
+  <rect x="1120" y="740" width="214" height="24" fill="#0e1012" stroke="#303030" stroke-width="1"/>
+  <line x1="1227" y1="740" x2="1227" y2="764" stroke="#303030" stroke-width="1"/>
+  <text x="1128" y="755" fill="#585858" font-family="monospace" font-size="8">sa_build</text>
+  <text x="1235" y="755" fill="#585858" font-family="monospace" font-size="8">sa_ship</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- CONNECTORS: variant → actor (L-route elbows, dashed)             -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+
+  <!-- V1 → A1 (north variant → top-left actor) — primary -->
+  <polyline points="648,322 420,322 420,120 280,120"
+    fill="none" stroke="#505050" stroke-width="1" stroke-dasharray="5 4"/>
+  <!-- V8 → A1 (northwest variant → top-left actor) — secondary -->
+  <polyline points="464,316 400,316 400,136 280,136"
+    fill="none" stroke="#353535" stroke-width="1" stroke-dasharray="3 4"/>
+
+  <!-- V4 → A2 (west variant → upper-mid-left actor) — primary -->
+  <polyline points="464,452 388,452 388,312 280,312"
+    fill="none" stroke="#505050" stroke-width="1" stroke-dasharray="5 4"/>
+
+  <!-- V7 → A3 (southwest variant → lower-mid-left actor) — primary -->
+  <polyline points="464,582 388,582 388,512 280,512"
+    fill="none" stroke="#505050" stroke-width="1" stroke-dasharray="5 4"/>
+
+  <!-- V12 → A4 (far south-left variant → bottom-left actor) — primary -->
+  <polyline points="464,628 400,628 400,708 280,708"
+    fill="none" stroke="#505050" stroke-width="1" stroke-dasharray="5 4"/>
+
+  <!-- V5 → A5 (northeast variant → top-right actor) — primary -->
+  <polyline points="936,322 980,322 980,120 1120,120"
+    fill="none" stroke="#505050" stroke-width="1" stroke-dasharray="5 4"/>
+  <!-- V10 → A5 (far north-right → top-right actor) — secondary -->
+  <polyline points="936,276 1000,276 1000,136 1120,136"
+    fill="none" stroke="#353535" stroke-width="1" stroke-dasharray="3 4"/>
+
+  <!-- V2 → A6 (east variant → upper-mid-right actor) — primary -->
+  <polyline points="936,452 1012,452 1012,312 1120,312"
+    fill="none" stroke="#505050" stroke-width="1" stroke-dasharray="5 4"/>
+
+  <!-- V6 → A7 (southeast variant → lower-mid-right actor) — primary -->
+  <polyline points="936,582 1012,582 1012,512 1120,512"
+    fill="none" stroke="#505050" stroke-width="1" stroke-dasharray="5 4"/>
+
+  <!-- V3 → A8 (south variant → bottom-right actor) — primary -->
+  <polyline points="752,582 1000,582 1000,708 1120,708"
+    fill="none" stroke="#505050" stroke-width="1" stroke-dasharray="5 4"/>
+  <!-- V11 → A8 (far south-right → bottom-right actor) — secondary -->
+  <polyline points="936,628 1020,628 1020,724 1120,724"
+    fill="none" stroke="#353535" stroke-width="1" stroke-dasharray="3 4"/>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- ORBIT CORNER MARKERS                                              -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <rect x="454" y="296" width="4" height="4" fill="#2a2a2a"/>
+  <rect x="942" y="296" width="4" height="4" fill="#2a2a2a"/>
+  <rect x="942" y="604" width="4" height="4" fill="#2a2a2a"/>
+  <rect x="454" y="604" width="4" height="4" fill="#2a2a2a"/>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- NODE COUNT BADGES (top-right status area)                         -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <rect x="1160" y="10" width="84" height="20" fill="none" stroke="#2a2a2a" stroke-width="1"/>
+  <text x="1172" y="24" fill="#787878" font-family="monospace" font-size="10" font-weight="bold">12V  8A</text>
+  <rect x="1254" y="10" width="64" height="20" fill="none" stroke="#2a2a2a" stroke-width="1"/>
+  <text x="1266" y="24" fill="#505050" font-family="monospace" font-size="10">16sa</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- LEGEND — bottom-left, single compact row                          -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <rect x="30" y="856" width="680" height="26" fill="none" stroke="#1e1e1e" stroke-width="1"/>
+
+  <!-- product -->
+  <rect x="42" y="864" width="10" height="10" fill="#111315" stroke="#a0a0a0" stroke-width="1"/>
+  <text x="58" y="873" fill="#505050" font-family="monospace" font-size="9">product</text>
+
+  <!-- spoke -->
+  <line x1="120" y1="869" x2="140" y2="869" stroke="#606060" stroke-width="1"/>
+  <text x="146" y="873" fill="#505050" font-family="monospace" font-size="9">spoke</text>
+
+  <!-- variant t1 -->
+  <rect x="192" y="864" width="10" height="10" fill="#111315" stroke="#808080" stroke-width="1"/>
+  <rect x="192" y="864" width="2" height="10" fill="#a0a0a0"/>
+  <text x="208" y="873" fill="#505050" font-family="monospace" font-size="9">variant</text>
+
+  <!-- connector -->
+  <line x1="270" y1="869" x2="292" y2="869" stroke="#505050" stroke-width="1" stroke-dasharray="5 4"/>
+  <text x="298" y="873" fill="#505050" font-family="monospace" font-size="9">link</text>
+
+  <!-- actor -->
+  <rect x="334" y="864" width="10" height="10" fill="#111315" stroke="#909090" stroke-width="1"/>
+  <text x="350" y="873" fill="#505050" font-family="monospace" font-size="9">actor</text>
+
+  <!-- sub-agent -->
+  <rect x="400" y="864" width="10" height="10" fill="#0e1012" stroke="#303030" stroke-width="1"/>
+  <text x="416" y="873" fill="#505050" font-family="monospace" font-size="9">sub-agent</text>
+
+  <!-- secondary link -->
+  <line x1="498" y1="869" x2="520" y2="869" stroke="#353535" stroke-width="1" stroke-dasharray="3 4"/>
+  <text x="526" y="873" fill="#505050" font-family="monospace" font-size="9">secondary</text>
+
+  <!-- outer variant -->
+  <rect x="602" y="864" width="10" height="10" fill="#111315" stroke="#505050" stroke-width="1"/>
+  <rect x="602" y="864" width="2" height="10" fill="#606060"/>
+  <text x="618" y="873" fill="#505050" font-family="monospace" font-size="9">outer var</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <!-- CAPTION — bottom center                                           -->
+  <!-- ═══════════════════════════════════════════════════════════════════ -->
+  <text x="700" y="904" fill="#404040" font-family="monospace" font-size="12" text-anchor="middle" letter-spacing="2.5">Round10 Orbit Final 12V 8A</text>
+</svg>

@@ -1,0 +1,259 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="780" viewBox="0 0 1200 780">
+  <!-- ===== BACKGROUND ===== -->
+  <rect width="1200" height="780" fill="#0c1018"/>
+
+  <!-- ===== OUTER FRAME ===== -->
+  <rect x="16" y="12" width="1168" height="756" fill="none" stroke="#606060" stroke-width="1"/>
+
+  <!-- ===== TITLE BAR ===== -->
+  <rect x="16" y="12" width="1168" height="28" fill="none" stroke="#404040" stroke-width="0.5"/>
+  <rect x="16" y="12" width="4" height="28" fill="#b0b0b0"/>
+  <text x="32" y="31" fill="#d8d8d8" font-family="Menlo,monospace" font-size="12" font-weight="700" letter-spacing="1">CANDIDATE B</text>
+  <text x="165" y="31" fill="#606060" font-family="Menlo,monospace" font-size="10">Depth-Lane Graph // unified panel</text>
+  <rect x="1058" y="18" width="38" height="16" fill="none" stroke="#505050" stroke-width="1"/>
+  <text x="1064" y="30" fill="#a0a0a0" font-family="Menlo,monospace" font-size="9">3 V</text>
+  <rect x="1102" y="18" width="38" height="16" fill="none" stroke="#505050" stroke-width="1"/>
+  <text x="1108" y="30" fill="#a0a0a0" font-family="Menlo,monospace" font-size="9">4 A</text>
+  <rect x="1146" y="18" width="32" height="16" fill="none" stroke="#505050" stroke-width="1"/>
+  <text x="1150" y="30" fill="#808080" font-family="Menlo,monospace" font-size="9">8s</text>
+
+  <!-- ================================================================ -->
+  <!-- DEPTH LANE LABELS — left margin lane headers                     -->
+  <!-- Lanes flow top-to-bottom: Product > Variants > Actors > SubAg   -->
+  <!-- ================================================================ -->
+
+  <!-- Lane 0: Product -->
+  <rect x="28" y="54" width="72" height="60" fill="none" stroke="#282828" stroke-width="1"/>
+  <text x="64" y="76" fill="#505050" font-family="Menlo,monospace" font-size="9" text-anchor="middle">PRODUCT</text>
+  <text x="64" y="90" fill="#383838" font-family="Menlo,monospace" font-size="8" text-anchor="middle">depth 0</text>
+
+  <!-- Lane 1: Variants -->
+  <rect x="28" y="126" width="72" height="60" fill="none" stroke="#282828" stroke-width="1"/>
+  <text x="64" y="148" fill="#505050" font-family="Menlo,monospace" font-size="9" text-anchor="middle">VARIANT</text>
+  <text x="64" y="162" fill="#383838" font-family="Menlo,monospace" font-size="8" text-anchor="middle">depth 1</text>
+
+  <!-- Lane 2: Actors -->
+  <rect x="28" y="198" width="72" height="110" fill="none" stroke="#282828" stroke-width="1"/>
+  <text x="64" y="244" fill="#505050" font-family="Menlo,monospace" font-size="9" text-anchor="middle">ACTOR</text>
+  <text x="64" y="258" fill="#383838" font-family="Menlo,monospace" font-size="8" text-anchor="middle">depth 2</text>
+
+  <!-- Lane 3: Sub-agents -->
+  <rect x="28" y="320" width="72" height="130" fill="none" stroke="#282828" stroke-width="1"/>
+  <text x="64" y="376" fill="#505050" font-family="Menlo,monospace" font-size="9" text-anchor="middle">SUB-AG</text>
+  <text x="64" y="390" fill="#383838" font-family="Menlo,monospace" font-size="8" text-anchor="middle">depth 3</text>
+
+  <!-- Lane separator lines -->
+  <line x1="112" y1="120" x2="1172" y2="120" stroke="#202020" stroke-width="1" stroke-dasharray="4 6"/>
+  <line x1="112" y1="192" x2="1172" y2="192" stroke="#202020" stroke-width="1" stroke-dasharray="4 6"/>
+  <line x1="112" y1="314" x2="1172" y2="314" stroke="#202020" stroke-width="1" stroke-dasharray="4 6"/>
+
+
+  <!-- ================================================================ -->
+  <!-- LANE 0: PRODUCT — centered wide card                             -->
+  <!-- ================================================================ -->
+  <rect x="460" y="58" width="280" height="48" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="460" y="58" width="4" height="48" fill="#b0b0b0"/>
+  <text x="476" y="78" fill="#e8e8e8" font-family="Menlo,monospace" font-size="13" font-weight="700">PRODUCT</text>
+  <text x="576" y="78" fill="#909090" font-family="Menlo,monospace" font-size="10">prd_2o02efhj</text>
+  <text x="476" y="96" fill="#606060" font-family="Menlo,monospace" font-size="9">@git://.../dark-factory#main</text>
+  <!-- count chips -->
+  <rect x="678" y="64" width="24" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="683" y="75" fill="#909090" font-family="Menlo,monospace" font-size="8">3V</text>
+  <rect x="708" y="64" width="24" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="713" y="75" fill="#909090" font-family="Menlo,monospace" font-size="8">4A</text>
+
+  <!-- product fanout: vertical stems to 3 variants -->
+  <line x1="370" y1="82" x2="370" y2="82" stroke="#808080" stroke-width="1"/>
+  <!-- center stem -->
+  <line x1="600" y1="106" x2="600" y2="116" stroke="#808080" stroke-width="1"/>
+  <!-- fan-out bar -->
+  <line x1="290" y1="116" x2="910" y2="116" stroke="#787878" stroke-width="1.5"/>
+  <!-- down stems to each variant -->
+  <line x1="290" y1="116" x2="290" y2="132" stroke="#787878" stroke-width="1"/>
+  <line x1="600" y1="116" x2="600" y2="132" stroke="#787878" stroke-width="1"/>
+  <line x1="910" y1="116" x2="910" y2="132" stroke="#787878" stroke-width="1"/>
+
+
+  <!-- ================================================================ -->
+  <!-- LANE 1: VARIANTS — 3 variant tags in a row                       -->
+  <!-- ================================================================ -->
+
+  <!-- V1: default -->
+  <rect x="200" y="132" width="180" height="32" fill="none" stroke="#a8a8a8" stroke-width="1"/>
+  <text x="214" y="152" fill="#e0e0e0" font-family="Menlo,monospace" font-size="11" font-weight="700">default</text>
+  <rect x="326" y="138" width="44" height="18" fill="none" stroke="#505050" stroke-width="0.75"/>
+  <text x="334" y="151" fill="#888888" font-family="Menlo,monospace" font-size="9">dirty</text>
+
+  <!-- V2: clone_0001 -->
+  <rect x="510" y="132" width="180" height="32" fill="none" stroke="#a8a8a8" stroke-width="1"/>
+  <text x="524" y="152" fill="#e0e0e0" font-family="Menlo,monospace" font-size="11" font-weight="700">clone_0001</text>
+  <rect x="636" y="138" width="44" height="18" fill="none" stroke="#505050" stroke-width="0.75"/>
+  <text x="642" y="151" fill="#888888" font-family="Menlo,monospace" font-size="9">clean</text>
+
+  <!-- V3: feature/auth -->
+  <rect x="820" y="132" width="180" height="32" fill="none" stroke="#a8a8a8" stroke-width="1"/>
+  <text x="834" y="152" fill="#e0e0e0" font-family="Menlo,monospace" font-size="11" font-weight="700">feature/auth</text>
+  <rect x="946" y="138" width="44" height="18" fill="none" stroke="#505050" stroke-width="0.75"/>
+  <text x="954" y="151" fill="#888888" font-family="Menlo,monospace" font-size="9">clean</text>
+
+
+  <!-- ================================================================ -->
+  <!-- V1 -> 2 actors (A1, A2) — demonstrating 1:N variant-to-actor    -->
+  <!-- ================================================================ -->
+
+  <!-- V1 fan-out to A1 + A2 -->
+  <line x1="290" y1="164" x2="290" y2="176" stroke="#686868" stroke-width="1"/>
+  <line x1="210" y1="176" x2="370" y2="176" stroke="#585858" stroke-width="1"/>
+  <line x1="210" y1="176" x2="210" y2="198" stroke="#585858" stroke-width="1"/>
+  <line x1="370" y1="176" x2="370" y2="198" stroke="#585858" stroke-width="1"/>
+  <!-- dot at fork -->
+  <rect x="287" y="173" width="6" height="6" fill="#686868"/>
+
+  <!-- ACTOR A1 -->
+  <rect x="120" y="198" width="180" height="52" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="120" y="198" width="4" height="52" fill="#c0c0c0"/>
+  <text x="134" y="218" fill="#e8e8e8" font-family="Menlo,monospace" font-size="10" font-weight="700">ACTOR</text>
+  <text x="186" y="218" fill="#c0c0c0" font-family="Menlo,monospace" font-size="9">act_2h2bd5ph</text>
+  <rect x="254" y="206" width="38" height="14" fill="none" stroke="#686868" stroke-width="1"/>
+  <text x="260" y="217" fill="#70b070" font-family="Menlo,monospace" font-size="9">run</text>
+  <text x="134" y="238" fill="#707070" font-family="Menlo,monospace" font-size="8">opencode/server</text>
+
+  <!-- ACTOR A2 -->
+  <rect x="320" y="198" width="180" height="52" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="320" y="198" width="4" height="52" fill="#c0c0c0"/>
+  <text x="334" y="218" fill="#e8e8e8" font-family="Menlo,monospace" font-size="10" font-weight="700">ACTOR</text>
+  <text x="386" y="218" fill="#c0c0c0" font-family="Menlo,monospace" font-size="9">act_9xk3r4qm</text>
+  <rect x="454" y="206" width="38" height="14" fill="none" stroke="#686868" stroke-width="1"/>
+  <text x="458" y="217" fill="#a08080" font-family="Menlo,monospace" font-size="9">stop</text>
+  <text x="334" y="238" fill="#707070" font-family="Menlo,monospace" font-size="8">opencode/server</text>
+
+  <!-- V2 -> 1 actor (A3) -->
+  <line x1="600" y1="164" x2="600" y2="198" stroke="#686868" stroke-width="1"/>
+
+  <!-- ACTOR A3 -->
+  <rect x="510" y="198" width="180" height="52" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="510" y="198" width="4" height="52" fill="#c0c0c0"/>
+  <text x="524" y="218" fill="#e8e8e8" font-family="Menlo,monospace" font-size="10" font-weight="700">ACTOR</text>
+  <text x="576" y="218" fill="#c0c0c0" font-family="Menlo,monospace" font-size="9">act_0y4hm8xs</text>
+  <rect x="644" y="206" width="38" height="14" fill="none" stroke="#686868" stroke-width="1"/>
+  <text x="650" y="217" fill="#70b070" font-family="Menlo,monospace" font-size="9">run</text>
+  <text x="524" y="238" fill="#707070" font-family="Menlo,monospace" font-size="8">opencode/server</text>
+
+  <!-- V2 -> 1 actor (A4) — second actor on clone_0001 to show another 1:N -->
+  <!-- Actually, let's make V3 have no actors to match Candidate A data -->
+
+  <!-- V3 -> no actors -->
+  <line x1="910" y1="164" x2="910" y2="198" stroke="#383838" stroke-width="1" stroke-dasharray="2 4"/>
+  <rect x="846" y="198" width="128" height="28" fill="none" stroke="#3a3a3a" stroke-width="1" stroke-dasharray="4 3"/>
+  <text x="910" y="216" fill="#404040" font-family="Menlo,monospace" font-size="9" text-anchor="middle">no actors</text>
+
+
+  <!-- ================================================================ -->
+  <!-- LANE 3: SUB-AGENTS — grids below each actor                     -->
+  <!-- ================================================================ -->
+
+  <!-- A1 -> 3 sub-agents -->
+  <line x1="210" y1="250" x2="210" y2="328" stroke="#505050" stroke-width="1"/>
+  <rect x="120" y="328" width="180" height="56" fill="none" stroke="#505050" stroke-width="1"/>
+  <text x="130" y="340" fill="#606060" font-family="Menlo,monospace" font-size="8">sub-agents</text>
+  <text x="290" y="340" fill="#505050" font-family="Menlo,monospace" font-size="8" text-anchor="end">x3</text>
+  <line x1="120" y1="344" x2="300" y2="344" stroke="#404040" stroke-width="0.5"/>
+  <rect x="124" y="348" width="56" height="16" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="130" y="360" fill="#a0a0a0" font-family="Menlo,monospace" font-size="8">explore</text>
+  <rect x="184" y="348" width="52" height="16" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="192" y="360" fill="#a0a0a0" font-family="Menlo,monospace" font-size="8">docs</text>
+  <rect x="240" y="348" width="56" height="16" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="246" y="360" fill="#a0a0a0" font-family="Menlo,monospace" font-size="8">gitter</text>
+  <rect x="124" y="368" width="56" height="12" fill="none" stroke="none"/>
+
+  <!-- A2 -> 2 sub-agents -->
+  <line x1="410" y1="250" x2="410" y2="328" stroke="#505050" stroke-width="1"/>
+  <rect x="320" y="328" width="180" height="42" fill="none" stroke="#505050" stroke-width="1"/>
+  <text x="330" y="340" fill="#606060" font-family="Menlo,monospace" font-size="8">sub-agents</text>
+  <text x="490" y="340" fill="#505050" font-family="Menlo,monospace" font-size="8" text-anchor="end">x2</text>
+  <line x1="320" y1="344" x2="500" y2="344" stroke="#404040" stroke-width="0.5"/>
+  <rect x="324" y="348" width="82" height="16" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="332" y="360" fill="#a0a0a0" font-family="Menlo,monospace" font-size="8">frontend</text>
+  <rect x="412" y="348" width="82" height="16" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="420" y="360" fill="#a0a0a0" font-family="Menlo,monospace" font-size="8">designer</text>
+
+  <!-- A3 -> 3 sub-agents -->
+  <line x1="600" y1="250" x2="600" y2="328" stroke="#505050" stroke-width="1"/>
+  <rect x="510" y="328" width="180" height="56" fill="none" stroke="#505050" stroke-width="1"/>
+  <text x="520" y="340" fill="#606060" font-family="Menlo,monospace" font-size="8">sub-agents</text>
+  <text x="680" y="340" fill="#505050" font-family="Menlo,monospace" font-size="8" text-anchor="end">x3</text>
+  <line x1="510" y1="344" x2="690" y2="344" stroke="#404040" stroke-width="0.5"/>
+  <rect x="514" y="348" width="82" height="16" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="522" y="360" fill="#a0a0a0" font-family="Menlo,monospace" font-size="8">planner</text>
+  <rect x="602" y="348" width="82" height="16" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="610" y="360" fill="#a0a0a0" font-family="Menlo,monospace" font-size="8">senior</text>
+  <rect x="514" y="368" width="82" height="16" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="522" y="380" fill="#a0a0a0" font-family="Menlo,monospace" font-size="8">junior</text>
+
+
+  <!-- ================================================================ -->
+  <!-- TOPOLOGY SUMMARY — right margin                                  -->
+  <!-- ================================================================ -->
+  <rect x="970" y="328" width="190" height="100" fill="none" stroke="#505050" stroke-width="1"/>
+  <text x="984" y="348" fill="#808080" font-family="Menlo,monospace" font-size="10" font-weight="700">TOPOLOGY</text>
+  <line x1="984" y1="354" x2="1146" y2="354" stroke="#404040" stroke-width="0.5"/>
+  <text x="984" y="370" fill="#707070" font-family="Menlo,monospace" font-size="9">variants ...... 3</text>
+  <text x="984" y="386" fill="#707070" font-family="Menlo,monospace" font-size="9">actors ........ 3</text>
+  <text x="984" y="402" fill="#707070" font-family="Menlo,monospace" font-size="9">sub-agents .... 8</text>
+  <text x="984" y="418" fill="#505050" font-family="Menlo,monospace" font-size="8">run: 2  stop: 1  empty: 1</text>
+
+
+  <!-- ================================================================ -->
+  <!-- LEGEND — bottom                                                   -->
+  <!-- ================================================================ -->
+  <line x1="28" y1="648" x2="1172" y2="648" stroke="#383838" stroke-width="0.5"/>
+  <text x="600" y="644" fill="#404040" font-family="Menlo,monospace" font-size="8" text-anchor="middle">LEGEND</text>
+
+  <!-- depth lane -->
+  <rect x="48" y="668" width="40" height="18" fill="none" stroke="#282828" stroke-width="1"/>
+  <text x="54" y="680" fill="#505050" font-family="Menlo,monospace" font-size="7">LANE</text>
+  <text x="96" y="680" fill="#606060" font-family="Menlo,monospace" font-size="9">depth lane</text>
+
+  <!-- product -->
+  <rect x="200" y="668" width="16" height="12" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="200" y="668" width="3" height="12" fill="#b0b0b0"/>
+  <text x="222" y="679" fill="#606060" font-family="Menlo,monospace" font-size="9">product</text>
+
+  <!-- fan-out bar -->
+  <line x1="298" y1="668" x2="298" y2="674" stroke="#686868" stroke-width="1"/>
+  <line x1="286" y1="674" x2="310" y2="674" stroke="#585858" stroke-width="1"/>
+  <line x1="286" y1="674" x2="286" y2="680" stroke="#585858" stroke-width="1"/>
+  <line x1="310" y1="674" x2="310" y2="680" stroke="#585858" stroke-width="1"/>
+  <rect x="295" y="671" width="6" height="6" fill="#686868"/>
+  <text x="318" y="679" fill="#606060" font-family="Menlo,monospace" font-size="9">fan-out (1:N)</text>
+
+  <!-- variant -->
+  <rect x="426" y="668" width="16" height="12" fill="none" stroke="#a8a8a8" stroke-width="1"/>
+  <text x="448" y="679" fill="#606060" font-family="Menlo,monospace" font-size="9">variant</text>
+
+  <!-- actor -->
+  <rect x="520" y="668" width="16" height="12" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="520" y="668" width="3" height="12" fill="#c0c0c0"/>
+  <text x="542" y="679" fill="#606060" font-family="Menlo,monospace" font-size="9">actor</text>
+
+  <!-- sub-agent grid -->
+  <rect x="604" y="668" width="24" height="12" fill="none" stroke="#505050" stroke-width="1"/>
+  <rect x="606" y="670" width="9" height="8" fill="none" stroke="#606060" stroke-width="0.5"/>
+  <rect x="617" y="670" width="9" height="8" fill="none" stroke="#606060" stroke-width="0.5"/>
+  <text x="634" y="679" fill="#606060" font-family="Menlo,monospace" font-size="9">sub-grid</text>
+
+  <!-- status -->
+  <text x="48" y="706" fill="#505050" font-family="Menlo,monospace" font-size="8">status:</text>
+  <rect x="112" y="696" width="32" height="14" fill="none" stroke="#505050" stroke-width="0.75"/>
+  <text x="118" y="707" fill="#70b070" font-family="Menlo,monospace" font-size="9">run</text>
+  <rect x="152" y="696" width="38" height="14" fill="none" stroke="#505050" stroke-width="0.75"/>
+  <text x="158" y="707" fill="#a08080" font-family="Menlo,monospace" font-size="9">stop</text>
+
+  <!-- concept note -->
+  <text x="280" y="706" fill="#383838" font-family="Menlo,monospace" font-size="8">Horizontal depth lanes with labeled margins  |  All nodes in one unified flow  |  Swimlane-like structure</text>
+
+
+  <!-- ===== BOTTOM CAPTION BAR ===== -->
+  <rect x="16" y="740" width="1168" height="1" fill="#585858"/>
+  <text x="600" y="762" fill="#888888" font-family="Menlo,monospace" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="2">Round11 Candidate B // Depth-Lane Graph</text>
+</svg>

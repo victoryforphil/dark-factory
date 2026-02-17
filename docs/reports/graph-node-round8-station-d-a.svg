@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="560" viewBox="0 0 1100 560">
+  <!-- background -->
+  <rect width="1100" height="560" fill="#0c1017"/>
+
+  <!-- outer frame -->
+  <rect x="24" y="20" width="1052" height="516" fill="none" stroke="#808080" stroke-width="1"/>
+
+  <!-- ===== PRODUCT HEADER (centered) ===== -->
+  <rect x="350" y="42" width="400" height="56" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <text x="550" y="66" fill="#e8e8e8" font-family="Menlo,monospace" font-size="13" font-weight="700" text-anchor="middle">PRODUCT  prd_2o02efhj</text>
+  <text x="550" y="84" fill="#a0a0a0" font-family="Menlo,monospace" font-size="10" text-anchor="middle">dirty  2v  2a  @git://.../dark-factory#main</text>
+
+  <!-- product stem to rail -->
+  <line x1="550" y1="98" x2="550" y2="132" stroke="#888888" stroke-width="1" stroke-dasharray="3 3"/>
+
+  <!-- ===== HORIZONTAL RAIL ===== -->
+  <line x1="100" y1="132" x2="1000" y2="132" stroke="#b0b0b0" stroke-width="2"/>
+  <!-- rail ticks -->
+  <line x1="320" y1="124" x2="320" y2="140" stroke="#b0b0b0" stroke-width="2"/>
+  <line x1="780" y1="124" x2="780" y2="140" stroke="#b0b0b0" stroke-width="2"/>
+
+  <!-- ===== LEFT COLUMN (center x=320) ===== -->
+
+  <!-- tick to variant connector -->
+  <line x1="320" y1="140" x2="320" y2="166" stroke="#909090" stroke-width="1"/>
+
+  <!-- variant tag -->
+  <rect x="224" y="166" width="192" height="40" fill="none" stroke="#b0b0b0" stroke-width="1"/>
+  <text x="240" y="186" fill="#e0e0e0" font-family="Menlo,monospace" font-size="12" font-weight="700">clone_0000</text>
+  <text x="372" y="186" fill="#888888" font-family="Menlo,monospace" font-size="10">clean</text>
+
+  <!-- variant to actor connector -->
+  <line x1="320" y1="206" x2="320" y2="238" stroke="#787878" stroke-width="1"/>
+
+  <!-- actor box -->
+  <rect x="172" y="238" width="296" height="88" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <!-- left accent bar -->
+  <rect x="172" y="238" width="4" height="88" fill="#c0c0c0"/>
+  <!-- actor label -->
+  <text x="190" y="260" fill="#e8e8e8" font-family="Menlo,monospace" font-size="12" font-weight="700">ACTOR  act_0y4hm8xs</text>
+  <!-- status badge -->
+  <rect x="400" y="248" width="56" height="18" fill="none" stroke="#787878" stroke-width="1"/>
+  <text x="410" y="261" fill="#a0a0a0" font-family="Menlo,monospace" font-size="10">stopped</text>
+  <!-- provider -->
+  <text x="190" y="278" fill="#909090" font-family="Menlo,monospace" font-size="10">provider: opencode/server</text>
+  <!-- sub-agents label -->
+  <text x="190" y="298" fill="#707070" font-family="Menlo,monospace" font-size="10">sub-agents:</text>
+  <!-- separator -->
+  <line x1="190" y1="304" x2="452" y2="304" stroke="#484848" stroke-width="0.5"/>
+
+  <!-- sub-agent drop connectors -->
+  <line x1="244" y1="326" x2="244" y2="348" stroke="#686868" stroke-width="1"/>
+  <line x1="338" y1="326" x2="338" y2="348" stroke="#686868" stroke-width="1"/>
+  <line x1="418" y1="326" x2="418" y2="348" stroke="#686868" stroke-width="1"/>
+
+  <!-- sub-agent mini boxes -->
+  <rect x="196" y="348" width="96" height="28" fill="none" stroke="#888888" stroke-width="1"/>
+  <text x="210" y="366" fill="#b8b8b8" font-family="Menlo,monospace" font-size="10">sa:frontend</text>
+
+  <rect x="300" y="348" width="76" height="28" fill="none" stroke="#888888" stroke-width="1"/>
+  <text x="310" y="366" fill="#b8b8b8" font-family="Menlo,monospace" font-size="10">sa:route</text>
+
+  <rect x="384" y="348" width="68" height="28" fill="none" stroke="#888888" stroke-width="1"/>
+  <text x="394" y="366" fill="#b8b8b8" font-family="Menlo,monospace" font-size="10">sa:docs</text>
+
+  <!-- ===== RIGHT COLUMN (center x=780) ===== -->
+
+  <!-- tick to variant connector -->
+  <line x1="780" y1="140" x2="780" y2="166" stroke="#909090" stroke-width="1"/>
+
+  <!-- variant tag -->
+  <rect x="684" y="166" width="192" height="40" fill="none" stroke="#b0b0b0" stroke-width="1"/>
+  <text x="700" y="186" fill="#e0e0e0" font-family="Menlo,monospace" font-size="12" font-weight="700">default</text>
+  <text x="832" y="186" fill="#888888" font-family="Menlo,monospace" font-size="10">dirty</text>
+
+  <!-- variant to actor connector -->
+  <line x1="780" y1="206" x2="780" y2="238" stroke="#787878" stroke-width="1"/>
+
+  <!-- actor box -->
+  <rect x="632" y="238" width="296" height="88" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <!-- left accent bar -->
+  <rect x="632" y="238" width="4" height="88" fill="#c0c0c0"/>
+  <!-- actor label -->
+  <text x="650" y="260" fill="#e8e8e8" font-family="Menlo,monospace" font-size="12" font-weight="700">ACTOR  act_2h2bd5ph</text>
+  <!-- status badge -->
+  <rect x="860" y="248" width="56" height="18" fill="none" stroke="#787878" stroke-width="1"/>
+  <text x="868" y="261" fill="#a0a0a0" font-family="Menlo,monospace" font-size="10">running</text>
+  <!-- provider -->
+  <text x="650" y="278" fill="#909090" font-family="Menlo,monospace" font-size="10">provider: opencode/server</text>
+  <!-- sub-agents label -->
+  <text x="650" y="298" fill="#707070" font-family="Menlo,monospace" font-size="10">sub-agents:</text>
+  <!-- separator -->
+  <line x1="650" y1="304" x2="912" y2="304" stroke="#484848" stroke-width="0.5"/>
+
+  <!-- sub-agent drop connectors -->
+  <line x1="724" y1="326" x2="724" y2="348" stroke="#686868" stroke-width="1"/>
+  <line x1="838" y1="326" x2="838" y2="348" stroke="#686868" stroke-width="1"/>
+
+  <!-- sub-agent mini boxes -->
+  <rect x="674" y="348" width="100" height="28" fill="none" stroke="#888888" stroke-width="1"/>
+  <text x="686" y="366" fill="#b8b8b8" font-family="Menlo,monospace" font-size="10">sa:explore</text>
+
+  <rect x="788" y="348" width="100" height="28" fill="none" stroke="#888888" stroke-width="1"/>
+  <text x="798" y="366" fill="#b8b8b8" font-family="Menlo,monospace" font-size="10">sa:scripts</text>
+
+  <!-- ===== LEGEND ROW ===== -->
+  <line x1="40" y1="434" x2="1060" y2="434" stroke="#404040" stroke-width="0.5"/>
+
+  <!-- legend: rail -->
+  <line x1="60" y1="456" x2="100" y2="456" stroke="#b0b0b0" stroke-width="2"/>
+  <text x="108" y="460" fill="#787878" font-family="Menlo,monospace" font-size="10">rail</text>
+
+  <!-- legend: variant -->
+  <rect x="170" y="448" width="16" height="14" fill="none" stroke="#b0b0b0" stroke-width="1"/>
+  <text x="192" y="460" fill="#787878" font-family="Menlo,monospace" font-size="10">variant</text>
+
+  <!-- legend: actor -->
+  <rect x="280" y="448" width="16" height="14" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="280" y="448" width="3" height="14" fill="#c0c0c0"/>
+  <text x="302" y="460" fill="#787878" font-family="Menlo,monospace" font-size="10">actor</text>
+
+  <!-- legend: sub-agent -->
+  <rect x="378" y="448" width="16" height="14" fill="none" stroke="#888888" stroke-width="1"/>
+  <text x="400" y="460" fill="#787878" font-family="Menlo,monospace" font-size="10">sub-agent</text>
+
+  <!-- legend: connector -->
+  <line x1="504" y1="448" x2="504" y2="462" stroke="#787878" stroke-width="1"/>
+  <text x="514" y="460" fill="#787878" font-family="Menlo,monospace" font-size="10">connector</text>
+
+  <!-- legend: stem -->
+  <line x1="620" y1="448" x2="620" y2="462" stroke="#888888" stroke-width="1" stroke-dasharray="3 3"/>
+  <text x="630" y="460" fill="#787878" font-family="Menlo,monospace" font-size="10">stem</text>
+
+  <!-- ===== CAPTION BAR ===== -->
+  <rect x="24" y="496" width="1052" height="1" fill="#585858"/>
+  <text x="550" y="522" fill="#888888" font-family="Menlo,monospace" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="2">Round8 Station D A</text>
+</svg>

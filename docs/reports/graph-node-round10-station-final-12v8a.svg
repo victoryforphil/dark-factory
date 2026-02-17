@@ -1,0 +1,371 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="920" viewBox="0 0 1400 920">
+  <!-- background -->
+  <rect width="1400" height="920" fill="#0b0f15"/>
+
+  <!-- outer frame -->
+  <rect x="16" y="12" width="1368" height="896" fill="none" stroke="#606060" stroke-width="1"/>
+  <!-- inner margin frame -->
+  <rect x="18" y="14" width="1364" height="892" fill="none" stroke="#2a2a2a" stroke-width="0.5"/>
+
+  <!-- ===== PRODUCT HEADER (left-aligned) ===== -->
+  <rect x="36" y="30" width="320" height="56" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="36" y="30" width="4" height="56" fill="#c0c0c0"/>
+  <!-- product id -->
+  <text x="54" y="53" fill="#e8e8e8" font-family="Menlo,monospace" font-size="13" font-weight="700">PRODUCT  prd_2o02efhj</text>
+  <!-- locator -->
+  <text x="54" y="72" fill="#808080" font-family="Menlo,monospace" font-size="10">dirty  @git://github.com/vfp/dark-factory#main</text>
+  <!-- count badges -->
+  <rect x="266" y="38" width="38" height="18" fill="none" stroke="#686868" stroke-width="1"/>
+  <text x="272" y="51" fill="#a0a0a0" font-family="Menlo,monospace" font-size="10">12V</text>
+  <rect x="310" y="38" width="38" height="18" fill="none" stroke="#686868" stroke-width="1"/>
+  <text x="318" y="51" fill="#a0a0a0" font-family="Menlo,monospace" font-size="10">8A</text>
+
+  <!-- horizontal stem from product rightward -->
+  <line x1="356" y1="58" x2="396" y2="58" stroke="#888888" stroke-width="1" stroke-dasharray="3 3"/>
+  <!-- junction diamond -->
+  <polygon points="396,58 403,51 410,58 403,65" fill="none" stroke="#888888" stroke-width="1"/>
+  <!-- stem from junction down to upper rail -->
+  <line x1="403" y1="65" x2="403" y2="108" stroke="#888888" stroke-width="1"/>
+  <!-- stem from junction down to lower rail -->
+  <line x1="403" y1="65" x2="403" y2="460" stroke="#585858" stroke-width="1" stroke-dasharray="4 4"/>
+
+  <!-- depth level indicators -->
+  <line x1="24" y1="280" x2="44" y2="280" stroke="#2a2a2a" stroke-width="0.5" stroke-dasharray="2 3"/>
+  <text x="26" y="276" fill="#353535" font-family="Menlo,monospace" font-size="8">L0</text>
+  <line x1="24" y1="620" x2="44" y2="620" stroke="#2a2a2a" stroke-width="0.5" stroke-dasharray="2 3"/>
+  <text x="26" y="616" fill="#353535" font-family="Menlo,monospace" font-size="8">L1</text>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- ===== UPPER RAIL — 6 VARIANTS (V01–V06) spreading rightward ===== -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <line x1="50" y1="108" x2="1370" y2="108" stroke="#b0b0b0" stroke-width="2"/>
+  <!-- rail end caps -->
+  <rect x="46" y="105" width="8" height="6" fill="#b0b0b0"/>
+  <rect x="1366" y="105" width="8" height="6" fill="#b0b0b0"/>
+  <!-- rail label -->
+  <text x="60" y="102" fill="#505050" font-family="Menlo,monospace" font-size="9">RAIL-A</text>
+
+  <!-- upper rail ticks at each variant position -->
+  <line x1="110" y1="100" x2="110" y2="116" stroke="#b0b0b0" stroke-width="2"/>
+  <line x1="320" y1="100" x2="320" y2="116" stroke="#b0b0b0" stroke-width="2"/>
+  <line x1="530" y1="100" x2="530" y2="116" stroke="#b0b0b0" stroke-width="2"/>
+  <line x1="740" y1="100" x2="740" y2="116" stroke="#b0b0b0" stroke-width="2"/>
+  <line x1="950" y1="100" x2="950" y2="116" stroke="#b0b0b0" stroke-width="2"/>
+  <line x1="1210" y1="100" x2="1210" y2="116" stroke="#b0b0b0" stroke-width="2"/>
+
+  <!-- ─── V01: default (actor A01, 3 sub-agents) ─── -->
+  <line x1="110" y1="116" x2="110" y2="130" stroke="#909090" stroke-width="1"/>
+  <rect x="34" y="130" width="152" height="28" fill="none" stroke="#b0b0b0" stroke-width="1"/>
+  <text x="44" y="148" fill="#e0e0e0" font-family="Menlo,monospace" font-size="11" font-weight="700">default</text>
+  <text x="140" y="148" fill="#787878" font-family="Menlo,monospace" font-size="9">dirty</text>
+  <line x1="110" y1="158" x2="110" y2="170" stroke="#707070" stroke-width="1"/>
+  <!-- actor A01 card -->
+  <rect x="34" y="170" width="152" height="60" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="34" y="170" width="3" height="60" fill="#c0c0c0"/>
+  <text x="46" y="186" fill="#e8e8e8" font-family="Menlo,monospace" font-size="9" font-weight="700">A01 act_2h2bd5ph</text>
+  <rect x="152" y="174" width="30" height="14" fill="none" stroke="#686868" stroke-width="1"/>
+  <text x="156" y="185" fill="#70b070" font-family="Menlo,monospace" font-size="9">run</text>
+  <text x="46" y="200" fill="#808080" font-family="Menlo,monospace" font-size="8">opencode/server</text>
+  <line x1="46" y1="206" x2="178" y2="206" stroke="#404040" stroke-width="0.5"/>
+  <text x="46" y="216" fill="#585858" font-family="Menlo,monospace" font-size="8">3 sub-agents</text>
+  <!-- sub-agent grid below actor -->
+  <line x1="110" y1="230" x2="110" y2="238" stroke="#404040" stroke-width="0.5"/>
+  <rect x="34" y="238" width="152" height="34" fill="none" stroke="#383838" stroke-width="0.5"/>
+  <rect x="38" y="242" width="46" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="42" y="252" fill="#909090" font-family="Menlo,monospace" font-size="8">explore</text>
+  <rect x="88" y="242" width="46" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="93" y="252" fill="#909090" font-family="Menlo,monospace" font-size="8">gitter</text>
+  <rect x="138" y="242" width="44" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="146" y="252" fill="#909090" font-family="Menlo,monospace" font-size="8">docs</text>
+  <rect x="38" y="258" width="46" height="10" fill="none" stroke="none"/>
+
+  <!-- ─── V02: clone_0001 (actor A02, 2 sub-agents) ─── -->
+  <line x1="320" y1="116" x2="320" y2="130" stroke="#909090" stroke-width="1"/>
+  <rect x="244" y="130" width="152" height="28" fill="none" stroke="#b0b0b0" stroke-width="1"/>
+  <text x="254" y="148" fill="#e0e0e0" font-family="Menlo,monospace" font-size="11" font-weight="700">clone_0001</text>
+  <text x="358" y="148" fill="#787878" font-family="Menlo,monospace" font-size="9">clean</text>
+  <line x1="320" y1="158" x2="320" y2="170" stroke="#707070" stroke-width="1"/>
+  <!-- actor A02 card -->
+  <rect x="244" y="170" width="152" height="60" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="244" y="170" width="3" height="60" fill="#c0c0c0"/>
+  <text x="256" y="186" fill="#e8e8e8" font-family="Menlo,monospace" font-size="9" font-weight="700">A02 act_0y4hm8xs</text>
+  <rect x="362" y="174" width="30" height="14" fill="none" stroke="#686868" stroke-width="1"/>
+  <text x="365" y="185" fill="#b07070" font-family="Menlo,monospace" font-size="9">stop</text>
+  <text x="256" y="200" fill="#808080" font-family="Menlo,monospace" font-size="8">opencode/server</text>
+  <line x1="256" y1="206" x2="388" y2="206" stroke="#404040" stroke-width="0.5"/>
+  <text x="256" y="216" fill="#585858" font-family="Menlo,monospace" font-size="8">2 sub-agents</text>
+  <!-- sub-agent grid below actor -->
+  <line x1="320" y1="230" x2="320" y2="238" stroke="#404040" stroke-width="0.5"/>
+  <rect x="244" y="238" width="152" height="34" fill="none" stroke="#383838" stroke-width="0.5"/>
+  <rect x="248" y="242" width="56" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="253" y="252" fill="#909090" font-family="Menlo,monospace" font-size="8">frontend</text>
+  <rect x="308" y="242" width="48" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="314" y="252" fill="#909090" font-family="Menlo,monospace" font-size="8">design</text>
+
+  <!-- ─── V03: clone_0002 (no actor) ─── -->
+  <line x1="530" y1="116" x2="530" y2="130" stroke="#909090" stroke-width="1"/>
+  <rect x="454" y="130" width="152" height="28" fill="none" stroke="#b0b0b0" stroke-width="1"/>
+  <text x="464" y="148" fill="#e0e0e0" font-family="Menlo,monospace" font-size="11" font-weight="700">clone_0002</text>
+  <text x="568" y="148" fill="#787878" font-family="Menlo,monospace" font-size="9">clean</text>
+  <line x1="530" y1="158" x2="530" y2="174" stroke="#383838" stroke-width="1" stroke-dasharray="2 3"/>
+  <text x="514" y="186" fill="#404040" font-family="Menlo,monospace" font-size="8">no actor</text>
+
+  <!-- ─── V04: clone_0003 (actor A03, 2 sub-agents) ─── -->
+  <line x1="740" y1="116" x2="740" y2="130" stroke="#909090" stroke-width="1"/>
+  <rect x="664" y="130" width="152" height="28" fill="none" stroke="#b0b0b0" stroke-width="1"/>
+  <text x="674" y="148" fill="#e0e0e0" font-family="Menlo,monospace" font-size="11" font-weight="700">clone_0003</text>
+  <text x="778" y="148" fill="#787878" font-family="Menlo,monospace" font-size="9">dirty</text>
+  <line x1="740" y1="158" x2="740" y2="170" stroke="#707070" stroke-width="1"/>
+  <!-- actor A03 card -->
+  <rect x="664" y="170" width="152" height="60" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="664" y="170" width="3" height="60" fill="#c0c0c0"/>
+  <text x="676" y="186" fill="#e8e8e8" font-family="Menlo,monospace" font-size="9" font-weight="700">A03 act_7kf3r2mn</text>
+  <rect x="782" y="174" width="30" height="14" fill="none" stroke="#686868" stroke-width="1"/>
+  <text x="786" y="185" fill="#70b070" font-family="Menlo,monospace" font-size="9">run</text>
+  <text x="676" y="200" fill="#808080" font-family="Menlo,monospace" font-size="8">opencode/server</text>
+  <line x1="676" y1="206" x2="808" y2="206" stroke="#404040" stroke-width="0.5"/>
+  <text x="676" y="216" fill="#585858" font-family="Menlo,monospace" font-size="8">2 sub-agents</text>
+  <!-- sub-agent grid below actor -->
+  <line x1="740" y1="230" x2="740" y2="238" stroke="#404040" stroke-width="0.5"/>
+  <rect x="664" y="238" width="152" height="34" fill="none" stroke="#383838" stroke-width="0.5"/>
+  <rect x="668" y="242" width="44" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="674" y="252" fill="#909090" font-family="Menlo,monospace" font-size="8">route</text>
+  <rect x="716" y="242" width="48" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="722" y="252" fill="#909090" font-family="Menlo,monospace" font-size="8">script</text>
+
+  <!-- ─── V05: clone_0004 (no actor) ─── -->
+  <line x1="950" y1="116" x2="950" y2="130" stroke="#909090" stroke-width="1"/>
+  <rect x="874" y="130" width="152" height="28" fill="none" stroke="#b0b0b0" stroke-width="1"/>
+  <text x="884" y="148" fill="#e0e0e0" font-family="Menlo,monospace" font-size="11" font-weight="700">clone_0004</text>
+  <text x="988" y="148" fill="#787878" font-family="Menlo,monospace" font-size="9">clean</text>
+  <line x1="950" y1="158" x2="950" y2="174" stroke="#383838" stroke-width="1" stroke-dasharray="2 3"/>
+  <text x="934" y="186" fill="#404040" font-family="Menlo,monospace" font-size="8">no actor</text>
+
+  <!-- ─── V06: clone_0005 (actor A04, 4 sub-agents) ─── -->
+  <line x1="1210" y1="116" x2="1210" y2="130" stroke="#909090" stroke-width="1"/>
+  <rect x="1124" y="130" width="172" height="28" fill="none" stroke="#b0b0b0" stroke-width="1"/>
+  <text x="1134" y="148" fill="#e0e0e0" font-family="Menlo,monospace" font-size="11" font-weight="700">clone_0005</text>
+  <text x="1256" y="148" fill="#787878" font-family="Menlo,monospace" font-size="9">dirty</text>
+  <line x1="1210" y1="158" x2="1210" y2="170" stroke="#707070" stroke-width="1"/>
+  <!-- actor A04 card -->
+  <rect x="1124" y="170" width="172" height="60" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="1124" y="170" width="3" height="60" fill="#c0c0c0"/>
+  <text x="1136" y="186" fill="#e8e8e8" font-family="Menlo,monospace" font-size="9" font-weight="700">A04 act_9pq1w4vn</text>
+  <rect x="1264" y="174" width="28" height="14" fill="none" stroke="#686868" stroke-width="1"/>
+  <text x="1268" y="185" fill="#70b070" font-family="Menlo,monospace" font-size="9">run</text>
+  <text x="1136" y="200" fill="#808080" font-family="Menlo,monospace" font-size="8">opencode/server</text>
+  <line x1="1136" y1="206" x2="1288" y2="206" stroke="#404040" stroke-width="0.5"/>
+  <text x="1136" y="216" fill="#585858" font-family="Menlo,monospace" font-size="8">4 sub-agents</text>
+  <!-- sub-agent grid below actor -->
+  <line x1="1210" y1="230" x2="1210" y2="238" stroke="#404040" stroke-width="0.5"/>
+  <rect x="1124" y="238" width="172" height="34" fill="none" stroke="#383838" stroke-width="0.5"/>
+  <rect x="1128" y="242" width="38" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="1133" y="252" fill="#909090" font-family="Menlo,monospace" font-size="8">lint</text>
+  <rect x="1170" y="242" width="42" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="1175" y="252" fill="#909090" font-family="Menlo,monospace" font-size="8">build</text>
+  <rect x="1216" y="242" width="38" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="1221" y="252" fill="#909090" font-family="Menlo,monospace" font-size="8">test</text>
+  <rect x="1258" y="242" width="34" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="1266" y="252" fill="#909090" font-family="Menlo,monospace" font-size="8">CI</text>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- ===== TOPOLOGY SUMMARY (right side, mid zone) ===== -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <rect x="1100" y="310" width="260" height="140" fill="none" stroke="#484848" stroke-width="1"/>
+  <rect x="1100" y="310" width="260" height="1" fill="#484848"/>
+  <text x="1114" y="330" fill="#909090" font-family="Menlo,monospace" font-size="10" font-weight="700">TOPOLOGY SUMMARY</text>
+  <line x1="1114" y1="336" x2="1346" y2="336" stroke="#383838" stroke-width="0.5"/>
+  <text x="1114" y="352" fill="#707070" font-family="Menlo,monospace" font-size="9">variants ............. 12</text>
+  <text x="1114" y="366" fill="#707070" font-family="Menlo,monospace" font-size="9">actors ................ 8</text>
+  <text x="1114" y="380" fill="#707070" font-family="Menlo,monospace" font-size="9">sub-agents ........... 20</text>
+  <text x="1114" y="394" fill="#707070" font-family="Menlo,monospace" font-size="9">unattached ............ 4</text>
+  <line x1="1114" y1="402" x2="1346" y2="402" stroke="#383838" stroke-width="0.5"/>
+  <text x="1114" y="418" fill="#585858" font-family="Menlo,monospace" font-size="9">running ............... 6</text>
+  <text x="1114" y="432" fill="#585858" font-family="Menlo,monospace" font-size="9">stopped ............... 2</text>
+  <text x="1114" y="446" fill="#484848" font-family="Menlo,monospace" font-size="8">stress-test topology (final)</text>
+
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <!-- ===== LOWER RAIL — 6 VARIANTS (V07–V12) spreading rightward ===== -->
+  <!-- ═══════════════════════════════════════════════════════════════ -->
+  <line x1="50" y1="470" x2="1370" y2="470" stroke="#b0b0b0" stroke-width="2"/>
+  <!-- rail end caps -->
+  <rect x="46" y="467" width="8" height="6" fill="#b0b0b0"/>
+  <rect x="1366" y="467" width="8" height="6" fill="#b0b0b0"/>
+  <!-- rail label -->
+  <text x="60" y="464" fill="#505050" font-family="Menlo,monospace" font-size="9">RAIL-B</text>
+
+  <!-- lower rail ticks -->
+  <line x1="110" y1="462" x2="110" y2="478" stroke="#b0b0b0" stroke-width="2"/>
+  <line x1="320" y1="462" x2="320" y2="478" stroke="#b0b0b0" stroke-width="2"/>
+  <line x1="530" y1="462" x2="530" y2="478" stroke="#b0b0b0" stroke-width="2"/>
+  <line x1="740" y1="462" x2="740" y2="478" stroke="#b0b0b0" stroke-width="2"/>
+  <line x1="950" y1="462" x2="950" y2="478" stroke="#b0b0b0" stroke-width="2"/>
+  <line x1="1210" y1="462" x2="1210" y2="478" stroke="#b0b0b0" stroke-width="2"/>
+
+  <!-- stem meets lower rail -->
+  <line x1="403" y1="460" x2="403" y2="470" stroke="#888888" stroke-width="1"/>
+
+  <!-- ─── V07: clone_0006 (actor A05, 2 sub-agents) ─── -->
+  <line x1="110" y1="478" x2="110" y2="492" stroke="#909090" stroke-width="1"/>
+  <rect x="34" y="492" width="152" height="28" fill="none" stroke="#b0b0b0" stroke-width="1"/>
+  <text x="44" y="510" fill="#e0e0e0" font-family="Menlo,monospace" font-size="11" font-weight="700">clone_0006</text>
+  <text x="148" y="510" fill="#787878" font-family="Menlo,monospace" font-size="9">clean</text>
+  <line x1="110" y1="520" x2="110" y2="532" stroke="#707070" stroke-width="1"/>
+  <!-- actor A05 card -->
+  <rect x="34" y="532" width="152" height="60" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="34" y="532" width="3" height="60" fill="#c0c0c0"/>
+  <text x="46" y="548" fill="#e8e8e8" font-family="Menlo,monospace" font-size="9" font-weight="700">A05 act_3tf8n2xp</text>
+  <rect x="152" y="536" width="30" height="14" fill="none" stroke="#686868" stroke-width="1"/>
+  <text x="156" y="547" fill="#70b070" font-family="Menlo,monospace" font-size="9">run</text>
+  <text x="46" y="562" fill="#808080" font-family="Menlo,monospace" font-size="8">opencode/server</text>
+  <line x1="46" y1="568" x2="178" y2="568" stroke="#404040" stroke-width="0.5"/>
+  <text x="46" y="578" fill="#585858" font-family="Menlo,monospace" font-size="8">2 sub-agents</text>
+  <!-- sub-agent grid below actor -->
+  <line x1="110" y1="592" x2="110" y2="600" stroke="#404040" stroke-width="0.5"/>
+  <rect x="34" y="600" width="152" height="34" fill="none" stroke="#383838" stroke-width="0.5"/>
+  <rect x="38" y="604" width="52" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="43" y="614" fill="#909090" font-family="Menlo,monospace" font-size="8">tsc-fix</text>
+  <rect x="94" y="604" width="56" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="99" y="614" fill="#909090" font-family="Menlo,monospace" font-size="8">sweeper</text>
+
+  <!-- ─── V08: clone_0007 (actor A06, 3 sub-agents) ─── -->
+  <line x1="320" y1="478" x2="320" y2="492" stroke="#909090" stroke-width="1"/>
+  <rect x="244" y="492" width="152" height="28" fill="none" stroke="#b0b0b0" stroke-width="1"/>
+  <text x="254" y="510" fill="#e0e0e0" font-family="Menlo,monospace" font-size="11" font-weight="700">clone_0007</text>
+  <text x="358" y="510" fill="#787878" font-family="Menlo,monospace" font-size="9">dirty</text>
+  <line x1="320" y1="520" x2="320" y2="532" stroke="#707070" stroke-width="1"/>
+  <!-- actor A06 card -->
+  <rect x="244" y="532" width="152" height="60" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="244" y="532" width="3" height="60" fill="#c0c0c0"/>
+  <text x="256" y="548" fill="#e8e8e8" font-family="Menlo,monospace" font-size="9" font-weight="700">A06 act_5jm2q8wk</text>
+  <rect x="362" y="536" width="30" height="14" fill="none" stroke="#686868" stroke-width="1"/>
+  <text x="366" y="547" fill="#70b070" font-family="Menlo,monospace" font-size="9">run</text>
+  <text x="256" y="562" fill="#808080" font-family="Menlo,monospace" font-size="8">opencode/server</text>
+  <line x1="256" y1="568" x2="388" y2="568" stroke="#404040" stroke-width="0.5"/>
+  <text x="256" y="578" fill="#585858" font-family="Menlo,monospace" font-size="8">3 sub-agents</text>
+  <!-- sub-agent grid below actor -->
+  <line x1="320" y1="592" x2="320" y2="600" stroke="#404040" stroke-width="0.5"/>
+  <rect x="244" y="600" width="152" height="34" fill="none" stroke="#383838" stroke-width="0.5"/>
+  <rect x="248" y="604" width="50" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="253" y="614" fill="#909090" font-family="Menlo,monospace" font-size="8">planner</text>
+  <rect x="302" y="604" width="46" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="308" y="614" fill="#909090" font-family="Menlo,monospace" font-size="8">senior</text>
+  <rect x="352" y="604" width="28" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="358" y="614" fill="#909090" font-family="Menlo,monospace" font-size="8">jr</text>
+
+  <!-- ─── V09: clone_0008 (no actor) ─── -->
+  <line x1="530" y1="478" x2="530" y2="492" stroke="#909090" stroke-width="1"/>
+  <rect x="454" y="492" width="152" height="28" fill="none" stroke="#b0b0b0" stroke-width="1"/>
+  <text x="464" y="510" fill="#e0e0e0" font-family="Menlo,monospace" font-size="11" font-weight="700">clone_0008</text>
+  <text x="568" y="510" fill="#787878" font-family="Menlo,monospace" font-size="9">clean</text>
+  <line x1="530" y1="520" x2="530" y2="536" stroke="#383838" stroke-width="1" stroke-dasharray="2 3"/>
+  <text x="514" y="548" fill="#404040" font-family="Menlo,monospace" font-size="8">no actor</text>
+
+  <!-- ─── V10: clone_0009 (actor A07, 1 sub-agent) ─── -->
+  <line x1="740" y1="478" x2="740" y2="492" stroke="#909090" stroke-width="1"/>
+  <rect x="664" y="492" width="152" height="28" fill="none" stroke="#b0b0b0" stroke-width="1"/>
+  <text x="674" y="510" fill="#e0e0e0" font-family="Menlo,monospace" font-size="11" font-weight="700">clone_0009</text>
+  <text x="778" y="510" fill="#787878" font-family="Menlo,monospace" font-size="9">dirty</text>
+  <line x1="740" y1="520" x2="740" y2="532" stroke="#707070" stroke-width="1"/>
+  <!-- actor A07 card -->
+  <rect x="664" y="532" width="152" height="60" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="664" y="532" width="3" height="60" fill="#c0c0c0"/>
+  <text x="676" y="548" fill="#e8e8e8" font-family="Menlo,monospace" font-size="9" font-weight="700">A07 act_1xn4d7jq</text>
+  <rect x="782" y="536" width="30" height="14" fill="none" stroke="#686868" stroke-width="1"/>
+  <text x="786" y="547" fill="#b07070" font-family="Menlo,monospace" font-size="9">stop</text>
+  <text x="676" y="562" fill="#808080" font-family="Menlo,monospace" font-size="8">opencode/server</text>
+  <line x1="676" y1="568" x2="808" y2="568" stroke="#404040" stroke-width="0.5"/>
+  <text x="676" y="578" fill="#585858" font-family="Menlo,monospace" font-size="8">1 sub-agent</text>
+  <!-- sub-agent grid below actor -->
+  <line x1="740" y1="592" x2="740" y2="600" stroke="#404040" stroke-width="0.5"/>
+  <rect x="664" y="600" width="152" height="34" fill="none" stroke="#383838" stroke-width="0.5"/>
+  <rect x="668" y="604" width="52" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="674" y="614" fill="#909090" font-family="Menlo,monospace" font-size="8">reflect</text>
+
+  <!-- ─── V11: clone_000a (no actor) ─── -->
+  <line x1="950" y1="478" x2="950" y2="492" stroke="#909090" stroke-width="1"/>
+  <rect x="874" y="492" width="152" height="28" fill="none" stroke="#b0b0b0" stroke-width="1"/>
+  <text x="884" y="510" fill="#e0e0e0" font-family="Menlo,monospace" font-size="11" font-weight="700">clone_000a</text>
+  <text x="988" y="510" fill="#787878" font-family="Menlo,monospace" font-size="9">clean</text>
+  <line x1="950" y1="520" x2="950" y2="536" stroke="#383838" stroke-width="1" stroke-dasharray="2 3"/>
+  <text x="934" y="548" fill="#404040" font-family="Menlo,monospace" font-size="8">no actor</text>
+
+  <!-- ─── V12: clone_000b (actor A08, 3 sub-agents) ─── -->
+  <line x1="1210" y1="478" x2="1210" y2="492" stroke="#909090" stroke-width="1"/>
+  <rect x="1124" y="492" width="172" height="28" fill="none" stroke="#b0b0b0" stroke-width="1"/>
+  <text x="1134" y="510" fill="#e0e0e0" font-family="Menlo,monospace" font-size="11" font-weight="700">clone_000b</text>
+  <text x="1256" y="510" fill="#787878" font-family="Menlo,monospace" font-size="9">dirty</text>
+  <line x1="1210" y1="520" x2="1210" y2="532" stroke="#707070" stroke-width="1"/>
+  <!-- actor A08 card -->
+  <rect x="1124" y="532" width="172" height="60" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="1124" y="532" width="3" height="60" fill="#c0c0c0"/>
+  <text x="1136" y="548" fill="#e8e8e8" font-family="Menlo,monospace" font-size="9" font-weight="700">A08 act_6wr5y3ha</text>
+  <rect x="1264" y="536" width="28" height="14" fill="none" stroke="#686868" stroke-width="1"/>
+  <text x="1268" y="547" fill="#70b070" font-family="Menlo,monospace" font-size="9">run</text>
+  <text x="1136" y="562" fill="#808080" font-family="Menlo,monospace" font-size="8">opencode/server</text>
+  <line x1="1136" y1="568" x2="1288" y2="568" stroke="#404040" stroke-width="0.5"/>
+  <text x="1136" y="578" fill="#585858" font-family="Menlo,monospace" font-size="8">3 sub-agents</text>
+  <!-- sub-agent grid below actor -->
+  <line x1="1210" y1="592" x2="1210" y2="600" stroke="#404040" stroke-width="0.5"/>
+  <rect x="1124" y="600" width="172" height="34" fill="none" stroke="#383838" stroke-width="0.5"/>
+  <rect x="1128" y="604" width="32" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="1134" y="614" fill="#909090" font-family="Menlo,monospace" font-size="8">CI</text>
+  <rect x="1164" y="604" width="48" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="1170" y="614" fill="#909090" font-family="Menlo,monospace" font-size="8">deploy</text>
+  <rect x="1216" y="604" width="38" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="1222" y="614" fill="#909090" font-family="Menlo,monospace" font-size="8">test</text>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!-- ===== LEGEND ROW ===== -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <line x1="36" y1="810" x2="1364" y2="810" stroke="#383838" stroke-width="0.5"/>
+
+  <!-- legend: rail -->
+  <line x1="56" y1="838" x2="96" y2="838" stroke="#b0b0b0" stroke-width="2"/>
+  <text x="104" y="842" fill="#686868" font-family="Menlo,monospace" font-size="10">rail</text>
+
+  <!-- legend: variant -->
+  <rect x="160" y="830" width="16" height="14" fill="none" stroke="#b0b0b0" stroke-width="1"/>
+  <text x="182" y="842" fill="#686868" font-family="Menlo,monospace" font-size="10">variant</text>
+
+  <!-- legend: actor -->
+  <rect x="262" y="830" width="16" height="14" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="262" y="830" width="3" height="14" fill="#c0c0c0"/>
+  <text x="284" y="842" fill="#686868" font-family="Menlo,monospace" font-size="10">actor</text>
+
+  <!-- legend: sub-agent grid -->
+  <rect x="348" y="830" width="30" height="14" fill="none" stroke="#383838" stroke-width="0.5"/>
+  <rect x="352" y="832" width="10" height="10" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <rect x="364" y="832" width="10" height="10" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="386" y="842" fill="#686868" font-family="Menlo,monospace" font-size="10">sub-agent grid</text>
+
+  <!-- legend: connector -->
+  <line x1="504" y1="830" x2="504" y2="844" stroke="#707070" stroke-width="1"/>
+  <text x="514" y="842" fill="#686868" font-family="Menlo,monospace" font-size="10">connector</text>
+
+  <!-- legend: unattached -->
+  <line x1="616" y1="830" x2="616" y2="844" stroke="#383838" stroke-width="1" stroke-dasharray="2 3"/>
+  <text x="626" y="842" fill="#686868" font-family="Menlo,monospace" font-size="10">unattached</text>
+
+  <!-- legend: stem -->
+  <line x1="736" y1="830" x2="736" y2="844" stroke="#888888" stroke-width="1" stroke-dasharray="3 3"/>
+  <text x="746" y="842" fill="#686868" font-family="Menlo,monospace" font-size="10">stem</text>
+
+  <!-- legend: junction -->
+  <polygon points="810,832 816,838 810,844 804,838" fill="none" stroke="#888888" stroke-width="1"/>
+  <text x="824" y="842" fill="#686868" font-family="Menlo,monospace" font-size="10">junction</text>
+
+  <!-- legend: status -->
+  <rect x="916" y="830" width="10" height="14" fill="none" stroke="#686868" stroke-width="1"/>
+  <text x="932" y="842" fill="#70b070" font-family="Menlo,monospace" font-size="10">run</text>
+  <text x="960" y="842" fill="#505050" font-family="Menlo,monospace" font-size="10">/</text>
+  <text x="970" y="842" fill="#b07070" font-family="Menlo,monospace" font-size="10">stop</text>
+
+  <!-- legend: counts -->
+  <rect x="1024" y="830" width="10" height="14" fill="none" stroke="#686868" stroke-width="1"/>
+  <text x="1040" y="842" fill="#686868" font-family="Menlo,monospace" font-size="10">N V / N A = count badges</text>
+
+  <!-- ===== BOTTOM CAPTION BAR ===== -->
+  <rect x="16" y="870" width="1368" height="1" fill="#505050"/>
+  <text x="700" y="896" fill="#808080" font-family="Menlo,monospace" font-size="13" font-weight="700" text-anchor="middle" letter-spacing="3">Round10 Station Final 12V 8A</text>
+</svg>

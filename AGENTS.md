@@ -106,6 +106,7 @@ It reflects only what is currently true in this repository.
 - `.opencode/skills/devcontainer-workflows/SKILL.md` documents layered Docker devcontainer workflows and helper script usage.
 - `.opencode/skills/docs-scraping/SKILL.md` documents reusable external docs scraping workflows.
 - `.opencode/skills/research/SKILL.md` documents inspection-first, evidence-backed research workflows using `@explore`.
+- `.opencode/skills/spatial-layout-iteration/SKILL.md` documents a designer+explore iteration loop for Station/Orbit spatial layout parity with snapshot-based checks.
 - `.opencode/skills/reflect/SKILL.md` documents quick end-of-task reflection and lesson capture.
 - `.opencode/skills/reflect-constant/SKILL.md` documents periodic background reflection with `@reflector`.
 - `.opencode/commands/scrape_docs.md` provides the command entrypoint for docs scraping tasks.
@@ -168,6 +169,7 @@ It reflects only what is currently true in this repository.
 - `scripts/dcli.sh.ts` runs `dark_cli` via Cargo from repo root and forwards all CLI args.
 - `scripts/dchat.sh.ts` runs `dark_chat` via Cargo while preserving the launch CWD so OpenCode config resolution matches the caller terminal.
 - `scripts/dtui.sh.ts` runs `dark_tui` via Cargo from repo root and forwards all CLI args.
+- `scripts/tui_spatial_snapshots.sh.ts` runs `cargo test -p dark_tui spatial_snapshots` and supports `--update` (`INSTA_UPDATE=always`) for accepted snapshot updates.
 - `scripts/sys_install.sh.ts` manages shell aliases and `DARKFACTORY_SRC_PATH` in user shell rc files.
 - `scripts/reflect_constant.sh.ts` manages periodic reflector loops (`start`, `status`, `stop`, or foreground `run`).
 - `scripts/reflect_constant.sh.ts` writes timestamped reflector outputs to `docs/reflections/`.

@@ -1,0 +1,126 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="560" viewBox="0 0 1100 560">
+  <!-- background -->
+  <rect width="1100" height="560" fill="#0b0f15"/>
+
+  <!-- outer frame -->
+  <rect x="20" y="20" width="1060" height="520" fill="none" stroke="#9a9a9a" stroke-width="1"/>
+
+  <!-- center column axis (invisible guide at x=550) -->
+
+  <!-- ===== PRODUCT NODE (centered top) ===== -->
+  <rect x="360" y="44" width="380" height="60" fill="none" stroke="#d0d0d0" stroke-width="1.5"/>
+  <text x="550" y="70" fill="#f0f0f0" font-family="Menlo,monospace" font-size="14" font-weight="700" text-anchor="middle">PRODUCT  prd_2o02efhj</text>
+  <text x="550" y="90" fill="#b8b8b8" font-family="Menlo,monospace" font-size="11" text-anchor="middle">dirty  2v  2a  @git://.../dark-factory#main</text>
+
+  <!-- ===== HORIZONTAL RAIL ===== -->
+  <line x1="100" y1="140" x2="1000" y2="140" stroke="#c8c8c8" stroke-width="2"/>
+  <!-- rail ticks at column centers -->
+  <line x1="320" y1="132" x2="320" y2="148" stroke="#c8c8c8" stroke-width="2"/>
+  <line x1="780" y1="132" x2="780" y2="148" stroke="#c8c8c8" stroke-width="2"/>
+
+  <!-- product down-stem to rail -->
+  <line x1="550" y1="104" x2="550" y2="140" stroke="#aaaaaa" stroke-width="1" stroke-dasharray="4 3"/>
+
+  <!-- ===== LEFT COLUMN (x=320 center) ===== -->
+
+  <!-- variant card -->
+  <line x1="320" y1="148" x2="320" y2="172" stroke="#b0b0b0" stroke-width="1"/>
+  <rect x="220" y="172" width="200" height="44" fill="none" stroke="#c8c8c8" stroke-width="1"/>
+  <text x="234" y="194" fill="#eeeeee" font-family="Menlo,monospace" font-size="12" font-weight="700">clone_0000</text>
+  <text x="370" y="194" fill="#999999" font-family="Menlo,monospace" font-size="10">clean</text>
+
+  <!-- variant to actor connector -->
+  <line x1="320" y1="216" x2="320" y2="254" stroke="#909090" stroke-width="1"/>
+
+  <!-- actor card -->
+  <rect x="170" y="254" width="300" height="94" fill="none" stroke="#d0d0d0" stroke-width="1.5"/>
+  <rect x="170" y="254" width="4" height="94" fill="#d0d0d0"/>
+  <text x="188" y="278" fill="#f0f0f0" font-family="Menlo,monospace" font-size="12" font-weight="700">ACTOR  act_0y4hm8xs</text>
+  <text x="188" y="296" fill="#aaaaaa" font-family="Menlo,monospace" font-size="11">provider: opencode/server</text>
+  <rect x="400" y="266" width="58" height="18" fill="none" stroke="#888888" stroke-width="1"/>
+  <text x="410" y="279" fill="#bbbbbb" font-family="Menlo,monospace" font-size="10">stopped</text>
+  <text x="188" y="316" fill="#808080" font-family="Menlo,monospace" font-size="10">sub-agents:</text>
+  <!-- sub-agent separator -->
+  <line x1="188" y1="322" x2="454" y2="322" stroke="#555555" stroke-width="0.5"/>
+
+  <!-- sub-agent drop connectors from actor -->
+  <line x1="240" y1="348" x2="240" y2="370" stroke="#808080" stroke-width="1"/>
+  <line x1="320" y1="348" x2="320" y2="370" stroke="#808080" stroke-width="1"/>
+  <line x1="400" y1="348" x2="400" y2="370" stroke="#808080" stroke-width="1"/>
+
+  <!-- sub-agent mini nodes (left column) -->
+  <rect x="194" y="370" width="92" height="30" fill="none" stroke="#999999" stroke-width="1"/>
+  <text x="206" y="390" fill="#cccccc" font-family="Menlo,monospace" font-size="10">sa:frontend</text>
+
+  <rect x="294" y="370" width="92" height="30" fill="none" stroke="#999999" stroke-width="1"/>
+  <text x="306" y="390" fill="#cccccc" font-family="Menlo,monospace" font-size="10">sa:routing</text>
+
+  <rect x="394" y="370" width="72" height="30" fill="none" stroke="#999999" stroke-width="1"/>
+  <text x="406" y="390" fill="#cccccc" font-family="Menlo,monospace" font-size="10">sa:docs</text>
+
+  <!-- ===== RIGHT COLUMN (x=780 center) ===== -->
+
+  <!-- variant card -->
+  <line x1="780" y1="148" x2="780" y2="172" stroke="#b0b0b0" stroke-width="1"/>
+  <rect x="680" y="172" width="200" height="44" fill="none" stroke="#c8c8c8" stroke-width="1"/>
+  <text x="694" y="194" fill="#eeeeee" font-family="Menlo,monospace" font-size="12" font-weight="700">default</text>
+  <text x="830" y="194" fill="#999999" font-family="Menlo,monospace" font-size="10">dirty</text>
+
+  <!-- variant to actor connector -->
+  <line x1="780" y1="216" x2="780" y2="254" stroke="#909090" stroke-width="1"/>
+
+  <!-- actor card -->
+  <rect x="630" y="254" width="300" height="94" fill="none" stroke="#d0d0d0" stroke-width="1.5"/>
+  <rect x="630" y="254" width="4" height="94" fill="#d0d0d0"/>
+  <text x="648" y="278" fill="#f0f0f0" font-family="Menlo,monospace" font-size="12" font-weight="700">ACTOR  act_2h2bd5ph</text>
+  <text x="648" y="296" fill="#aaaaaa" font-family="Menlo,monospace" font-size="11">provider: opencode/server</text>
+  <rect x="860" y="266" width="58" height="18" fill="none" stroke="#888888" stroke-width="1"/>
+  <text x="868" y="279" fill="#bbbbbb" font-family="Menlo,monospace" font-size="10">running</text>
+  <text x="648" y="316" fill="#808080" font-family="Menlo,monospace" font-size="10">sub-agents:</text>
+  <!-- sub-agent separator -->
+  <line x1="648" y1="322" x2="914" y2="322" stroke="#555555" stroke-width="0.5"/>
+
+  <!-- sub-agent drop connectors from actor -->
+  <line x1="720" y1="348" x2="720" y2="370" stroke="#808080" stroke-width="1"/>
+  <line x1="830" y1="348" x2="830" y2="370" stroke="#808080" stroke-width="1"/>
+
+  <!-- sub-agent mini nodes (right column) -->
+  <rect x="670" y="370" width="100" height="30" fill="none" stroke="#999999" stroke-width="1"/>
+  <text x="682" y="390" fill="#cccccc" font-family="Menlo,monospace" font-size="10">sa:explore</text>
+
+  <rect x="780" y="370" width="100" height="30" fill="none" stroke="#999999" stroke-width="1"/>
+  <text x="792" y="390" fill="#cccccc" font-family="Menlo,monospace" font-size="10">sa:scripts</text>
+
+  <!-- ===== COLUMN GUIDE LINES (subtle) ===== -->
+  <line x1="320" y1="420" x2="320" y2="440" stroke="#333333" stroke-width="0.5" stroke-dasharray="2 3"/>
+  <line x1="780" y1="420" x2="780" y2="440" stroke="#333333" stroke-width="0.5" stroke-dasharray="2 3"/>
+  <line x1="550" y1="420" x2="550" y2="440" stroke="#333333" stroke-width="0.5" stroke-dasharray="2 3"/>
+
+  <!-- ===== LEGEND ROW ===== -->
+  <line x1="40" y1="460" x2="1060" y2="460" stroke="#444444" stroke-width="0.5"/>
+
+  <!-- legend: rail -->
+  <line x1="60" y1="480" x2="100" y2="480" stroke="#c8c8c8" stroke-width="2"/>
+  <text x="108" y="484" fill="#888888" font-family="Menlo,monospace" font-size="10">rail</text>
+
+  <!-- legend: variant -->
+  <rect x="170" y="472" width="18" height="14" fill="none" stroke="#c8c8c8" stroke-width="1"/>
+  <text x="194" y="484" fill="#888888" font-family="Menlo,monospace" font-size="10">variant</text>
+
+  <!-- legend: actor -->
+  <rect x="280" y="472" width="18" height="14" fill="none" stroke="#d0d0d0" stroke-width="1.5"/>
+  <rect x="280" y="472" width="3" height="14" fill="#d0d0d0"/>
+  <text x="304" y="484" fill="#888888" font-family="Menlo,monospace" font-size="10">actor</text>
+
+  <!-- legend: sub-agent -->
+  <rect x="380" y="472" width="18" height="14" fill="none" stroke="#999999" stroke-width="1"/>
+  <text x="404" y="484" fill="#888888" font-family="Menlo,monospace" font-size="10">sub-agent</text>
+
+  <!-- legend: connector -->
+  <line x1="510" y1="472" x2="510" y2="486" stroke="#909090" stroke-width="1"/>
+  <text x="520" y="484" fill="#888888" font-family="Menlo,monospace" font-size="10">connector</text>
+
+  <!-- ===== BOTTOM CAPTION BAR ===== -->
+  <rect x="20" y="510" width="1060" height="1" fill="#666666"/>
+  <text x="550" y="534" fill="#999999" font-family="Menlo,monospace" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="2">Round7 Station D</text>
+</svg>

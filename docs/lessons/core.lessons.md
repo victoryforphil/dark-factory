@@ -10,3 +10,6 @@
 - Prune duplicates and stale bullets so signal stays high as work evolves.
 - When logging metadata in `dark_core`, prefer `meta={...}` JSON via `formatLogMetadata` instead of comma-separated `key=value` strings.
 - For TUI overlays/popups, gate render prop builders with the same `is_*_open()` state used by input handling; hit-test guards alone do not prevent default-open rendering artifacts.
+- For spatial TUI parity work, use a tight loop: parallel `@explore` path-mapping + per-view `@designer` critiques + small code slices + immediate `cargo check -p dark_tui`.
+- Add deterministic Ratatui `TestBackend` + `insta` snapshots before visual polish so each layout iteration can be reviewed as text diffs instead of manual terminal captures.
+- Keep one command path to run spatial snapshots (`scripts/tui_spatial_snapshots.sh.ts`), with `--update` setting `INSTA_UPDATE=always` to accept intended fixture changes.

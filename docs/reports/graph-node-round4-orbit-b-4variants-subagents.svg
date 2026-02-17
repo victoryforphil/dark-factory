@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="700" viewBox="0 0 1100 700">
+  <rect width="1100" height="700" fill="#0b0f15"/>
+  <text x="24" y="34" fill="#d7e3f2" font-family="Menlo, monospace" font-size="20">Orbit B // 4 Variants + Sub-Agent Nodes</text>
+
+  <rect x="20" y="48" width="1060" height="632" fill="#101722" stroke="#2a3a4f" stroke-width="2"/>
+
+  <!-- orbit guides -->
+  <circle cx="350" cy="360" r="100" fill="none" stroke="#3b4e66" stroke-dasharray="7 6"/>
+  <circle cx="350" cy="360" r="200" fill="none" stroke="#2f4054" stroke-dasharray="6 8"/>
+
+  <!-- product core -->
+  <rect x="292" y="332" width="116" height="56" fill="#1a2a3b" stroke="#4fb3f0" stroke-width="2"/>
+  <text x="307" y="354" fill="#dbe6f5" font-family="Menlo, monospace" font-size="12">PRODUCT</text>
+  <text x="307" y="374" fill="#9ec1dd" font-family="Menlo, monospace" font-size="12">prd_2o02...</text>
+
+  <!-- variants on inner ring -->
+  <rect x="300" y="246" width="100" height="34" fill="#15222f" stroke="#4cb87a"/>
+  <text x="312" y="268" fill="#cde4d2" font-family="Menlo, monospace" font-size="12">v1 clean</text>
+
+  <rect x="436" y="344" width="100" height="34" fill="#211c1a" stroke="#c4a362"/>
+  <text x="448" y="366" fill="#e5d2b2" font-family="Menlo, monospace" font-size="12">v2 dirty</text>
+
+  <rect x="300" y="440" width="100" height="34" fill="#15222f" stroke="#4cb87a"/>
+  <text x="312" y="462" fill="#cde4d2" font-family="Menlo, monospace" font-size="12">v3 clean</text>
+
+  <rect x="164" y="344" width="100" height="34" fill="#211c1a" stroke="#c4a362"/>
+  <text x="176" y="366" fill="#e5d2b2" font-family="Menlo, monospace" font-size="12">v4 dirty</text>
+
+  <!-- spokes product->variants -->
+  <line x1="350" y1="332" x2="350" y2="280" stroke="#6ba8d2" stroke-width="1.6"/>
+  <line x1="408" y1="360" x2="436" y2="360" stroke="#6ba8d2" stroke-width="1.6"/>
+  <line x1="350" y1="388" x2="350" y2="440" stroke="#6ba8d2" stroke-width="1.6"/>
+  <line x1="292" y1="360" x2="264" y2="360" stroke="#6ba8d2" stroke-width="1.6"/>
+
+  <!-- actor nodes on outer ring -->
+  <rect x="620" y="120" width="220" height="68" fill="#1a2230" stroke="#7a6cb8"/>
+  <text x="636" y="144" fill="#dbe6f5" font-family="Menlo, monospace" font-size="12">act_v1_a  stopped</text>
+  <text x="636" y="164" fill="#9db0c4" font-family="Menlo, monospace" font-size="12">variant: v1</text>
+
+  <rect x="780" y="270" width="220" height="68" fill="#1a2230" stroke="#7a6cb8"/>
+  <text x="796" y="294" fill="#dbe6f5" font-family="Menlo, monospace" font-size="12">act_v2_a  running</text>
+  <text x="796" y="314" fill="#9db0c4" font-family="Menlo, monospace" font-size="12">variant: v2</text>
+
+  <rect x="620" y="500" width="220" height="68" fill="#1a2230" stroke="#7a6cb8"/>
+  <text x="636" y="524" fill="#dbe6f5" font-family="Menlo, monospace" font-size="12">act_v3_a  stopped</text>
+  <text x="636" y="544" fill="#9db0c4" font-family="Menlo, monospace" font-size="12">variant: v3</text>
+
+  <rect x="470" y="610" width="220" height="68" fill="#1a2230" stroke="#7a6cb8"/>
+  <text x="486" y="634" fill="#dbe6f5" font-family="Menlo, monospace" font-size="12">act_v4_a  idle</text>
+  <text x="486" y="654" fill="#9db0c4" font-family="Menlo, monospace" font-size="12">variant: v4</text>
+
+  <!-- variant->actor connectors -->
+  <polyline points="350,246 350,180 620,154" fill="none" stroke="#6a7c96" stroke-width="1.3" stroke-dasharray="5 5"/>
+  <polyline points="536,360 650,360 780,304" fill="none" stroke="#6a7c96" stroke-width="1.3" stroke-dasharray="5 5"/>
+  <polyline points="350,474 350,534 620,534" fill="none" stroke="#6a7c96" stroke-width="1.3" stroke-dasharray="5 5"/>
+  <polyline points="164,360 164,644 470,644" fill="none" stroke="#6a7c96" stroke-width="1.3" stroke-dasharray="5 5"/>
+
+  <!-- sub-agent nodes (little blocks) -->
+  <rect x="852" y="124" width="96" height="22" fill="#162332" stroke="#4e647c"/>
+  <text x="862" y="139" fill="#9ec1dd" font-family="Menlo, monospace" font-size="11">sa: frontend</text>
+  <rect x="852" y="152" width="96" height="22" fill="#162332" stroke="#4e647c"/>
+  <text x="862" y="167" fill="#9ec1dd" font-family="Menlo, monospace" font-size="11">sa: routes</text>
+
+  <rect x="1010" y="274" width="72" height="22" fill="#162332" stroke="#4e647c"/>
+  <text x="1018" y="289" fill="#9ec1dd" font-family="Menlo, monospace" font-size="11">sa: test</text>
+  <rect x="1010" y="302" width="72" height="22" fill="#162332" stroke="#4e647c"/>
+  <text x="1018" y="317" fill="#9ec1dd" font-family="Menlo, monospace" font-size="11">sa: docs</text>
+
+  <rect x="852" y="504" width="90" height="22" fill="#162332" stroke="#4e647c"/>
+  <text x="860" y="519" fill="#9ec1dd" font-family="Menlo, monospace" font-size="11">sa: cleanup</text>
+
+  <rect x="700" y="614" width="92" height="22" fill="#162332" stroke="#4e647c"/>
+  <text x="708" y="629" fill="#9ec1dd" font-family="Menlo, monospace" font-size="11">sa: review</text>
+  <rect x="700" y="642" width="92" height="22" fill="#162332" stroke="#4e647c"/>
+  <text x="708" y="657" fill="#9ec1dd" font-family="Menlo, monospace" font-size="11">sa: verify</text>
+
+  <!-- actor->sub-agent links -->
+  <line x1="840" y1="154" x2="852" y2="135" stroke="#7089a5" stroke-width="1"/>
+  <line x1="840" y1="164" x2="852" y2="163" stroke="#7089a5" stroke-width="1"/>
+  <line x1="1000" y1="304" x2="1010" y2="285" stroke="#7089a5" stroke-width="1"/>
+  <line x1="1000" y1="312" x2="1010" y2="313" stroke="#7089a5" stroke-width="1"/>
+  <line x1="840" y1="534" x2="852" y2="515" stroke="#7089a5" stroke-width="1"/>
+  <line x1="690" y1="644" x2="700" y2="625" stroke="#7089a5" stroke-width="1"/>
+  <line x1="690" y1="652" x2="700" y2="653" stroke="#7089a5" stroke-width="1"/>
+
+  <text x="30" y="670" fill="#8fa4ba" font-family="Menlo, monospace" font-size="12">Round4 Orbit B: includes 4 variants + sub-agent mini nodes.</text>
+</svg>

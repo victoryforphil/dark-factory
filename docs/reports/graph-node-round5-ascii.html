@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dark Factory Graph Node Round 5 ASCII</title>
+  <style>
+    :root {
+      --bg: #0b0f15;
+      --panel: #101722;
+      --line: #2a3a4f;
+      --text: #d7e3f2;
+      --muted: #93a7bc;
+      --accent: #75c8ff;
+      --ok: #89d08f;
+    }
+    body {
+      margin: 0;
+      padding: 10px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+    }
+    .box {
+      border: 2px solid var(--line);
+      background: var(--panel);
+      padding: 10px;
+    }
+    h1 {
+      margin: 0 0 10px 0;
+      color: var(--accent);
+      font-size: 18px;
+    }
+    h2 {
+      margin: 14px 0 6px 0;
+      color: var(--accent);
+      font-size: 14px;
+    }
+    pre {
+      margin: 0;
+      padding: 8px;
+      border: 1px solid var(--line);
+      background: #0d1420;
+      color: var(--text);
+      overflow-x: auto;
+      line-height: 1.35;
+      font-size: 12px;
+    }
+    .muted { color: var(--muted); margin: 0 0 8px 0; }
+    .vote { color: var(--ok); margin: 8px 0 0 0; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1>Dark Factory // Graph Node // Round 5 (ASCII in HTML)</h1>
+    <p class="muted">Simple openable HTML with plain ASCII mocks only.</p>
+
+    <h2>Station B (selected, designer pass)</h2>
+    <pre>+------------------------------------------------------------------------------------------------------------+
+|  PRODUCT   prd_7kf3xa91   @git://github.com/vfp/dark-factory#main                                         |
+|            dirty   2 variants   1 draft   1 dirty                                                          |
++------------------------------------------------------------------------------------------------------------+
+|                                                                                                            |
+|  rail ════════╤══════════════════════════════════════════╤═══════════════════════════════════════════►       |
+|               │                                         │                                                  |
+|        ┌──────┴──────┐                           ┌──────┴──────┐                                           |
+|        │  clone_0000 │                           │   default   │                                           |
+|        │  clean      │                           │  dirty +21  │                                           |
+|        └──────┬──────┘                           └──────┬──────┘                                           |
+|               │                                         │                                                  |
+|     ┌─────────┴──────────────┐             ┌────────────┴─────────────┐                                    |
+|     │  ACTOR  act_0y4hm8...  │             │  ACTOR  act_2h2bd5...    │                                    |
+|     │                        │             │                          │                                    |
+|     │  provider  opencode    │             │  provider  opencode      │                                    |
+|     │  runtime   server      │             │  runtime   server        │                                    |
+|     │  status    stopped     │             │  status    running       │                                    |
+|     │                        │             │                          │                                    |
+|     │  sub: frontend routing │             │  sub: explore scripts    │                                    |
+|     │       api handlers     │             │       test harness       │                                    |
+|     └────────────────────────┘             └──────────────────────────┘                                    |
+|                                                                                                            |
++------------------------------------------------------------------------------------------------------------+</pre>
+    <p class="vote">Vote: station-b keep/tweak</p>
+
+    <h2>Orbit B (mirrored, 4 variants + sub-agent mini nodes)</h2>
+    <pre>+----------------------------------------------------------------------------------------------------------+
+|                                                                                                          |
+|   [ACTOR a1] opencode/server running               [ACTOR a3] opencode/server stopped                   |
+|    +------+                                          +------+                                            |
+|    | [sa] | frontend                                 | [sa] | cleanup                                    |
+|    | [sa] | routing                                  +------+                                            |
+|    | [sa] | +2 more                                      |                                               |
+|    +------+                                              |                                               |
+|        |                                                 |                                               |
+|        |            +~~~~~~~~~~+       +~~~~~~~~~~+      |                                               |
+|        +------------|  v1      |       |  v3      |------+                                               |
+|                     |  clean   |       |  clean   |                                                      |
+|                     +~~~~~~~~~~+       +~~~~~~~~~~+                                                      |
+|                           \                 /                                                            |
+|                            \               /                                                             |
+|                         +================+                                                               |
+|                         ||   PRODUCT    ||                                                               |
+|                         ||  prd_2o02..  ||                                                               |
+|                         ||  dirty  4v   ||                                                               |
+|                         +================+                                                               |
+|                            /               \                                                             |
+|                           /                 \                                                            |
+|                     +~~~~~~~~~~+       +~~~~~~~~~~+                                                      |
+|                     |  v4      |       |  v2      |                                                      |
+|                     |  dirty   |       |  dirty   |                                                      |
+|                     +~~~~~~~~~~+       +~~~~~~~~~~+                                                      |
+|                          |                  |                                                            |
+|        +-----------------+                  +-----------------+                                          |
+|        |                                                      |                                          |
+|    +------+                                              +------+                                        |
+|    | [sa] | review                                       | [sa] | test                                   |
+|    | [sa] | verify                                       | [sa] | docs                                   |
+|    +------+                                              +------+                                        |
+|   [ACTOR a4] opencode/server idle                    [ACTOR a2] opencode/server running                  |
+|                                                                                                          |
++----------------------------------------------------------------------------------------------------------+</pre>
+    <p class="vote">Vote: orbit-b keep/tweak</p>
+
+    <p class="muted" style="margin-top:10px;">Source ascii files:</p>
+    <pre>docs/reports/graph-node-round5-station-b.ascii.md
+  </div>
+</body>
+</html>

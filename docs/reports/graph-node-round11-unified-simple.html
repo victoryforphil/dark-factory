@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Graph Node Round 11 — Unified Layout Candidates</title>
+</head>
+<body style="margin:0;padding:16px;background:#0b0f15;color:#e0e0e0;font-family:monospace;">
+  <pre style="margin:0 0 12px 0;line-height:1.35;">
++-------------------------------------------------------------------------+
+| Dark Factory // Graph Node // Round 11 (Unified Layout Candidates)      |
+|                                                                         |
+| Goal: merge tree + graphical into a SINGLE unified panel.               |
+|                                                                         |
+| Requirements:                                                           |
+|   - 1 variant -> N actors (explicitly shown)                            |
+|   - 1 actor   -> N sub-agents (explicitly shown)                        |
+|   - Compact topology summary in each candidate                          |
+|                                                                         |
+| Sample data:                                                            |
+|   Product prd_2o02efhj (@git://.../dark-factory#main)                   |
+|     V1: default     (dirty)  -> A1 (run, 3sa), A2 (stop, 2sa)          |
+|     V2: clone_0001  (clean)  -> A3 (run, 3sa)                           |
+|     V3: feature/auth (clean) -> (no actors)                             |
+|   Totals: 3V, 3A (+1 empty), 8 sub-agents                              |
++-------------------------------------------------------------------------+
+  </pre>
+
+  <!-- ===== CANDIDATE A ===== -->
+  <pre style="margin:0 0 6px 0;color:#bcbcbc;font-size:14px;">--- CANDIDATE A: Tree-Rail Hybrid ---</pre>
+  <p style="margin:0 0 2px 0;color:#a0a0a0;font-size:12px;">
+    <strong>Concept:</strong> Narrow tree outline on left (navigation index), full graphical detail on right.
+    Product header + horizontal rail in the detail area. Y-fork connectors show 1:N variant-to-actor.
+  </p>
+  <p style="margin:0 0 2px 0;color:#707070;font-size:11px;">
+    Strengths: familiar tree scanning + rich card detail side-by-side. Tree = fast nav, detail = full context.
+    <br/>Risks: two panels may feel split rather than unified. Tree width eats horizontal space.
+  </p>
+  <img src="graph-node-round11-A-tree-rail-hybrid.svg" alt="Candidate A: Tree-Rail Hybrid"
+       style="display:block;width:100%;max-width:1200px;border:1px solid #555;background:#101722;margin-bottom:4px;" />
+  <p style="margin:0 0 16px 0;color:#9a9a9a;font-size:12px;">
+    Vote: <strong>A</strong> keep / tweak — Y-fork 1:N is clear, tree+detail duality intact
+  </p>
+
+  <!-- ===== CANDIDATE B ===== -->
+  <pre style="margin:0 0 6px 0;color:#bcbcbc;font-size:14px;">--- CANDIDATE B: Depth-Lane Graph ---</pre>
+  <p style="margin:0 0 2px 0;color:#a0a0a0;font-size:12px;">
+    <strong>Concept:</strong> Horizontal swim-lanes per depth level (product / variant / actor / sub-agent).
+    Left margin labels each lane. Fan-out bar with junction dot shows 1:N.
+  </p>
+  <p style="margin:0 0 2px 0;color:#707070;font-size:11px;">
+    Strengths: pure graph — all structure visible at once. Depth is literally spatial. Scales well horizontally.
+    <br/>Risks: vertical gaps between lanes may waste space. More visual noise from lane separators.
+  </p>
+  <img src="graph-node-round11-B-depth-lane-graph.svg" alt="Candidate B: Depth-Lane Graph"
+       style="display:block;width:100%;max-width:1200px;border:1px solid #555;background:#101722;margin-bottom:4px;" />
+  <p style="margin:0 0 16px 0;color:#9a9a9a;font-size:12px;">
+    Vote: <strong>B</strong> keep / tweak — swimlane clarity + fan-out dot visible, but space-hungry vertically
+  </p>
+
+  <!-- ===== CANDIDATE C ===== -->
+  <pre style="margin:0 0 6px 0;color:#bcbcbc;font-size:14px;">--- CANDIDATE C: Nested Column Stack ---</pre>
+  <p style="margin:0 0 2px 0;color:#a0a0a0;font-size:12px;">
+    <strong>Concept:</strong> Product header spans full width. Variants become equal-width columns.
+    Actors stack vertically within each column. Sub-agent grids sit inline below each actor.
+  </p>
+  <p style="margin:0 0 2px 0;color:#707070;font-size:11px;">
+    Strengths: columns give strong visual grouping per variant. 1:N is natural (just more rows).
+    Maps to TUI column layout directly. Easiest to implement in Ratatui.
+    <br/>Risks: columns with many actors get very tall vs empty columns. Horizontal space may be wasted.
+  </p>
+  <img src="graph-node-round11-C-nested-column-stack.svg" alt="Candidate C: Nested Column Stack"
+       style="display:block;width:100%;max-width:1200px;border:1px solid #555;background:#101722;margin-bottom:4px;" />
+  <p style="margin:0 0 16px 0;color:#9a9a9a;font-size:12px;">
+    Vote: <strong>C</strong> keep / tweak — column grouping is clean, 1:N most natural, easiest Ratatui fit
+  </p>
+
+  <!-- ===== CANDIDATE D ===== -->
+  <pre style="margin:0 0 6px 0;color:#bcbcbc;font-size:14px;">--- CANDIDATE D: Indented Rail ---</pre>
+  <p style="margin:0 0 2px 0;color:#a0a0a0;font-size:12px;">
+    <strong>Concept:</strong> Vertical rail on left. Product, variants, actors appear as cards at increasing indent depths.
+    Sub-agent grids are placed inline to the right of each actor card (same row).
+    Everything flows top-to-bottom — one scrollable stream.
+  </p>
+  <p style="margin:0 0 2px 0;color:#707070;font-size:11px;">
+    Strengths: most compact vertically. Inline sub-grids avoid depth bloat. TUI-native vertical scroll.
+    Tree-like indent is intuitive. Actor + sub-agents on one row = fast scanning.
+    <br/>Risks: horizontal width demanded by inline sub-grids. Deep nesting indents may compress card width.
+  </p>
+  <img src="graph-node-round11-D-indented-rail.svg" alt="Candidate D: Indented Rail"
+       style="display:block;width:100%;max-width:1200px;border:1px solid #555;background:#101722;margin-bottom:4px;" />
+  <p style="margin:0 0 16px 0;color:#9a9a9a;font-size:12px;">
+    Vote: <strong>D</strong> keep / tweak — most compact, inline sub-grids efficient, best vertical density
+  </p>
+
+  <!-- ===== COMPARISON SUMMARY ===== -->
+  <pre style="margin:20px 0 6px 0;color:#bcbcbc;font-size:14px;">--- COMPARISON ---</pre>
+  <pre style="margin:0 0 16px 0;color:#808080;font-size:11px;line-height:1.5;">
++----------+-------------------+------------+------------------+------------------+
+| Candidate| Layout Style      | 1:N Method | Vertical Density | Ratatui Fit      |
++----------+-------------------+------------+------------------+------------------+
+| A        | tree-left + graph | Y-fork     | medium           | moderate         |
+| B        | depth swim-lanes  | fan-out bar| low (gaps)       | moderate         |
+| C        | variant columns   | stack rows | variable         | easiest          |
+| D        | indent + v-rail   | indent     | highest          | natural (scroll) |
++----------+-------------------+------------+------------------+------------------+
+  </pre>
+
+  <pre style="margin:0 0 6px 0;color:#bcbcbc;font-size:14px;">--- RECOMMENDATION ---</pre>
+  <pre style="margin:0 0 12px 0;color:#808080;font-size:11px;line-height:1.5;">
+Best single candidate: D (Indented Rail)
+  - Most space-efficient, best vertical scanning density.
+  - Inline sub-agent grids keep actor context on one visual row.
+  - Vertical rail + indent depth maps directly to TUI list/scroll.
+  - 1:N is implicit in the indentation (natural, no extra connectors).
+
+Recommended tweak for next iteration:
+  - Add a mini inline count chip on the variant row showing
+    actors-by-status (e.g., "2A: 1 run 1 stop") so the variant
+    line alone gives enough summary without scanning children.
+  - Consider collapsible indent groups (TUI expand/collapse)
+    to manage scale at 12+ variants.
+
+Runner-up: C (Nested Column Stack)
+  - Strongest visual grouping per variant.
+  - If horizontal space is abundant (wide terminal), C may scan
+    faster than D for side-by-side variant comparison.
+  </pre>
+
+  <p style="margin:0;color:#505050;font-size:11px;">
+    Files: docs/reports/graph-node-round11-*.svg
+    <br/>Report: docs/reports/graph-node-round11-unified-simple.html
+  </p>
+</body>
+</html>

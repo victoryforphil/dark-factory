@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760">
+
+  <!-- background -->
+  <rect width="1200" height="760" fill="#101214"/>
+
+  <!-- top rule -->
+  <line x1="24" y1="2" x2="1176" y2="2" stroke="#333" stroke-width="1"/>
+
+  <!-- title -->
+  <text x="32" y="24" fill="#c0c0c0" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="13" font-weight="700" letter-spacing="1">ORBIT C A</text>
+  <text x="142" y="24" fill="#505050" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="10">R8 // simple variant // monochrome</text>
+
+  <!-- outer frame -->
+  <rect x="24" y="36" width="1152" height="684" fill="none" stroke="#252525" stroke-width="1"/>
+
+  <!-- ── PRODUCT center ── -->
+  <rect x="540" y="346" width="120" height="52" fill="#161819" stroke="#888" stroke-width="1"/>
+  <text x="564" y="370" fill="#d8d8d8" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="11" font-weight="600">PRODUCT</text>
+  <text x="564" y="386" fill="#606060" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="10">prd_2o02ef</text>
+
+  <!-- ── VARIANTS (cardinal positions) ── -->
+
+  <!-- V1 top -->
+  <rect x="552" y="212" width="96" height="32" fill="#161819" stroke="#707070" stroke-width="1"/>
+  <rect x="552" y="212" width="3" height="32" fill="#909090"/>
+  <text x="564" y="233" fill="#c8c8c8" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="10" font-weight="600">v1 clean</text>
+
+  <!-- V2 right -->
+  <rect x="752" y="356" width="96" height="32" fill="#161819" stroke="#707070" stroke-width="1"/>
+  <rect x="752" y="356" width="3" height="32" fill="#909090"/>
+  <text x="764" y="377" fill="#c8c8c8" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="10" font-weight="600">v2 dirty</text>
+
+  <!-- V3 bottom -->
+  <rect x="552" y="500" width="96" height="32" fill="#161819" stroke="#707070" stroke-width="1"/>
+  <rect x="552" y="500" width="3" height="32" fill="#909090"/>
+  <text x="564" y="521" fill="#c8c8c8" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="10" font-weight="600">v3 clean</text>
+
+  <!-- V4 left -->
+  <rect x="352" y="356" width="96" height="32" fill="#161819" stroke="#707070" stroke-width="1"/>
+  <rect x="352" y="356" width="3" height="32" fill="#909090"/>
+  <text x="364" y="377" fill="#c8c8c8" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="10" font-weight="600">v4 dirty</text>
+
+  <!-- ── SPOKES product to variants ── -->
+  <line x1="600" y1="346" x2="600" y2="244" stroke="#505050" stroke-width="1"/>
+  <line x1="660" y1="372" x2="752" y2="372" stroke="#505050" stroke-width="1"/>
+  <line x1="600" y1="398" x2="600" y2="500" stroke="#505050" stroke-width="1"/>
+  <line x1="540" y1="372" x2="448" y2="372" stroke="#505050" stroke-width="1"/>
+
+  <!-- ── ACTORS (diagonal corners, mirrored) ── -->
+
+  <!-- A1 top-left -->
+  <rect x="72" y="80" width="208" height="64" fill="#161819" stroke="#909090" stroke-width="1"/>
+  <rect x="72" y="80" width="208" height="2" fill="#787878"/>
+  <text x="84" y="104" fill="#d0d0d0" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="11" font-weight="600">act_a1_running</text>
+  <text x="84" y="120" fill="#686868" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">variant: v1  ·  running</text>
+  <text x="84" y="136" fill="#404040" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">ACTOR</text>
+
+  <!-- A2 top-right (mirror) -->
+  <rect x="920" y="80" width="208" height="64" fill="#161819" stroke="#909090" stroke-width="1"/>
+  <rect x="920" y="80" width="208" height="2" fill="#787878"/>
+  <text x="932" y="104" fill="#d0d0d0" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="11" font-weight="600">act_a2_stopped</text>
+  <text x="932" y="120" fill="#686868" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">variant: v2  ·  stopped</text>
+  <text x="932" y="136" fill="#404040" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">ACTOR</text>
+
+  <!-- A3 bottom-left (mirror) -->
+  <rect x="72" y="600" width="208" height="64" fill="#161819" stroke="#909090" stroke-width="1"/>
+  <rect x="72" y="600" width="208" height="2" fill="#787878"/>
+  <text x="84" y="624" fill="#d0d0d0" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="11" font-weight="600">act_a3_idle</text>
+  <text x="84" y="640" fill="#686868" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">variant: v4  ·  idle</text>
+  <text x="84" y="656" fill="#404040" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">ACTOR</text>
+
+  <!-- A4 bottom-right (mirror) -->
+  <rect x="920" y="600" width="208" height="64" fill="#161819" stroke="#909090" stroke-width="1"/>
+  <rect x="920" y="600" width="208" height="2" fill="#787878"/>
+  <text x="932" y="624" fill="#d0d0d0" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="11" font-weight="600">act_a4_running</text>
+  <text x="932" y="640" fill="#686868" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">variant: v3  ·  running</text>
+  <text x="932" y="656" fill="#404040" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">ACTOR</text>
+
+  <!-- ── CONNECTORS variant to actor (straight elbows) ── -->
+
+  <!-- v1 → A1 -->
+  <line x1="552" y1="228" x2="380" y2="228" stroke="#404040" stroke-width="1"/>
+  <line x1="380" y1="228" x2="380" y2="112" stroke="#404040" stroke-width="1"/>
+  <line x1="380" y1="112" x2="280" y2="112" stroke="#404040" stroke-width="1"/>
+
+  <!-- v2 → A2 -->
+  <line x1="848" y1="372" x2="900" y2="372" stroke="#404040" stroke-width="1"/>
+  <line x1="900" y1="372" x2="900" y2="112" stroke="#404040" stroke-width="1"/>
+  <line x1="900" y1="112" x2="920" y2="112" stroke="#404040" stroke-width="1"/>
+
+  <!-- v4 → A3 -->
+  <line x1="352" y1="372" x2="300" y2="372" stroke="#404040" stroke-width="1"/>
+  <line x1="300" y1="372" x2="300" y2="632" stroke="#404040" stroke-width="1"/>
+  <line x1="300" y1="632" x2="280" y2="632" stroke="#404040" stroke-width="1"/>
+
+  <!-- v3 → A4 -->
+  <line x1="648" y1="516" x2="900" y2="516" stroke="#404040" stroke-width="1"/>
+  <line x1="900" y1="516" x2="900" y2="632" stroke="#404040" stroke-width="1"/>
+  <line x1="900" y1="632" x2="920" y2="632" stroke="#404040" stroke-width="1"/>
+
+  <!-- ── SUB-AGENT MINI BOXES ── -->
+
+  <!-- A1 subs (right of actor box) -->
+  <line x1="280" y1="96" x2="292" y2="96" stroke="#353535" stroke-width="1"/>
+  <rect x="292" y="88" width="80" height="16" fill="#121416" stroke="#484848" stroke-width="1"/>
+  <text x="300" y="100" fill="#787878" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">sa frontend</text>
+
+  <line x1="280" y1="116" x2="292" y2="116" stroke="#353535" stroke-width="1"/>
+  <rect x="292" y="108" width="80" height="16" fill="#121416" stroke="#484848" stroke-width="1"/>
+  <text x="300" y="120" fill="#787878" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">sa routing</text>
+
+  <line x1="280" y1="136" x2="292" y2="136" stroke="#353535" stroke-width="1"/>
+  <rect x="292" y="128" width="64" height="16" fill="#121416" stroke="#484848" stroke-width="1"/>
+  <text x="300" y="140" fill="#787878" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">sa docs</text>
+
+  <!-- A2 subs (left of actor box, mirrored) -->
+  <line x1="920" y1="96" x2="908" y2="96" stroke="#353535" stroke-width="1"/>
+  <rect x="828" y="88" width="80" height="16" fill="#121416" stroke="#484848" stroke-width="1"/>
+  <text x="836" y="100" fill="#787878" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">sa cleanup</text>
+
+  <line x1="920" y1="116" x2="908" y2="116" stroke="#353535" stroke-width="1"/>
+  <rect x="828" y="108" width="80" height="16" fill="#121416" stroke="#484848" stroke-width="1"/>
+  <text x="836" y="120" fill="#787878" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">sa testing</text>
+
+  <!-- A3 subs (right of actor box) -->
+  <line x1="280" y1="616" x2="292" y2="616" stroke="#353535" stroke-width="1"/>
+  <rect x="292" y="608" width="64" height="16" fill="#121416" stroke="#484848" stroke-width="1"/>
+  <text x="300" y="620" fill="#787878" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">sa review</text>
+
+  <line x1="280" y1="636" x2="292" y2="636" stroke="#353535" stroke-width="1"/>
+  <rect x="292" y="628" width="64" height="16" fill="#121416" stroke="#484848" stroke-width="1"/>
+  <text x="300" y="640" fill="#787878" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">sa verify</text>
+
+  <!-- A4 subs (left of actor box, mirrored) -->
+  <line x1="920" y1="616" x2="908" y2="616" stroke="#353535" stroke-width="1"/>
+  <rect x="840" y="608" width="68" height="16" fill="#121416" stroke="#484848" stroke-width="1"/>
+  <text x="848" y="620" fill="#787878" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">sa deploy</text>
+
+  <line x1="920" y1="636" x2="908" y2="636" stroke="#353535" stroke-width="1"/>
+  <rect x="840" y="628" width="68" height="16" fill="#121416" stroke="#484848" stroke-width="1"/>
+  <text x="848" y="640" fill="#787878" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">sa watch</text>
+
+  <!-- ── LEGEND bottom-left ── -->
+  <rect x="32" y="700" width="300" height="18" fill="none" stroke="#252525" stroke-width="1"/>
+  <rect x="42" y="705" width="8" height="8" fill="#161819" stroke="#888" stroke-width="1"/>
+  <text x="56" y="713" fill="#505050" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">product</text>
+  <rect x="110" y="705" width="8" height="8" fill="#161819" stroke="#707070" stroke-width="1"/>
+  <text x="124" y="713" fill="#505050" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">variant</text>
+  <rect x="178" y="705" width="8" height="8" fill="#161819" stroke="#909090" stroke-width="1"/>
+  <text x="192" y="713" fill="#505050" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">actor</text>
+  <rect x="232" y="705" width="8" height="8" fill="#121416" stroke="#484848" stroke-width="1"/>
+  <text x="246" y="713" fill="#505050" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="9">sub-agent</text>
+
+  <!-- ── CAPTION bottom center ── -->
+  <text x="600" y="742" fill="#404040" font-family="'SF Mono',Menlo,Consolas,monospace" font-size="12" text-anchor="middle" letter-spacing="2">Round8 Orbit C A</text>
+
+</svg>

@@ -1,0 +1,253 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="780" viewBox="0 0 1200 780">
+  <!-- ===== BACKGROUND ===== -->
+  <rect width="1200" height="780" fill="#0c1018"/>
+
+  <!-- ===== OUTER FRAME ===== -->
+  <rect x="16" y="12" width="1168" height="756" fill="none" stroke="#606060" stroke-width="1"/>
+
+  <!-- ===== TITLE BAR ===== -->
+  <rect x="16" y="12" width="1168" height="28" fill="none" stroke="#404040" stroke-width="0.5"/>
+  <rect x="16" y="12" width="4" height="28" fill="#b0b0b0"/>
+  <text x="32" y="31" fill="#d8d8d8" font-family="Menlo,monospace" font-size="12" font-weight="700" letter-spacing="1">CANDIDATE D</text>
+  <text x="165" y="31" fill="#606060" font-family="Menlo,monospace" font-size="10">Indented Rail // unified panel</text>
+  <rect x="1058" y="18" width="38" height="16" fill="none" stroke="#505050" stroke-width="1"/>
+  <text x="1064" y="30" fill="#a0a0a0" font-family="Menlo,monospace" font-size="9">3 V</text>
+  <rect x="1102" y="18" width="38" height="16" fill="none" stroke="#505050" stroke-width="1"/>
+  <text x="1108" y="30" fill="#a0a0a0" font-family="Menlo,monospace" font-size="9">4 A</text>
+  <rect x="1146" y="18" width="32" height="16" fill="none" stroke="#505050" stroke-width="1"/>
+  <text x="1150" y="30" fill="#808080" font-family="Menlo,monospace" font-size="9">8s</text>
+
+  <!-- ================================================================ -->
+  <!-- CONCEPT: Single vertical rail on the left.                       -->
+  <!-- Product, variants, actors, sub-agents all indent rightward       -->
+  <!-- from the rail. Nesting depth = horizontal indent.                -->
+  <!-- Like a tree but with graphical cards, not text lines.            -->
+  <!-- Emphasis on vertical scanning and compact density.               -->
+  <!-- ================================================================ -->
+
+  <!-- ===== VERTICAL RAIL ===== -->
+  <line x1="60" y1="52" x2="60" y2="600" stroke="#a0a0a0" stroke-width="2"/>
+  <!-- rail end caps -->
+  <rect x="56" y="48" width="8" height="8" fill="#a0a0a0"/>
+  <rect x="56" y="596" width="8" height="8" fill="#a0a0a0"/>
+  <!-- rail label -->
+  <text x="44" y="74" fill="#404040" font-family="Menlo,monospace" font-size="8" text-anchor="end">RAIL</text>
+
+
+  <!-- ================================================================ -->
+  <!-- PRODUCT — indent 0 (rail tick + wide card)                       -->
+  <!-- ================================================================ -->
+  <line x1="52" y1="80" x2="68" y2="80" stroke="#a0a0a0" stroke-width="2"/>
+  <line x1="68" y1="80" x2="86" y2="80" stroke="#808080" stroke-width="1"/>
+
+  <rect x="86" y="60" width="380" height="48" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="86" y="60" width="4" height="48" fill="#b0b0b0"/>
+  <text x="102" y="80" fill="#e8e8e8" font-family="Menlo,monospace" font-size="13" font-weight="700">PRODUCT</text>
+  <text x="202" y="80" fill="#909090" font-family="Menlo,monospace" font-size="10">prd_2o02efhj</text>
+  <text x="102" y="98" fill="#606060" font-family="Menlo,monospace" font-size="9">@git://.../dark-factory#main</text>
+  <!-- count badges -->
+  <rect x="398" y="66" width="28" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="403" y="77" fill="#909090" font-family="Menlo,monospace" font-size="8">3V</text>
+  <rect x="432" y="66" width="28" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="437" y="77" fill="#909090" font-family="Menlo,monospace" font-size="8">4A</text>
+
+
+  <!-- ================================================================ -->
+  <!-- V1: default — indent 1 (rail tick + variant tag)                 -->
+  <!-- ================================================================ -->
+  <line x1="52" y1="132" x2="68" y2="132" stroke="#a0a0a0" stroke-width="2"/>
+  <line x1="68" y1="132" x2="120" y2="132" stroke="#787878" stroke-width="1"/>
+
+  <rect x="120" y="118" width="300" height="30" fill="none" stroke="#a8a8a8" stroke-width="1"/>
+  <rect x="120" y="118" width="3" height="30" fill="#909090"/>
+  <text x="134" y="137" fill="#e0e0e0" font-family="Menlo,monospace" font-size="11" font-weight="700">default</text>
+  <rect x="366" y="124" width="44" height="18" fill="none" stroke="#505050" stroke-width="0.75"/>
+  <text x="374" y="137" fill="#888888" font-family="Menlo,monospace" font-size="9">dirty</text>
+  <!-- actor count chip inline -->
+  <rect x="314" y="124" width="42" height="18" fill="none" stroke="#404040" stroke-width="0.75"/>
+  <text x="322" y="137" fill="#686868" font-family="Menlo,monospace" font-size="9">2 A</text>
+
+  <!-- ================================================================ -->
+  <!-- A1 under V1 — indent 2                                          -->
+  <!-- ================================================================ -->
+  <!-- indent connector -->
+  <line x1="136" y1="148" x2="136" y2="164" stroke="#585858" stroke-width="1"/>
+  <line x1="136" y1="164" x2="160" y2="164" stroke="#585858" stroke-width="1"/>
+
+  <rect x="160" y="150" width="440" height="38" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="160" y="150" width="4" height="38" fill="#c0c0c0"/>
+  <text x="174" y="168" fill="#e8e8e8" font-family="Menlo,monospace" font-size="10" font-weight="700">ACTOR</text>
+  <text x="226" y="168" fill="#c0c0c0" font-family="Menlo,monospace" font-size="9">act_2h2bd5ph</text>
+  <rect x="554" y="156" width="38" height="14" fill="none" stroke="#686868" stroke-width="1"/>
+  <text x="560" y="167" fill="#70b070" font-family="Menlo,monospace" font-size="9">run</text>
+  <text x="174" y="182" fill="#707070" font-family="Menlo,monospace" font-size="8">opencode/server</text>
+
+  <!-- A1 sub-agent grid — indent 3 (inline to the right of actor) -->
+  <line x1="600" y1="169" x2="618" y2="169" stroke="#505050" stroke-width="1"/>
+  <rect x="618" y="150" width="332" height="38" fill="none" stroke="#505050" stroke-width="1"/>
+  <text x="628" y="162" fill="#606060" font-family="Menlo,monospace" font-size="8">sub-agents x3</text>
+  <line x1="618" y1="166" x2="950" y2="166" stroke="#404040" stroke-width="0.5"/>
+  <rect x="622" y="170" width="100" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="632" y="181" fill="#a0a0a0" font-family="Menlo,monospace" font-size="8">explore</text>
+  <rect x="728" y="170" width="100" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="740" y="181" fill="#a0a0a0" font-family="Menlo,monospace" font-size="8">docs</text>
+  <rect x="834" y="170" width="110" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="844" y="181" fill="#a0a0a0" font-family="Menlo,monospace" font-size="8">gitter</text>
+
+
+  <!-- ================================================================ -->
+  <!-- A2 under V1 — indent 2                                          -->
+  <!-- ================================================================ -->
+  <line x1="136" y1="164" x2="136" y2="210" stroke="#585858" stroke-width="1"/>
+  <line x1="136" y1="210" x2="160" y2="210" stroke="#585858" stroke-width="1"/>
+
+  <rect x="160" y="196" width="440" height="38" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="160" y="196" width="4" height="38" fill="#c0c0c0"/>
+  <text x="174" y="214" fill="#e8e8e8" font-family="Menlo,monospace" font-size="10" font-weight="700">ACTOR</text>
+  <text x="226" y="214" fill="#c0c0c0" font-family="Menlo,monospace" font-size="9">act_9xk3r4qm</text>
+  <rect x="554" y="202" width="38" height="14" fill="none" stroke="#686868" stroke-width="1"/>
+  <text x="558" y="213" fill="#a08080" font-family="Menlo,monospace" font-size="9">stop</text>
+  <text x="174" y="228" fill="#707070" font-family="Menlo,monospace" font-size="8">opencode/server</text>
+
+  <!-- A2 sub-agent grid — inline right -->
+  <line x1="600" y1="215" x2="618" y2="215" stroke="#505050" stroke-width="1"/>
+  <rect x="618" y="196" width="332" height="38" fill="none" stroke="#505050" stroke-width="1"/>
+  <text x="628" y="208" fill="#606060" font-family="Menlo,monospace" font-size="8">sub-agents x2</text>
+  <line x1="618" y1="212" x2="950" y2="212" stroke="#404040" stroke-width="0.5"/>
+  <rect x="622" y="216" width="152" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="632" y="227" fill="#a0a0a0" font-family="Menlo,monospace" font-size="8">frontend</text>
+  <rect x="780" y="216" width="162" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="790" y="227" fill="#a0a0a0" font-family="Menlo,monospace" font-size="8">designer</text>
+
+
+  <!-- ================================================================ -->
+  <!-- V2: clone_0001 — indent 1                                        -->
+  <!-- ================================================================ -->
+  <line x1="52" y1="268" x2="68" y2="268" stroke="#a0a0a0" stroke-width="2"/>
+  <line x1="68" y1="268" x2="120" y2="268" stroke="#787878" stroke-width="1"/>
+
+  <rect x="120" y="254" width="300" height="30" fill="none" stroke="#a8a8a8" stroke-width="1"/>
+  <rect x="120" y="254" width="3" height="30" fill="#909090"/>
+  <text x="134" y="273" fill="#e0e0e0" font-family="Menlo,monospace" font-size="11" font-weight="700">clone_0001</text>
+  <rect x="366" y="260" width="44" height="18" fill="none" stroke="#505050" stroke-width="0.75"/>
+  <text x="372" y="273" fill="#888888" font-family="Menlo,monospace" font-size="9">clean</text>
+  <rect x="314" y="260" width="42" height="18" fill="none" stroke="#404040" stroke-width="0.75"/>
+  <text x="322" y="273" fill="#686868" font-family="Menlo,monospace" font-size="9">1 A</text>
+
+  <!-- ================================================================ -->
+  <!-- A3 under V2 — indent 2                                          -->
+  <!-- ================================================================ -->
+  <line x1="136" y1="284" x2="136" y2="300" stroke="#585858" stroke-width="1"/>
+  <line x1="136" y1="300" x2="160" y2="300" stroke="#585858" stroke-width="1"/>
+
+  <rect x="160" y="286" width="440" height="38" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="160" y="286" width="4" height="38" fill="#c0c0c0"/>
+  <text x="174" y="304" fill="#e8e8e8" font-family="Menlo,monospace" font-size="10" font-weight="700">ACTOR</text>
+  <text x="226" y="304" fill="#c0c0c0" font-family="Menlo,monospace" font-size="9">act_0y4hm8xs</text>
+  <rect x="554" y="292" width="38" height="14" fill="none" stroke="#686868" stroke-width="1"/>
+  <text x="560" y="303" fill="#70b070" font-family="Menlo,monospace" font-size="9">run</text>
+  <text x="174" y="318" fill="#707070" font-family="Menlo,monospace" font-size="8">opencode/server</text>
+
+  <!-- A3 sub-agent grid — inline right (3 sub-agents, wrapping) -->
+  <line x1="600" y1="305" x2="618" y2="305" stroke="#505050" stroke-width="1"/>
+  <rect x="618" y="286" width="332" height="52" fill="none" stroke="#505050" stroke-width="1"/>
+  <text x="628" y="298" fill="#606060" font-family="Menlo,monospace" font-size="8">sub-agents x3</text>
+  <line x1="618" y1="302" x2="950" y2="302" stroke="#404040" stroke-width="0.5"/>
+  <rect x="622" y="306" width="152" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="632" y="317" fill="#a0a0a0" font-family="Menlo,monospace" font-size="8">planner</text>
+  <rect x="780" y="306" width="162" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="790" y="317" fill="#a0a0a0" font-family="Menlo,monospace" font-size="8">senior</text>
+  <rect x="622" y="324" width="152" height="14" fill="none" stroke="#606060" stroke-width="0.75"/>
+  <text x="632" y="335" fill="#a0a0a0" font-family="Menlo,monospace" font-size="8">junior</text>
+
+
+  <!-- ================================================================ -->
+  <!-- V3: feature/auth — indent 1, no actors                          -->
+  <!-- ================================================================ -->
+  <line x1="52" y1="370" x2="68" y2="370" stroke="#a0a0a0" stroke-width="2"/>
+  <line x1="68" y1="370" x2="120" y2="370" stroke="#787878" stroke-width="1"/>
+
+  <rect x="120" y="356" width="300" height="30" fill="none" stroke="#a8a8a8" stroke-width="1"/>
+  <rect x="120" y="356" width="3" height="30" fill="#909090"/>
+  <text x="134" y="375" fill="#e0e0e0" font-family="Menlo,monospace" font-size="11" font-weight="700">feature/auth</text>
+  <rect x="366" y="362" width="44" height="18" fill="none" stroke="#505050" stroke-width="0.75"/>
+  <text x="374" y="375" fill="#888888" font-family="Menlo,monospace" font-size="9">clean</text>
+  <rect x="314" y="362" width="42" height="18" fill="none" stroke="#404040" stroke-width="0.75"/>
+  <text x="322" y="375" fill="#686868" font-family="Menlo,monospace" font-size="9">0 A</text>
+
+  <!-- empty actor placeholder -->
+  <line x1="136" y1="386" x2="136" y2="402" stroke="#383838" stroke-width="1" stroke-dasharray="2 4"/>
+  <line x1="136" y1="402" x2="160" y2="402" stroke="#383838" stroke-width="1" stroke-dasharray="2 4"/>
+  <rect x="160" y="392" width="200" height="24" fill="none" stroke="#3a3a3a" stroke-width="1" stroke-dasharray="4 3"/>
+  <text x="260" y="408" fill="#404040" font-family="Menlo,monospace" font-size="9" text-anchor="middle">no actors</text>
+
+
+  <!-- ================================================================ -->
+  <!-- TOPOLOGY SUMMARY — below variants, right side                    -->
+  <!-- ================================================================ -->
+  <rect x="750" y="440" width="200" height="100" fill="none" stroke="#505050" stroke-width="1"/>
+  <text x="764" y="460" fill="#808080" font-family="Menlo,monospace" font-size="10" font-weight="700">TOPOLOGY</text>
+  <line x1="764" y1="466" x2="936" y2="466" stroke="#404040" stroke-width="0.5"/>
+  <text x="764" y="482" fill="#707070" font-family="Menlo,monospace" font-size="9">variants ...... 3</text>
+  <text x="764" y="498" fill="#707070" font-family="Menlo,monospace" font-size="9">actors ........ 3</text>
+  <text x="764" y="514" fill="#707070" font-family="Menlo,monospace" font-size="9">sub-agents .... 8</text>
+  <text x="764" y="530" fill="#505050" font-family="Menlo,monospace" font-size="8">run: 2  stop: 1  empty: 1</text>
+
+
+  <!-- ================================================================ -->
+  <!-- LEGEND — bottom                                                   -->
+  <!-- ================================================================ -->
+  <line x1="28" y1="648" x2="1172" y2="648" stroke="#383838" stroke-width="0.5"/>
+  <text x="600" y="644" fill="#404040" font-family="Menlo,monospace" font-size="8" text-anchor="middle">LEGEND</text>
+
+  <!-- vertical rail -->
+  <line x1="48" y1="668" x2="48" y2="686" stroke="#a0a0a0" stroke-width="2"/>
+  <rect x="44" y="664" width="8" height="6" fill="#a0a0a0"/>
+  <text x="64" y="680" fill="#606060" font-family="Menlo,monospace" font-size="9">vertical rail</text>
+
+  <!-- tick -->
+  <line x1="172" y1="674" x2="186" y2="674" stroke="#a0a0a0" stroke-width="2"/>
+  <text x="194" y="679" fill="#606060" font-family="Menlo,monospace" font-size="9">tick</text>
+
+  <!-- product -->
+  <rect x="246" y="668" width="16" height="12" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="246" y="668" width="3" height="12" fill="#b0b0b0"/>
+  <text x="268" y="679" fill="#606060" font-family="Menlo,monospace" font-size="9">product</text>
+
+  <!-- variant -->
+  <rect x="340" y="668" width="16" height="12" fill="none" stroke="#a8a8a8" stroke-width="1"/>
+  <rect x="340" y="668" width="3" height="12" fill="#909090"/>
+  <text x="362" y="679" fill="#606060" font-family="Menlo,monospace" font-size="9">variant</text>
+
+  <!-- indent connector -->
+  <line x1="432" y1="668" x2="432" y2="676" stroke="#585858" stroke-width="1"/>
+  <line x1="432" y1="676" x2="446" y2="676" stroke="#585858" stroke-width="1"/>
+  <text x="454" y="679" fill="#606060" font-family="Menlo,monospace" font-size="9">indent (depth)</text>
+
+  <!-- actor -->
+  <rect x="572" y="668" width="16" height="12" fill="none" stroke="#c0c0c0" stroke-width="1.5"/>
+  <rect x="572" y="668" width="3" height="12" fill="#c0c0c0"/>
+  <text x="594" y="679" fill="#606060" font-family="Menlo,monospace" font-size="9">actor</text>
+
+  <!-- inline sub-grid -->
+  <line x1="656" y1="674" x2="668" y2="674" stroke="#505050" stroke-width="1"/>
+  <rect x="668" y="668" width="24" height="12" fill="none" stroke="#505050" stroke-width="1"/>
+  <rect x="670" y="670" width="9" height="8" fill="none" stroke="#606060" stroke-width="0.5"/>
+  <rect x="681" y="670" width="9" height="8" fill="none" stroke="#606060" stroke-width="0.5"/>
+  <text x="698" y="679" fill="#606060" font-family="Menlo,monospace" font-size="9">inline sub-grid</text>
+
+  <!-- status -->
+  <text x="48" y="706" fill="#505050" font-family="Menlo,monospace" font-size="8">status:</text>
+  <rect x="112" y="696" width="32" height="14" fill="none" stroke="#505050" stroke-width="0.75"/>
+  <text x="118" y="707" fill="#70b070" font-family="Menlo,monospace" font-size="9">run</text>
+  <rect x="152" y="696" width="38" height="14" fill="none" stroke="#505050" stroke-width="0.75"/>
+  <text x="158" y="707" fill="#a08080" font-family="Menlo,monospace" font-size="9">stop</text>
+
+  <!-- concept note -->
+  <text x="280" y="706" fill="#383838" font-family="Menlo,monospace" font-size="8">Vertical rail + indent depth  |  Actor + sub-grid on same row  |  Compact vertical scanning  |  TUI-native scroll</text>
+
+
+  <!-- ===== BOTTOM CAPTION BAR ===== -->
+  <rect x="16" y="740" width="1168" height="1" fill="#585858"/>
+  <text x="600" y="762" fill="#888888" font-family="Menlo,monospace" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="2">Round11 Candidate D // Indented Rail</text>
+</svg>

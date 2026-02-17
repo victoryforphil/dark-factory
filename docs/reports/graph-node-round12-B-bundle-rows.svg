@@ -1,0 +1,224 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="820" viewBox="0 0 1200 820">
+  <!-- ===== BACKGROUND ===== -->
+  <rect width="1200" height="820" fill="#0a0e14"/>
+
+  <!-- ===== OUTER FRAME ===== -->
+  <rect x="12" y="10" width="1176" height="800" fill="none" stroke="#505050" stroke-width="1"/>
+
+  <!-- ===== TITLE BAR ===== -->
+  <rect x="12" y="10" width="1176" height="28" fill="#0d1119" stroke="#404040" stroke-width="0.5"/>
+  <rect x="12" y="10" width="4" height="28" fill="#cf8a5a"/>
+  <text x="28" y="29" fill="#d8d8d8" font-family="Menlo,monospace" font-size="12" font-weight="700" letter-spacing="1">CANDIDATE B</text>
+  <text x="165" y="29" fill="#cf8a5a" font-family="Menlo,monospace" font-size="10">Bundle Rows</text>
+  <text x="280" y="29" fill="#484848" font-family="Menlo,monospace" font-size="10">// horizontal variant bundles, actor cards, nested sub-agent tags</text>
+  <rect x="1044" y="16" width="40" height="16" rx="3" fill="none" stroke="#5a4a3a" stroke-width="1"/>
+  <text x="1052" y="28" fill="#cf8a5a" font-family="Menlo,monospace" font-size="9">3 V</text>
+  <rect x="1090" y="16" width="40" height="16" rx="3" fill="none" stroke="#5a4a3a" stroke-width="1"/>
+  <text x="1098" y="28" fill="#cf8a5a" font-family="Menlo,monospace" font-size="9">3 A</text>
+  <rect x="1136" y="16" width="44" height="16" rx="3" fill="none" stroke="#5a4a3a" stroke-width="1"/>
+  <text x="1143" y="28" fill="#cf8a5a" font-family="Menlo,monospace" font-size="9">8 sa</text>
+
+  <!-- ================================================================ -->
+  <!-- CONCEPT: Each variant is a full-width horizontal BUNDLE ROW.     -->
+  <!-- Product header floats at top. Variant rows stack vertically.     -->
+  <!-- Inside each row, actors appear as CARDS side-by-side.            -->
+  <!-- Sub-agents appear as inline TAG CHIPS below each actor name.     -->
+  <!-- No connectors needed — containment = relationship.               -->
+  <!-- Minimal chrome, maximum scan speed.                              -->
+  <!-- ================================================================ -->
+
+  <!-- ===== PRODUCT HEADER — compact banner ===== -->
+  <rect x="28" y="50" width="1148" height="38" rx="3" fill="#0f1520" stroke="#cf8a5a" stroke-width="1.5"/>
+  <rect x="28" y="50" width="4" height="38" rx="2" fill="#cf8a5a"/>
+  <text x="46" y="68" fill="#e8e0d8" font-family="Menlo,monospace" font-size="12" font-weight="700">PRODUCT</text>
+  <text x="134" y="68" fill="#cf8a5a" font-family="Menlo,monospace" font-size="10">prd_2o02efhj</text>
+  <text x="310" y="68" fill="#4a3a2a" font-family="Menlo,monospace" font-size="9">@git://.../dark-factory#main</text>
+  <text x="46" y="82" fill="#5a4a3a" font-family="Menlo,monospace" font-size="8">3 variants  3 actors  8 sub-agents</text>
+
+
+  <!-- ================================================================ -->
+  <!-- BUNDLE ROW 1: "default" (dirty) — 2 actors                      -->
+  <!-- The whole row is one bordered region. Variant label left.        -->
+  <!-- Actor cards float inside, each with sub-agent tags.              -->
+  <!-- ================================================================ -->
+
+  <rect x="28" y="104" width="1148" height="160" rx="3" fill="#0c1018" stroke="#3a3a3a" stroke-width="1"/>
+
+  <!-- Variant label strip (left edge) -->
+  <rect x="28" y="104" width="140" height="160" rx="3" fill="#0e1420" stroke="#3a4a5a" stroke-width="1"/>
+  <rect x="28" y="104" width="4" height="160" rx="2" fill="#6a8aaa"/>
+  <!-- rotated concept: variant name prominent, counts below -->
+  <text x="46" y="140" fill="#c0d0e0" font-family="Menlo,monospace" font-size="14" font-weight="700">default</text>
+  <rect x="46" y="150" width="50" height="16" rx="2" fill="none" stroke="#5a4a3a" stroke-width="0.75"/>
+  <text x="54" y="162" fill="#c0956a" font-family="Menlo,monospace" font-size="9">dirty</text>
+  <text x="46" y="188" fill="#3a5a7a" font-family="Menlo,monospace" font-size="9">2 actors</text>
+  <text x="46" y="202" fill="#2a3a4a" font-family="Menlo,monospace" font-size="8">5 sub-agents</text>
+  <!-- key hint -->
+  <text x="46" y="248" fill="#1a2a3a" font-family="Menlo,monospace" font-size="8">[j/k] focus</text>
+
+  <!-- ===== ACTOR CARD A1 ===== -->
+  <rect x="186" y="116" width="380" height="136" rx="4" fill="#0b1018" stroke="#80a080" stroke-width="1.5"/>
+  <!-- status accent top bar -->
+  <rect x="186" y="116" width="380" height="4" rx="2" fill="#70b070"/>
+  <text x="202" y="140" fill="#e0e8e0" font-family="Menlo,monospace" font-size="11" font-weight="700">act_2h2bd5ph</text>
+  <rect x="370" y="128" width="44" height="16" rx="2" fill="#1a2a1a" stroke="#4a6a4a" stroke-width="0.75"/>
+  <text x="380" y="141" fill="#70b070" font-family="Menlo,monospace" font-size="9">run</text>
+  <text x="420" y="141" fill="#304030" font-family="Menlo,monospace" font-size="8">opencode/server</text>
+
+  <!-- sub-agent tags — flow layout, tag-cloud style -->
+  <text x="202" y="162" fill="#506a50" font-family="Menlo,monospace" font-size="8" font-weight="700">SUB-AGENTS</text>
+  <text x="300" y="162" fill="#304030" font-family="Menlo,monospace" font-size="8">x3</text>
+  <line x1="202" y1="166" x2="546" y2="166" stroke="#1a2a1a" stroke-width="0.5"/>
+
+  <!-- tag 1: explore -->
+  <rect x="202" y="174" width="100" height="28" rx="3" fill="#0d150d" stroke="#3a5a3a" stroke-width="0.75"/>
+  <text x="216" y="186" fill="#6a9a6a" font-family="Menlo,monospace" font-size="9" font-weight="700">explore</text>
+  <text x="216" y="198" fill="#2a4a2a" font-family="Menlo,monospace" font-size="7">thread:t_01</text>
+
+  <!-- tag 2: docs -->
+  <rect x="310" y="174" width="100" height="28" rx="3" fill="#0d150d" stroke="#3a5a3a" stroke-width="0.75"/>
+  <text x="324" y="186" fill="#6a9a6a" font-family="Menlo,monospace" font-size="9" font-weight="700">docs</text>
+  <text x="324" y="198" fill="#2a4a2a" font-family="Menlo,monospace" font-size="7">thread:t_02</text>
+
+  <!-- tag 3: gitter -->
+  <rect x="418" y="174" width="100" height="28" rx="3" fill="#0d150d" stroke="#3a5a3a" stroke-width="0.75"/>
+  <text x="432" y="186" fill="#6a9a6a" font-family="Menlo,monospace" font-size="9" font-weight="700">gitter</text>
+  <text x="432" y="198" fill="#2a4a2a" font-family="Menlo,monospace" font-size="7">thread:t_03</text>
+
+  <!-- key actions row -->
+  <text x="202" y="236" fill="#1a2a1a" font-family="Menlo,monospace" font-size="8">[Enter] attach  [m] messages  [p] poll</text>
+
+
+  <!-- ===== ACTOR CARD A2 ===== -->
+  <rect x="586" y="116" width="380" height="136" rx="4" fill="#0b1018" stroke="#a08080" stroke-width="1.5"/>
+  <rect x="586" y="116" width="380" height="4" rx="2" fill="#a07070"/>
+  <text x="602" y="140" fill="#e0d8d8" font-family="Menlo,monospace" font-size="11" font-weight="700">act_9xk3r4qm</text>
+  <rect x="770" y="128" width="44" height="16" rx="2" fill="#2a1a1a" stroke="#6a4a4a" stroke-width="0.75"/>
+  <text x="778" y="141" fill="#a08080" font-family="Menlo,monospace" font-size="9">stop</text>
+  <text x="820" y="141" fill="#403030" font-family="Menlo,monospace" font-size="8">opencode/server</text>
+
+  <text x="602" y="162" fill="#6a5050" font-family="Menlo,monospace" font-size="8" font-weight="700">SUB-AGENTS</text>
+  <text x="700" y="162" fill="#402020" font-family="Menlo,monospace" font-size="8">x2</text>
+  <line x1="602" y1="166" x2="946" y2="166" stroke="#2a1a1a" stroke-width="0.5"/>
+
+  <!-- tag 1: frontend -->
+  <rect x="602" y="174" width="100" height="28" rx="3" fill="#150d0d" stroke="#5a3a3a" stroke-width="0.75"/>
+  <text x="616" y="186" fill="#9a7070" font-family="Menlo,monospace" font-size="9" font-weight="700">frontend</text>
+  <text x="616" y="198" fill="#4a2a2a" font-family="Menlo,monospace" font-size="7">thread:t_04</text>
+
+  <!-- tag 2: designer -->
+  <rect x="710" y="174" width="100" height="28" rx="3" fill="#150d0d" stroke="#5a3a3a" stroke-width="0.75"/>
+  <text x="724" y="186" fill="#9a7070" font-family="Menlo,monospace" font-size="9" font-weight="700">designer</text>
+  <text x="724" y="198" fill="#4a2a2a" font-family="Menlo,monospace" font-size="7">thread:t_05</text>
+
+  <text x="602" y="236" fill="#2a1a1a" font-family="Menlo,monospace" font-size="8">[Enter] attach  [m] messages  [p] poll</text>
+
+
+  <!-- ================================================================ -->
+  <!-- BUNDLE ROW 2: "clone_0001" (clean) — 1 actor                     -->
+  <!-- ================================================================ -->
+
+  <rect x="28" y="280" width="1148" height="140" rx="3" fill="#0c1018" stroke="#3a3a3a" stroke-width="1"/>
+
+  <rect x="28" y="280" width="140" height="140" rx="3" fill="#0e1420" stroke="#3a4a5a" stroke-width="1"/>
+  <rect x="28" y="280" width="4" height="140" rx="2" fill="#6a8aaa"/>
+  <text x="46" y="316" fill="#c0d0e0" font-family="Menlo,monospace" font-size="14" font-weight="700">clone_0001</text>
+  <rect x="46" y="326" width="50" height="16" rx="2" fill="none" stroke="#3a5a3a" stroke-width="0.75"/>
+  <text x="54" y="338" fill="#6a9a6a" font-family="Menlo,monospace" font-size="9">clean</text>
+  <text x="46" y="360" fill="#3a5a7a" font-family="Menlo,monospace" font-size="9">1 actor</text>
+  <text x="46" y="374" fill="#2a3a4a" font-family="Menlo,monospace" font-size="8">3 sub-agents</text>
+
+  <!-- ===== ACTOR CARD A3 ===== -->
+  <rect x="186" y="292" width="380" height="116" rx="4" fill="#0b1018" stroke="#80a080" stroke-width="1.5"/>
+  <rect x="186" y="292" width="380" height="4" rx="2" fill="#70b070"/>
+  <text x="202" y="316" fill="#e0e8e0" font-family="Menlo,monospace" font-size="11" font-weight="700">act_0y4hm8xs</text>
+  <rect x="370" y="304" width="44" height="16" rx="2" fill="#1a2a1a" stroke="#4a6a4a" stroke-width="0.75"/>
+  <text x="380" y="317" fill="#70b070" font-family="Menlo,monospace" font-size="9">run</text>
+  <text x="420" y="317" fill="#304030" font-family="Menlo,monospace" font-size="8">opencode/server</text>
+
+  <text x="202" y="338" fill="#506a50" font-family="Menlo,monospace" font-size="8" font-weight="700">SUB-AGENTS</text>
+  <text x="300" y="338" fill="#304030" font-family="Menlo,monospace" font-size="8">x3</text>
+  <line x1="202" y1="342" x2="546" y2="342" stroke="#1a2a1a" stroke-width="0.5"/>
+
+  <rect x="202" y="350" width="100" height="28" rx="3" fill="#0d150d" stroke="#3a5a3a" stroke-width="0.75"/>
+  <text x="216" y="362" fill="#6a9a6a" font-family="Menlo,monospace" font-size="9" font-weight="700">planner</text>
+  <text x="216" y="374" fill="#2a4a2a" font-family="Menlo,monospace" font-size="7">thread:t_06</text>
+
+  <rect x="310" y="350" width="100" height="28" rx="3" fill="#0d150d" stroke="#3a5a3a" stroke-width="0.75"/>
+  <text x="324" y="362" fill="#6a9a6a" font-family="Menlo,monospace" font-size="9" font-weight="700">senior</text>
+  <text x="324" y="374" fill="#2a4a2a" font-family="Menlo,monospace" font-size="7">thread:t_07</text>
+
+  <rect x="418" y="350" width="100" height="28" rx="3" fill="#0d150d" stroke="#3a5a3a" stroke-width="0.75"/>
+  <text x="432" y="362" fill="#6a9a6a" font-family="Menlo,monospace" font-size="9" font-weight="700">junior</text>
+  <text x="432" y="374" fill="#2a4a2a" font-family="Menlo,monospace" font-size="7">thread:t_08</text>
+
+  <text x="202" y="400" fill="#1a2a1a" font-family="Menlo,monospace" font-size="8">[Enter] attach  [m] messages  [p] poll</text>
+
+
+  <!-- ================================================================ -->
+  <!-- BUNDLE ROW 3: "feature/auth" (clean) — 0 actors                  -->
+  <!-- ================================================================ -->
+
+  <rect x="28" y="436" width="1148" height="72" rx="3" fill="#0c1018" stroke="#2a2a2a" stroke-width="1"/>
+
+  <rect x="28" y="436" width="140" height="72" rx="3" fill="#0e1420" stroke="#3a4a5a" stroke-width="1"/>
+  <rect x="28" y="436" width="4" height="72" rx="2" fill="#6a8aaa"/>
+  <text x="46" y="466" fill="#c0d0e0" font-family="Menlo,monospace" font-size="14" font-weight="700">feature/</text>
+  <text x="46" y="480" fill="#c0d0e0" font-family="Menlo,monospace" font-size="14" font-weight="700">auth</text>
+  <rect x="112" y="458" width="50" height="16" rx="2" fill="none" stroke="#3a5a3a" stroke-width="0.75"/>
+  <text x="120" y="470" fill="#6a9a6a" font-family="Menlo,monospace" font-size="9">clean</text>
+  <text x="46" y="500" fill="#2a3a4a" font-family="Menlo,monospace" font-size="8">0 actors</text>
+
+  <!-- empty actor placeholder -->
+  <rect x="186" y="456" width="200" height="32" rx="3" fill="none" stroke="#1a1a1a" stroke-width="1" stroke-dasharray="4 3"/>
+  <text x="286" y="476" fill="#252525" font-family="Menlo,monospace" font-size="9" text-anchor="middle">no actors — spawn with [n]</text>
+
+
+  <!-- ================================================================ -->
+  <!-- TOPOLOGY SUMMARY — bottom-right                                  -->
+  <!-- ================================================================ -->
+  <rect x="910" y="530" width="260" height="100" rx="3" fill="#0d1119" stroke="#5a4a3a" stroke-width="1"/>
+  <text x="924" y="550" fill="#cf8a5a" font-family="Menlo,monospace" font-size="10" font-weight="700">TOPOLOGY</text>
+  <line x1="924" y1="556" x2="1156" y2="556" stroke="#2a1a0a" stroke-width="0.5"/>
+  <text x="924" y="574" fill="#7a5a3a" font-family="Menlo,monospace" font-size="9">product ............ 1</text>
+  <text x="924" y="590" fill="#7a5a3a" font-family="Menlo,monospace" font-size="9">variants ........... 3</text>
+  <text x="924" y="606" fill="#7a5a3a" font-family="Menlo,monospace" font-size="9">actors ............. 3</text>
+  <text x="924" y="622" fill="#7a5a3a" font-family="Menlo,monospace" font-size="9">sub-agents ......... 8</text>
+
+
+  <!-- ================================================================ -->
+  <!-- LEGEND — bottom bar                                               -->
+  <!-- ================================================================ -->
+  <line x1="24" y1="700" x2="1176" y2="700" stroke="#2a2a2a" stroke-width="0.5"/>
+  <text x="600" y="696" fill="#2a2a2a" font-family="Menlo,monospace" font-size="8" text-anchor="middle">LEGEND</text>
+
+  <!-- bundle row -->
+  <rect x="48" y="716" width="32" height="20" rx="2" fill="#0c1018" stroke="#3a3a3a" stroke-width="1"/>
+  <rect x="48" y="716" width="12" height="20" rx="2" fill="#0e1420" stroke="#3a4a5a" stroke-width="0.5"/>
+  <text x="88" y="730" fill="#5a4a3a" font-family="Menlo,monospace" font-size="9">bundle row (per variant)</text>
+
+  <!-- actor card -->
+  <rect x="280" y="718" width="20" height="16" rx="3" fill="#0b1018" stroke="#80a080" stroke-width="1.5"/>
+  <rect x="280" y="718" width="20" height="3" rx="2" fill="#70b070"/>
+  <text x="306" y="730" fill="#5a4a3a" font-family="Menlo,monospace" font-size="9">actor card</text>
+
+  <!-- sub-agent tag -->
+  <rect x="404" y="720" width="40" height="14" rx="2" fill="#0d150d" stroke="#3a5a3a" stroke-width="0.75"/>
+  <text x="410" y="730" fill="#6a9a6a" font-family="Menlo,monospace" font-size="7">tag</text>
+  <text x="452" y="730" fill="#5a4a3a" font-family="Menlo,monospace" font-size="9">sub-agent tag</text>
+
+  <!-- status -->
+  <text x="48" y="756" fill="#3a3a3a" font-family="Menlo,monospace" font-size="8">status:</text>
+  <rect x="112" y="746" width="36" height="14" rx="2" fill="#1a2a1a" stroke="#4a6a4a" stroke-width="0.75"/>
+  <text x="120" y="757" fill="#70b070" font-family="Menlo,monospace" font-size="9">run</text>
+  <rect x="156" y="746" width="40" height="14" rx="2" fill="#2a1a1a" stroke="#6a4a4a" stroke-width="0.75"/>
+  <text x="164" y="757" fill="#a08080" font-family="Menlo,monospace" font-size="9">stop</text>
+
+  <!-- concept note -->
+  <text x="280" y="756" fill="#1a1a1a" font-family="Menlo,monospace" font-size="8">No connectors needed — containment IS the relationship  |  Variant label left, actor cards right  |  Sub-agent tags flow inside</text>
+
+
+  <!-- ===== BOTTOM CAPTION ===== -->
+  <rect x="12" y="780" width="1176" height="1" fill="#5a4a3a"/>
+  <text x="600" y="800" fill="#cf8a5a" font-family="Menlo,monospace" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="2">Round12 Candidate B // Bundle Rows</text>
+</svg>

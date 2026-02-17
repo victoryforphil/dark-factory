@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Graph Node Round 12 — Unified Layout Exploration</title>
+  <style>
+    body {
+      margin: 0; padding: 16px; background: #0a0e14; color: #c0c0c0;
+      font-family: 'Menlo', 'Consolas', 'Monaco', monospace;
+    }
+    pre { margin: 0 0 12px 0; line-height: 1.35; }
+    .candidate { margin-bottom: 32px; }
+    .candidate-header { color: #a0a0a0; font-size: 14px; margin: 0 0 6px 0; }
+    .rationale { margin: 0 0 4px 0; color: #808080; font-size: 12px; line-height: 1.5; }
+    .rationale strong { color: #b0b0b0; }
+    .risks { margin: 0 0 4px 0; color: #505050; font-size: 11px; line-height: 1.5; }
+    .svg-img {
+      display: block; width: 100%; max-width: 1200px;
+      border: 1px solid #333; background: #0a0e14; margin-bottom: 4px;
+    }
+    .vote { margin: 0 0 16px 0; color: #707070; font-size: 12px; }
+    .vote strong { color: #a0a0a0; }
+    .section-header { color: #808080; font-size: 14px; margin: 20px 0 8px 0; }
+    table { border-collapse: collapse; font-family: monospace; font-size: 11px; }
+    th, td { padding: 4px 12px; border: 1px solid #333; color: #808080; }
+    th { color: #a0a0a0; background: #0d1119; }
+  </style>
+</head>
+<body>
+
+  <pre>
++-------------------------------------------------------------------------+
+| Dark Factory // Graph Node // Round 12 (Unified Layout Exploration)     |
+|                                                                         |
+| Context: Round 11 B/C/D were "okay" — user wants MORE exploration.     |
+| Round 12 pushes into materially different layout directions while       |
+| keeping the unified tree+graphical single-panel constraint.             |
+|                                                                         |
+| Requirements:                                                           |
+|   - 1 variant -> N actors (explicitly shown)                            |
+|   - 1 actor   -> N sub-agents (explicitly shown)                        |
+|   - Compact topology summary + legend in each SVG                       |
+|                                                                         |
+| Sample data (same as Round 11):                                         |
+|   Product prd_2o02efhj (@git://.../dark-factory#main)                   |
+|     V1: default     (dirty)  -> A1 (run, 3sa), A2 (stop, 2sa)          |
+|     V2: clone_0001  (clean)  -> A3 (run, 3sa)                           |
+|     V3: feature/auth (clean) -> (no actors)                             |
+|   Totals: 3V, 3A (+1 empty), 8 sub-agents                              |
++-------------------------------------------------------------------------+
+  </pre>
+
+
+  <!-- ===== CANDIDATE A ===== -->
+  <div class="candidate">
+    <pre class="candidate-header">--- CANDIDATE A: Spine Matrix ---</pre>
+    <p class="rationale">
+      <strong>Concept:</strong> Central vertical <em>product spine</em> anchors the layout.
+      Variants branch rightward as horizontal rows from spine junction points.
+      Actor chips sit inline in each row with sub-agent micro-grids docked inside.
+      The spine provides structural clarity without consuming the space of a full tree panel.
+    </p>
+    <p class="rationale">
+      <strong>What's new vs Round 11:</strong> No separate tree/graph split. No swimlanes.
+      No columns. The spine is a single structural backbone — actors and sub-agents are
+      embedded directly in the branch rows, not in separate regions or panels.
+      Color-codes status per-chip (green/red borders + accent bars).
+    </p>
+    <p class="risks">
+      Strengths: clean visual hierarchy from spine to branch to chip. Status color-coding
+      is immediate. Micro-grids keep sub-agents compact without extra depth.
+      <br/>Risks: long variant names or many actors per row could overflow horizontally.
+      Spine position (center-left) may not scale if the product card is wide.
+    </p>
+    <img src="graph-node-round12-A-spine-matrix.svg" alt="Candidate A: Spine Matrix" class="svg-img" />
+    <p class="vote">
+      Vote: <strong>A</strong> — strong structural anchor. Spine metaphor is novel and scalable.
+    </p>
+  </div>
+
+
+  <!-- ===== CANDIDATE B ===== -->
+  <div class="candidate">
+    <pre class="candidate-header">--- CANDIDATE B: Bundle Rows ---</pre>
+    <p class="rationale">
+      <strong>Concept:</strong> Each variant is a full-width horizontal <em>bundle row</em>.
+      Variant label sits as a fixed-width sidebar on the left of the row.
+      Actor cards float side-by-side inside the row. Sub-agents appear as
+      <em>tag chips</em> (cloud-style) nested inside each actor card.
+      No connectors needed — containment IS the relationship.
+    </p>
+    <p class="rationale">
+      <strong>What's new vs Round 11:</strong> No tree, no rail, no connectors.
+      The variant-label-as-sidebar gives clear visual grouping. Actor cards include
+      thread IDs on sub-agent tags, key action hints, and status-colored top bars.
+      The bundle shrinks for empty variants. Information density is high.
+    </p>
+    <p class="risks">
+      Strengths: zero connector noise. Fastest scanning — every row is self-contained.
+      Maps directly to Ratatui horizontal layout splits. Actor cards carry full context.
+      Sub-agent tags include thread IDs for quick identification.
+      <br/>Risks: many actors per variant could compress card widths. Very wide terminals
+      needed for 3+ actors per row. Could become tall with many variants.
+    </p>
+    <img src="graph-node-round12-B-bundle-rows.svg" alt="Candidate B: Bundle Rows" class="svg-img" />
+    <p class="vote">
+      Vote: <strong>B</strong> — most practical for Ratatui. Zero connectors = simplest implementation.
+    </p>
+  </div>
+
+
+  <!-- ===== CANDIDATE C ===== -->
+  <div class="candidate">
+    <pre class="candidate-header">--- CANDIDATE C: Radial Arc Hybrid ---</pre>
+    <p class="rationale">
+      <strong>Concept:</strong> Product node sits as a gravitational anchor (center-left)
+      with a halo ring. Variants arc outward to rectangular <em>lanes</em> on the right.
+      The arcs provide visual hierarchy and weight; the lanes keep actors/sub-agents
+      readable in clean rectangles — avoiding pure-radial chaos.
+    </p>
+    <p class="rationale">
+      <strong>What's new vs Round 11:</strong> True radial-inspired layout with SVG path
+      arc connectors. Product gets visual gravity (ring + halo). Variant lanes fan out
+      at different angles. This is the most graphically adventurous option — closer to
+      a graph visualization tool. Each lane still uses actor cards + sub-agent tags internally.
+    </p>
+    <p class="risks">
+      Strengths: visually distinctive and unique. Product-as-gravity-center is intuitive.
+      Arc connectors are elegant and scale with variant count (just add more arcs).
+      <br/>Risks: hardest to implement in Ratatui (arcs don't exist; would need to approximate
+      with lines/dashes). Wasted space in the left quadrant. May feel over-designed for a
+      terminal tool. Arc angles need careful tuning as variant count grows.
+    </p>
+    <img src="graph-node-round12-C-radial-arc-hybrid.svg" alt="Candidate C: Radial Arc Hybrid" class="svg-img" />
+    <p class="vote">
+      Vote: <strong>C</strong> — visually strongest, but highest Ratatui implementation cost.
+      Best as design direction inspiration rather than literal implementation target.
+    </p>
+  </div>
+
+
+  <!-- ===== CANDIDATE D ===== -->
+  <div class="candidate">
+    <pre class="candidate-header">--- CANDIDATE D: Accordion Rail ---</pre>
+    <p class="rationale">
+      <strong>Concept:</strong> Dense vertical rail with <em>explicit expand/collapse
+      chevrons</em> on every node. Each row shows inline metric chips (counts, status
+      summaries) so collapsed nodes still convey information. A <em>detail panel</em>
+      on the right shows the focused node's full information. Accordion metaphor:
+      only what you need is visible at any time.
+    </p>
+    <p class="rationale">
+      <strong>What's new vs Round 11-D:</strong> Round 11 had an indented rail but no
+      collapse/expand affordance, no detail panel, and no inline metrics. Round 12-D
+      adds explicit chevron UI (down=expanded, right=collapsed, dash=empty), inline
+      metric chips at every level (actor counts, sub-agent names when collapsed),
+      depth labels, focus cursor, and a dedicated detail panel showing full context
+      for the selected node. Also shows a "depth-aware collapse" shortcut ([1-3] keys).
+    </p>
+    <p class="risks">
+      Strengths: maximum density and scalability. Works for 50+ variants. Collapsed
+      summaries eliminate scroll fatigue. Detail panel gives full context without
+      expanding everything. Inline metrics answer "what's here?" without clicking.
+      <br/>Risks: two-panel layout (rail + detail) may feel like Round 11-A's tree+graph
+      split, but the rail IS the primary view here — detail is supplementary.
+      Collapse state management adds interaction complexity.
+    </p>
+    <img src="graph-node-round12-D-accordion-rail.svg" alt="Candidate D: Accordion Rail" class="svg-img" />
+    <p class="vote">
+      Vote: <strong>D</strong> — best scalability and interaction model. Strongest for real-world use.
+    </p>
+  </div>
+
+
+  <!-- ===== COMPARISON TABLE ===== -->
+  <pre class="section-header">--- COMPARISON ---</pre>
+  <table>
+    <tr>
+      <th>Candidate</th>
+      <th>Layout Style</th>
+      <th>1:N Method</th>
+      <th>Connector Noise</th>
+      <th>V-Density</th>
+      <th>Ratatui Fit</th>
+      <th>Scale (50+ V)</th>
+    </tr>
+    <tr>
+      <td style="color:#5a9bcf;">A Spine Matrix</td>
+      <td>spine + branch rows</td>
+      <td>inline chips</td>
+      <td>low (spine + branch)</td>
+      <td>medium</td>
+      <td>moderate</td>
+      <td>good (scroll)</td>
+    </tr>
+    <tr>
+      <td style="color:#cf8a5a;">B Bundle Rows</td>
+      <td>full-width rows</td>
+      <td>containment</td>
+      <td>zero</td>
+      <td>medium-high</td>
+      <td>easiest</td>
+      <td>good (scroll)</td>
+    </tr>
+    <tr>
+      <td style="color:#9a6abf;">C Radial Arc</td>
+      <td>anchor + arc lanes</td>
+      <td>lane containment</td>
+      <td>medium (arcs)</td>
+      <td>low</td>
+      <td>hardest</td>
+      <td>limited</td>
+    </tr>
+    <tr>
+      <td style="color:#5abf7a;">D Accordion Rail</td>
+      <td>collapsible indent</td>
+      <td>expand/collapse</td>
+      <td>minimal (guides)</td>
+      <td>highest</td>
+      <td>natural</td>
+      <td>best</td>
+    </tr>
+  </table>
+
+
+  <!-- ===== RECOMMENDATION ===== -->
+  <pre class="section-header">--- RECOMMENDATION ---</pre>
+  <pre style="color:#606060;font-size:11px;line-height:1.6;">
+Best single candidate: <span style="color:#cf8a5a;">B (Bundle Rows)</span>
+
+  Why B wins this round:
+  - Zero connector noise = simplest, cleanest read.
+  - Containment-as-relationship is the most natural pattern for Ratatui
+    (it's just nested Layout::horizontal splits).
+  - Sub-agent tag-cloud layout gives identity + thread info in minimal space.
+  - Empty variants shrink naturally (small row vs. full-height column).
+  - Actor cards carry complete context: status, provider, sub-agents, key actions.
+  - Maps 1:1 to Ratatui: each row = Rect, variant sidebar = fixed Constraint,
+    actor cards = Min/Percentage split, tags = Line of Spans.
+
+Runner-up: <span style="color:#5abf7a;">D (Accordion Rail)</span>
+  - Best scalability story for large products (50+ variants).
+  - Inline metrics + collapse lets users manage complexity.
+  - Would pair well with B's card style inside the detail panel.
+  - Higher interaction complexity to implement (expand/collapse state management).
+
+Hybrid recommendation:
+  - Start with <span style="color:#cf8a5a;">B's bundle row layout</span> as the primary view.
+  - Add <span style="color:#5abf7a;">D's collapse affordance</span> to bundle rows as a future enhancement
+    (each variant row becomes collapsible to a 1-line summary with metric chips).
+  - This gives B's simplicity now + D's scalability later.
+
+Concrete next tweak for B:
+  - Add a mini "sparkline" or activity dot next to each sub-agent tag
+    showing recent activity (active/idle/error) without text.
+  - Test with 6+ actors per variant to validate horizontal overflow strategy
+    (wrapping vs. horizontal scroll vs. overflow indicator).
+  </pre>
+
+  <p style="margin:16px 0 0 0;color:#303030;font-size:11px;">
+    Files: docs/reports/graph-node-round12-*.svg
+    <br/>Report: docs/reports/graph-node-round12-unified-explore.html
+  </p>
+</body>
+</html>

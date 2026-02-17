@@ -1,0 +1,177 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" viewBox="0 0 960 520">
+  <defs>
+    <!-- Blocky rail glow -->
+    <filter id="railGlow" x="-2%" y="-30%" width="104%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <!-- Station marker pulse -->
+    <filter id="stationPulse" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <!-- Hard card shadow (blocky, minimal blur) -->
+    <filter id="blockShadow" x="-2%" y="-2%" width="104%" height="112%">
+      <feDropShadow dx="2" dy="3" stdDeviation="1" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+    <!-- Scanline overlay pattern -->
+    <pattern id="scanlines" x="0" y="0" width="4" height="4" patternUnits="userSpaceOnUse">
+      <rect width="4" height="2" fill="rgba(255,255,255,0.012)"/>
+    </pattern>
+    <!-- Grid dots (subtle map grid) -->
+    <pattern id="gridDots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="12" cy="12" r="0.5" fill="#1a2230"/>
+    </pattern>
+  </defs>
+
+  <!-- ===== BACKGROUND ===== -->
+  <rect width="960" height="520" fill="#080c10"/>
+  <rect width="960" height="520" fill="url(#gridDots)"/>
+  <rect width="960" height="520" fill="url(#scanlines)"/>
+
+  <!-- ===== TOP BAR ===== -->
+  <rect x="0" y="0" width="960" height="46" fill="#0a0f14"/>
+  <rect x="0" y="45" width="960" height="1" fill="#1e2e3e"/>
+  <!-- Terminal prompt style title -->
+  <text x="20" y="30" fill="#3a8abf" font-family="'SF Mono','Cascadia Code','Fira Code',Menlo,monospace" font-size="13" font-weight="700" letter-spacing="1">&gt;_</text>
+  <text x="48" y="30" fill="#e8f0fa" font-family="'SF Mono','Cascadia Code','Fira Code',Menlo,monospace" font-size="15" font-weight="700" letter-spacing="1.2">STATION TAGS</text>
+  <text x="200" y="30" fill="#3e5568" font-family="'SF Mono','Cascadia Code','Fira Code',Menlo,monospace" font-size="11" letter-spacing="0.5">// variant rail topology // round 3</text>
+
+  <!-- ===== MAIN CONTAINER ===== -->
+  <rect x="16" y="54" width="928" height="436" rx="3" fill="#0b1018" stroke="#182636" stroke-width="1"/>
+
+  <!-- ===== PRODUCT BLOCK ===== -->
+  <rect x="32" y="78" width="200" height="96" rx="2" fill="#111a24" stroke="#3a8abf" stroke-width="2" filter="url(#blockShadow)"/>
+  <!-- Thick left accent -->
+  <rect x="32" y="78" width="6" height="96" fill="#4fb3f0"/>
+  <!-- Product ID -->
+  <text x="50" y="102" fill="#e8f0fa" font-family="'SF Mono','Cascadia Code',Menlo,monospace" font-size="14" font-weight="700">prd_2o02efhj</text>
+  <!-- Status tags row (compact, blocky) -->
+  <rect x="50" y="112" width="42" height="18" rx="2" fill="#2d1414" stroke="#c06058" stroke-width="1"/>
+  <text x="58" y="124" fill="#e8857e" font-family="'SF Mono',Menlo,monospace" font-size="10" font-weight="700">DIRTY</text>
+  <rect x="96" y="112" width="28" height="18" rx="2" fill="#142214" stroke="#5c9c5c" stroke-width="1"/>
+  <text x="102" y="124" fill="#8ec98e" font-family="'SF Mono',Menlo,monospace" font-size="10" font-weight="700">2V</text>
+  <rect x="128" y="112" width="28" height="18" rx="2" fill="#141e2a" stroke="#4a7a9c" stroke-width="1"/>
+  <text x="134" y="124" fill="#7cb5d4" font-family="'SF Mono',Menlo,monospace" font-size="10" font-weight="700">1D</text>
+  <rect x="160" y="112" width="34" height="18" rx="2" fill="#1c182a" stroke="#7a6aae" stroke-width="1"/>
+  <text x="166" y="124" fill="#a898d4" font-family="'SF Mono',Menlo,monospace" font-size="10" font-weight="700">1DR</text>
+  <!-- Type label (blocky badge) -->
+  <rect x="50" y="148" width="62" height="16" rx="1" fill="#182636"/>
+  <text x="58" y="160" fill="#3e5a78" font-family="'SF Mono',Menlo,monospace" font-size="9" font-weight="700" letter-spacing="2">PRODUCT</text>
+
+  <!-- ===== COMPACT RAIL ===== -->
+  <!-- Rail bed (thick, blocky track) -->
+  <rect x="232" y="118" width="694" height="10" rx="2" fill="#10181f"/>
+  <rect x="232" y="119" width="694" height="8" rx="1" fill="#162030" stroke="#1e3040" stroke-width="0.5"/>
+  <!-- Rail active line (heavier, glowing) -->
+  <line x1="236" y1="123" x2="922" y2="123" stroke="#2a6a9a" stroke-width="3" stroke-linecap="butt" filter="url(#railGlow)"/>
+  <!-- Rail origin connector block -->
+  <rect x="228" y="116" width="12" height="14" rx="2" fill="#4fb3f0" filter="url(#stationPulse)"/>
+
+  <!-- ===== STATION 1: clone_0000 ===== -->
+  <!-- Station marker (square, blocky) -->
+  <rect x="416" y="112" width="20" height="22" rx="2" fill="#0b1018" stroke="#6cc6ff" stroke-width="2.5"/>
+  <rect x="421" y="117" width="10" height="12" rx="1" fill="#6cc6ff"/>
+  <!-- Station label block (heavy, monospace) -->
+  <rect x="370" y="72" width="154" height="30" rx="2" fill="#111a24" stroke="#4a7ea0" stroke-width="1.5"/>
+  <text x="382" y="92" fill="#c8e4ff" font-family="'SF Mono','Cascadia Code',Menlo,monospace" font-size="14" font-weight="700" letter-spacing="0.5">clone_0000</text>
+  <!-- Connector bar (solid, not dashed) -->
+  <rect x="424" y="102" width="4" height="10" fill="#4a7ea0"/>
+  <!-- Status block below rail -->
+  <rect x="386" y="142" width="88" height="20" rx="2" fill="#0e1a12" stroke="#2a5a2e" stroke-width="1"/>
+  <rect x="388" y="146" width="8" height="12" rx="1" fill="#5cb85c"/>
+  <text x="400" y="156" fill="#8ec98e" font-family="'SF Mono',Menlo,monospace" font-size="11" font-weight="700">CLEAN</text>
+  <!-- Drop connector to actor zone -->
+  <rect x="424" y="162" width="4" height="48" fill="#1e3040"/>
+  <rect x="420" y="206" width="12" height="4" fill="#3a6080"/>
+
+  <!-- ===== STATION 2: default ===== -->
+  <!-- Station marker (square, blocky) -->
+  <rect x="688" y="112" width="20" height="22" rx="2" fill="#0b1018" stroke="#c4a362" stroke-width="2.5"/>
+  <rect x="693" y="117" width="10" height="12" rx="1" fill="#c4a362"/>
+  <!-- Station label block (heavy, monospace) -->
+  <rect x="650" y="72" width="130" height="30" rx="2" fill="#1c1a14" stroke="#8a7344" stroke-width="1.5"/>
+  <text x="670" y="92" fill="#e4d4a8" font-family="'SF Mono','Cascadia Code',Menlo,monospace" font-size="14" font-weight="700" letter-spacing="0.5">default</text>
+  <!-- Connector bar (solid) -->
+  <rect x="696" y="102" width="4" height="10" fill="#8a7344"/>
+  <!-- Status block below rail -->
+  <rect x="660" y="142" width="86" height="20" rx="2" fill="#1a1210" stroke="#5a2a22" stroke-width="1"/>
+  <rect x="662" y="146" width="8" height="12" rx="1" fill="#c06058"/>
+  <text x="674" y="156" fill="#e8857e" font-family="'SF Mono',Menlo,monospace" font-size="11" font-weight="700">DIRTY</text>
+  <!-- Drop connector to actor zone -->
+  <rect x="696" y="162" width="4" height="48" fill="#1e3040"/>
+  <rect x="692" y="206" width="12" height="4" fill="#3a6080"/>
+
+  <!-- ===== ACTOR ZONE LABEL ===== -->
+  <rect x="32" y="216" width="100" height="1" fill="#253344"/>
+  <text x="32" y="230" fill="#2e4458" font-family="'SF Mono',Menlo,monospace" font-size="9" font-weight="700" letter-spacing="3">ACTORS</text>
+  <rect x="32" y="236" width="100" height="1" fill="#253344"/>
+
+  <!-- ===== ACTOR CARD 1 (under clone_0000) ===== -->
+  <rect x="320" y="218" width="222" height="88" rx="2" fill="#0e1420" stroke="#6a5caa" stroke-width="1.5" filter="url(#blockShadow)"/>
+  <!-- Actor accent bar -->
+  <rect x="320" y="218" width="5" height="88" fill="#7a6cb8"/>
+  <!-- Actor ID -->
+  <text x="336" y="240" fill="#e0e8f4" font-family="'SF Mono','Cascadia Code',Menlo,monospace" font-size="12" font-weight="700">act_0y4hm8xs</text>
+  <!-- Status badge (blocky) -->
+  <rect x="462" y="228" width="64" height="18" rx="2" fill="#180e20" stroke="#5a4880" stroke-width="1"/>
+  <text x="470" y="241" fill="#a898c8" font-family="'SF Mono',Menlo,monospace" font-size="10" font-weight="700">STOPPED</text>
+  <!-- Sub-agent entries (monospace block style) -->
+  <rect x="336" y="252" width="6" height="6" rx="0.5" fill="#4a7ea0"/>
+  <text x="346" y="258" fill="#7aaac8" font-family="'SF Mono',Menlo,monospace" font-size="10">quick-frontend</text>
+  <rect x="336" y="266" width="6" height="6" rx="0.5" fill="#4a7ea0"/>
+  <text x="346" y="272" fill="#7aaac8" font-family="'SF Mono',Menlo,monospace" font-size="10">quick-routing</text>
+  <!-- Type label -->
+  <rect x="470" y="280" width="56" height="14" rx="1" fill="#141828"/>
+  <text x="478" y="290" fill="#3a4a68" font-family="'SF Mono',Menlo,monospace" font-size="8" font-weight="700" letter-spacing="2">ACTOR</text>
+
+  <!-- ===== ACTOR CARD 2 (under default) ===== -->
+  <rect x="594" y="218" width="222" height="88" rx="2" fill="#0e1420" stroke="#6a5caa" stroke-width="1.5" filter="url(#blockShadow)"/>
+  <!-- Actor accent bar -->
+  <rect x="594" y="218" width="5" height="88" fill="#7a6cb8"/>
+  <!-- Actor ID -->
+  <text x="610" y="240" fill="#e0e8f4" font-family="'SF Mono','Cascadia Code',Menlo,monospace" font-size="12" font-weight="700">act_2h2bd5ph</text>
+  <!-- Status badge (blocky) -->
+  <rect x="736" y="228" width="64" height="18" rx="2" fill="#180e20" stroke="#5a4880" stroke-width="1"/>
+  <text x="744" y="241" fill="#a898c8" font-family="'SF Mono',Menlo,monospace" font-size="10" font-weight="700">STOPPED</text>
+  <!-- Sub-agent entries -->
+  <rect x="610" y="252" width="6" height="6" rx="0.5" fill="#4a7ea0"/>
+  <text x="620" y="258" fill="#7aaac8" font-family="'SF Mono',Menlo,monospace" font-size="10">test-explore</text>
+  <rect x="610" y="266" width="6" height="6" rx="0.5" fill="#4a7ea0"/>
+  <text x="620" y="272" fill="#7aaac8" font-family="'SF Mono',Menlo,monospace" font-size="10">explore-scripts</text>
+  <!-- Type label -->
+  <rect x="744" y="280" width="56" height="14" rx="1" fill="#141828"/>
+  <text x="752" y="290" fill="#3a4a68" font-family="'SF Mono',Menlo,monospace" font-size="8" font-weight="700" letter-spacing="2">ACTOR</text>
+
+  <!-- ===== LEGEND ZONE ===== -->
+  <rect x="32" y="330" width="896" height="1" fill="#182636"/>
+
+  <!-- Legend row (compact, horizontal) -->
+  <rect x="48" y="350" width="24" height="6" rx="1" fill="#2a6a9a"/>
+  <text x="78" y="356" fill="#4a6a88" font-family="'SF Mono',Menlo,monospace" font-size="10" font-weight="700">RAIL</text>
+
+  <rect x="140" y="346" width="10" height="12" rx="1" fill="#0b1018" stroke="#6cc6ff" stroke-width="1.5"/>
+  <rect x="143" y="349" width="4" height="6" rx="0.5" fill="#6cc6ff"/>
+  <text x="156" y="356" fill="#4a6a88" font-family="'SF Mono',Menlo,monospace" font-size="10" font-weight="700">STATION</text>
+
+  <rect x="248" y="346" width="3" height="12" fill="#1e3040"/>
+  <text x="258" y="356" fill="#4a6a88" font-family="'SF Mono',Menlo,monospace" font-size="10" font-weight="700">DROP</text>
+
+  <rect x="330" y="348" width="8" height="8" rx="1" fill="#5cb85c"/>
+  <text x="344" y="356" fill="#4a6a88" font-family="'SF Mono',Menlo,monospace" font-size="10" font-weight="700">CLEAN</text>
+
+  <rect x="414" y="348" width="8" height="8" rx="1" fill="#c06058"/>
+  <text x="428" y="356" fill="#4a6a88" font-family="'SF Mono',Menlo,monospace" font-size="10" font-weight="700">DIRTY</text>
+
+  <rect x="498" y="346" width="12" height="12" rx="1" fill="#180e20" stroke="#5a4880" stroke-width="1"/>
+  <text x="516" y="356" fill="#4a6a88" font-family="'SF Mono',Menlo,monospace" font-size="10" font-weight="700">STOPPED</text>
+
+  <!-- ===== TOPOLOGY DESCRIPTION ===== -->
+  <text x="48" y="390" fill="#2e4a64" font-family="'SF Mono',Menlo,monospace" font-size="11" font-weight="500">Compact rail with blocky station markers. Variants as tag-stops,</text>
+  <text x="48" y="406" fill="#2e4a64" font-family="'SF Mono',Menlo,monospace" font-size="11" font-weight="500">actors drop-linked below. Terminal-map aesthetic, heavier labels.</text>
+
+  <!-- ===== BOTTOM CAPTION BAR ===== -->
+  <rect x="0" y="474" width="960" height="46" fill="#0a0f14"/>
+  <rect x="0" y="474" width="960" height="1" fill="#1e2e3e"/>
+  <text x="480" y="502" fill="#3e5a78" font-family="'SF Mono','Cascadia Code','Fira Code',Menlo,monospace" font-size="12" font-weight="700" text-anchor="middle" letter-spacing="2">Round3 Station B</text>
+</svg>

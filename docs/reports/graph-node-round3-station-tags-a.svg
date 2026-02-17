@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="520" viewBox="0 0 960 520">
+  <defs>
+    <!-- Minimal blocky glow for rail -->
+    <filter id="rGlow" x="-2%" y="-30%" width="104%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- ── Background ── -->
+  <rect width="960" height="520" fill="#0c0f14"/>
+
+  <!-- Subtle grid lines (map feel) -->
+  <g stroke="#141a22" stroke-width="0.5">
+    <line x1="0" y1="100" x2="960" y2="100"/>
+    <line x1="0" y1="200" x2="960" y2="200"/>
+    <line x1="0" y1="300" x2="960" y2="300"/>
+    <line x1="0" y1="400" x2="960" y2="400"/>
+    <line x1="200" y1="0" x2="200" y2="520"/>
+    <line x1="400" y1="0" x2="400" y2="520"/>
+    <line x1="600" y1="0" x2="600" y2="520"/>
+    <line x1="800" y1="0" x2="800" y2="520"/>
+  </g>
+
+  <!-- ── Header bar ── -->
+  <rect x="0" y="0" width="960" height="44" fill="#10151c"/>
+  <rect x="0" y="43" width="960" height="1" fill="#1e2a38"/>
+  <text x="24" y="28" fill="#d8e4f0" font-family="'SF Mono',Menlo,monospace" font-size="15" font-weight="700" letter-spacing="1.5">STATION TAGS</text>
+  <text x="180" y="28" fill="#3e5468" font-family="'SF Mono',Menlo,monospace" font-size="11" letter-spacing="0.8">R3 · VARIANT RAIL TOPOLOGY</text>
+
+  <!-- ── Main container (sharp edges) ── -->
+  <rect x="20" y="54" width="920" height="420" rx="2" fill="#0e1218" stroke="#1c2736" stroke-width="1"/>
+
+  <!-- ===== PRODUCT BLOCK ===== -->
+  <rect x="36" y="78" width="220" height="110" rx="2" fill="#121a24" stroke="#3194d4" stroke-width="1.5"/>
+  <!-- Left accent stripe -->
+  <rect x="36" y="78" width="4" height="110" fill="#3194d4"/>
+  <!-- Product label -->
+  <rect x="52" y="84" width="62" height="16" rx="1" fill="#1a2e40"/>
+  <text x="58" y="95" fill="#5aa8d8" font-family="'SF Mono',Menlo,monospace" font-size="9" font-weight="600">PRODUCT</text>
+  <!-- Product ID -->
+  <text x="52" y="118" fill="#dce6f2" font-family="'SF Mono',Menlo,monospace" font-size="13" font-weight="600">prd_2o02efhj</text>
+  <!-- Tag row: blocky rectangles, no border-radius -->
+  <rect x="52" y="130" width="44" height="18" rx="1" fill="#2a1616" stroke="#b0524a" stroke-width="0.8"/>
+  <text x="60" y="143" fill="#e0807a" font-family="'SF Mono',Menlo,monospace" font-size="10" font-weight="500">dirty</text>
+  <rect x="100" y="130" width="28" height="18" rx="1" fill="#162a1a" stroke="#508c50" stroke-width="0.8"/>
+  <text x="106" y="143" fill="#80c080" font-family="'SF Mono',Menlo,monospace" font-size="10">2v</text>
+  <rect x="132" y="130" width="28" height="18" rx="1" fill="#162030" stroke="#406888" stroke-width="0.8"/>
+  <text x="138" y="143" fill="#70a8cc" font-family="'SF Mono',Menlo,monospace" font-size="10">1d</text>
+  <rect x="164" y="130" width="34" height="18" rx="1" fill="#1c1a28" stroke="#645898" stroke-width="0.8"/>
+  <text x="170" y="143" fill="#9888c8" font-family="'SF Mono',Menlo,monospace" font-size="10">1dr</text>
+  <!-- Locator -->
+  <text x="52" y="172" fill="#3a5068" font-family="'SF Mono',Menlo,monospace" font-size="9">@local://dark-factory</text>
+
+  <!-- ===== RAIL ===== -->
+  <!-- Rail track bed (thick, dark) -->
+  <rect x="256" y="128" width="660" height="8" rx="1" fill="#141e2a"/>
+  <!-- Rail active line -->
+  <rect x="256" y="130" width="660" height="4" rx="1" fill="#2c6e9e" filter="url(#rGlow)"/>
+  <!-- Origin block marker -->
+  <rect x="252" y="126" width="10" height="12" rx="1" fill="#3194d4"/>
+  <!-- Terminus block marker -->
+  <rect x="912" y="128" width="6" height="8" rx="1" fill="#1c3a54"/>
+
+  <!-- ===== STATION: clone_0000 ===== -->
+  <!-- Station block marker on rail (diamond-shaped block) -->
+  <rect x="428" y="124" width="16" height="16" rx="1" fill="#0e1218" stroke="#58bce8" stroke-width="1.5" transform="rotate(45,436,132)"/>
+  <rect x="433" y="129" width="6" height="6" rx="0" fill="#58bce8" transform="rotate(45,436,132)"/>
+  <!-- Station tag (blocky, sharp) -->
+  <rect x="378" y="86" width="116" height="26" rx="2" fill="#121c28" stroke="#3e8ab8" stroke-width="1"/>
+  <text x="394" y="103" fill="#90c8e8" font-family="'SF Mono',Menlo,monospace" font-size="11" font-weight="600">clone_0000</text>
+  <!-- Vertical connector: tag to station marker -->
+  <line x1="436" y1="112" x2="436" y2="124" stroke="#3e8ab8" stroke-width="1"/>
+  <!-- Status block below rail -->
+  <rect x="402" y="150" width="68" height="18" rx="1" fill="#0e1a12"/>
+  <rect x="404" y="153" width="4" height="12" rx="0" fill="#4caa4c"/>
+  <text x="414" y="163" fill="#70c070" font-family="'SF Mono',Menlo,monospace" font-size="10">clean</text>
+
+  <!-- ===== STATION: default ===== -->
+  <!-- Station block marker on rail -->
+  <rect x="688" y="124" width="16" height="16" rx="1" fill="#0e1218" stroke="#c4a050" stroke-width="1.5" transform="rotate(45,696,132)"/>
+  <rect x="693" y="129" width="6" height="6" rx="0" fill="#c4a050" transform="rotate(45,696,132)"/>
+  <!-- Station tag (blocky, sharp) -->
+  <rect x="648" y="86" width="96" height="26" rx="2" fill="#1a1814" stroke="#8a7038" stroke-width="1"/>
+  <text x="672" y="103" fill="#ccb068" font-family="'SF Mono',Menlo,monospace" font-size="11" font-weight="600">default</text>
+  <!-- Vertical connector: tag to station marker -->
+  <line x1="696" y1="112" x2="696" y2="124" stroke="#8a7038" stroke-width="1"/>
+  <!-- Status block below rail -->
+  <rect x="662" y="150" width="68" height="18" rx="1" fill="#1a1210"/>
+  <rect x="664" y="153" width="4" height="12" rx="0" fill="#c05850"/>
+  <text x="674" y="163" fill="#e0807a" font-family="'SF Mono',Menlo,monospace" font-size="10">dirty</text>
+
+  <!-- ===== DROP CONNECTORS (station → actors) ===== -->
+  <!-- clone_0000 → actor 1 (right-angle elbow) -->
+  <polyline points="436,168 436,202 436,214" fill="none" stroke="#3a5878" stroke-width="1" stroke-dasharray="4,3"/>
+  <rect x="432" y="212" width="8" height="6" rx="0" fill="#3a5878"/>
+  <!-- default → actor 2 (right-angle elbow) -->
+  <polyline points="696,168 696,202 696,214" fill="none" stroke="#3a5878" stroke-width="1" stroke-dasharray="4,3"/>
+  <rect x="692" y="212" width="8" height="6" rx="0" fill="#3a5878"/>
+
+  <!-- ===== ACTOR BLOCK 1 ===== -->
+  <rect x="324" y="224" width="232" height="86" rx="2" fill="#10161e" stroke="#6858a8" stroke-width="1"/>
+  <!-- Actor accent stripe -->
+  <rect x="324" y="224" width="3" height="86" fill="#6858a8"/>
+  <!-- Actor label -->
+  <rect x="340" y="228" width="46" height="14" rx="1" fill="#1a1628"/>
+  <text x="344" y="239" fill="#8878b8" font-family="'SF Mono',Menlo,monospace" font-size="8" font-weight="600">ACTOR</text>
+  <!-- Actor ID -->
+  <text x="340" y="258" fill="#d8e0ee" font-family="'SF Mono',Menlo,monospace" font-size="12" font-weight="500">act_0y4hm8xs</text>
+  <!-- Actor status tag -->
+  <rect x="478" y="248" width="58" height="16" rx="1" fill="#18141e" stroke="#584a80" stroke-width="0.8"/>
+  <text x="488" y="260" fill="#9888b8" font-family="'SF Mono',Menlo,monospace" font-size="9">stopped</text>
+  <!-- Sub-agent items (blocky bullets) -->
+  <rect x="340" y="272" width="3" height="10" rx="0" fill="#406888"/>
+  <text x="350" y="281" fill="#7098b8" font-family="'SF Mono',Menlo,monospace" font-size="10">Quick frontend</text>
+  <rect x="340" y="288" width="3" height="10" rx="0" fill="#406888"/>
+  <text x="350" y="297" fill="#7098b8" font-family="'SF Mono',Menlo,monospace" font-size="10">Quick routing</text>
+
+  <!-- ===== ACTOR BLOCK 2 ===== -->
+  <rect x="584" y="224" width="232" height="86" rx="2" fill="#10161e" stroke="#6858a8" stroke-width="1"/>
+  <!-- Actor accent stripe -->
+  <rect x="584" y="224" width="3" height="86" fill="#6858a8"/>
+  <!-- Actor label -->
+  <rect x="600" y="228" width="46" height="14" rx="1" fill="#1a1628"/>
+  <text x="604" y="239" fill="#8878b8" font-family="'SF Mono',Menlo,monospace" font-size="8" font-weight="600">ACTOR</text>
+  <!-- Actor ID -->
+  <text x="600" y="258" fill="#d8e0ee" font-family="'SF Mono',Menlo,monospace" font-size="12" font-weight="500">act_2h2bd5ph</text>
+  <!-- Actor status tag -->
+  <rect x="738" y="248" width="58" height="16" rx="1" fill="#18141e" stroke="#584a80" stroke-width="0.8"/>
+  <text x="748" y="260" fill="#9888b8" font-family="'SF Mono',Menlo,monospace" font-size="9">stopped</text>
+  <!-- Sub-agent items (blocky bullets) -->
+  <rect x="600" y="272" width="3" height="10" rx="0" fill="#406888"/>
+  <text x="610" y="281" fill="#7098b8" font-family="'SF Mono',Menlo,monospace" font-size="10">Test explore</text>
+  <rect x="600" y="288" width="3" height="10" rx="0" fill="#406888"/>
+  <text x="610" y="297" fill="#7098b8" font-family="'SF Mono',Menlo,monospace" font-size="10">Explore scripts</text>
+
+  <!-- ===== LEGEND (compact, inline) ===== -->
+  <rect x="36" y="348" width="180" height="1" fill="#1c2736"/>
+  <!-- Rail key -->
+  <rect x="36" y="362" width="20" height="3" rx="0" fill="#2c6e9e"/>
+  <text x="62" y="368" fill="#3e5468" font-family="'SF Mono',Menlo,monospace" font-size="9">variant rail</text>
+  <!-- Station key -->
+  <rect x="36" y="378" width="8" height="8" rx="0" fill="#0e1218" stroke="#58bce8" stroke-width="1" transform="rotate(45,40,382)"/>
+  <text x="62" y="386" fill="#3e5468" font-family="'SF Mono',Menlo,monospace" font-size="9">station</text>
+  <!-- Status keys -->
+  <rect x="150" y="360" width="4" height="10" rx="0" fill="#4caa4c"/>
+  <text x="160" y="368" fill="#3e5468" font-family="'SF Mono',Menlo,monospace" font-size="9">clean</text>
+  <rect x="150" y="378" width="4" height="10" rx="0" fill="#c05850"/>
+  <text x="160" y="386" fill="#3e5468" font-family="'SF Mono',Menlo,monospace" font-size="9">dirty</text>
+
+  <!-- ===== BOTTOM CAPTION ===== -->
+  <rect x="0" y="487" width="960" height="33" fill="#0a0d12"/>
+  <rect x="0" y="487" width="960" height="1" fill="#1c2736"/>
+  <text x="480" y="508" fill="#2e4258" font-family="'SF Mono',Menlo,monospace" font-size="11" font-weight="500" text-anchor="middle" letter-spacing="2">Round3 Station A</text>
+</svg>

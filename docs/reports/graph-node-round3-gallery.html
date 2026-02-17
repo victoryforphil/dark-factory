@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Graph Node Round 3</title>
+  <style>
+    :root {
+      --bg: #0b0f15;
+      --panel: #101722;
+      --line: #2a3a4f;
+      --text: #d7e3f2;
+      --muted: #93a7bc;
+      --accent: #75c8ff;
+      --ok: #89d08f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
+      padding: 12px;
+    }
+    .wrap {
+      border: 2px solid var(--line);
+      padding: 10px;
+      background: var(--panel);
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 18px;
+      color: var(--accent);
+    }
+    .sub {
+      margin: 0 0 12px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .ascii {
+      border: 1px solid var(--line);
+      padding: 8px;
+      margin-bottom: 10px;
+      color: var(--muted);
+      white-space: pre;
+      overflow-x: auto;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .card {
+      border: 1px solid var(--line);
+      padding: 8px;
+      background: #0d1420;
+    }
+    .card h2 {
+      margin: 0 0 6px;
+      font-size: 14px;
+      color: var(--accent);
+    }
+    .meta {
+      margin: 0 0 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    img {
+      width: 100%;
+      height: auto;
+      border: 1px solid #243447;
+      background: #0a1019;
+      display: block;
+    }
+    .vote {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--ok);
+    }
+    .notes {
+      margin-top: 10px;
+      border: 1px solid var(--line);
+      padding: 8px;
+      color: var(--muted);
+      white-space: pre-wrap;
+      font-size: 12px;
+    }
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Dark Factory // Graph Node // Round 3</h1>
+    <p class="sub">Simple blocky gallery. Round 2 nays cleared. Keeping only Station Tags + Orbit Rings track.</p>
+
+    <div class="ascii">+--------------------------------------------------------------+
+| BASELINE KEPT (ROUND 2):                                    |
+|   [YAY] Station Tags  -> graph-node-round2-station-tags.svg |
+|   [YAY] Orbit Rings   -> graph-node-round2-orbit-rings.svg  |
+|                                                              |
+| ROUND 3 CANDIDATES:                                          |
+|   station-a, station-b, orbit-a, orbit-b                    |
+|                                                              |
+| VOTE FORMAT:                                                  |
+|   station-a yay/nay, station-b yay/nay, orbit-a yay/nay, ... |
++--------------------------------------------------------------+</div>
+
+    <div class="grid">
+      <section class="card">
+        <h2>Station A</h2>
+        <p class="meta">Evolution of Station Tags (clean/blocky)</p>
+        <img src="graph-node-round3-station-tags-a.svg" alt="Station A" />
+        <p class="vote">Vote: station-a yay/nay</p>
+      </section>
+
+      <section class="card">
+        <h2>Station B</h2>
+        <p class="meta">Heavier terminal chrome, compact rails</p>
+        <img src="graph-node-round3-station-tags-b.svg" alt="Station B" />
+        <p class="vote">Vote: station-b yay/nay</p>
+      </section>
+
+      <section class="card">
+        <h2>Orbit A</h2>
+        <p class="meta">Minimal ring map, rectangular nodes</p>
+        <img src="graph-node-round3-orbit-rings-a.svg" alt="Orbit A" />
+        <p class="vote">Vote: orbit-a yay/nay</p>
+      </section>
+
+      <section class="card">
+        <h2>Orbit B</h2>
+        <p class="meta">Octagon ring style, stronger ASCII vibe</p>
+        <img src="graph-node-round3-orbit-rings-b.svg" alt="Orbit B" />
+        <p class="vote">Vote: orbit-b yay/nay</p>
+      </section>
+    </div>
+
+    <div class="notes">Embedded notes (from markdown):
+
+Round 2 winners:
+- Station Tags
+- Orbit Rings
+
+Design brief for this round:
+- Keep map feel
+- Simpler HTML + blocky/ascii style
+- Less decorative overhead
+
+Reference markdown: graph-node-round3-notes.md</div>
+  </div>
+</body>
+</html>
