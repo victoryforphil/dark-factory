@@ -4,6 +4,10 @@ import Log from './utils/logging';
 
 type PrintFormat = 'pretty' | 'json' | 'toml';
 
+interface ServerOptions {
+  resetDb: boolean;
+}
+
 const readOptionValue = (args: string[], optionName: string): string | undefined => {
   const optionWithEquals = `${optionName}=`;
 
@@ -43,13 +47,36 @@ const resolvePrintFormat = (args: string[]): PrintFormat => {
 
 const printUsage = (): void => {
   console.info('Usage:');
-  console.info('  bun run src/index.ts');
+  console.info('  bun run src/index.ts [--reset_db]');
   console.info('  bun run src/index.ts config export [--path <path>]');
   console.info('  bun run src/index.ts config print [--path <path>] [--json|--toml]');
 };
 
-const runServer = async (): Promise<void> => {
+const parseServerOptions = (args: string[]): ServerOptions => {
+  const options: ServerOptions = {
+    resetDb: false,
+  };
+
+  for (const arg of args) {
+    if (arg === '--reset_db') {
+      options.resetDb = true;
+      continue;
+    }
+
+    throw new Error(`Core // CLI // Unknown server option (option=${arg})`);
+  }
+
+  return options;
+};
+
+const runServer = async (options: ServerOptions): Promise<void> => {
   const { buildApp } = await import('./app');
+
+  if (options.resetDb) {
+    const { resetLocalDatabase } = await import('./modules/system/system.controller');
+    await resetLocalDatabase();
+  }
+
   const config = loadConfig();
   const app = buildApp();
 
@@ -92,8 +119,8 @@ const runConfigPrint = (args: string[]): void => {
 const runCli = async (): Promise<void> => {
   const args = Bun.argv.slice(2);
 
-  if (args.length === 0) {
-    await runServer();
+  if (args.length === 0 || args.every((arg) => arg.startsWith('--'))) {
+    await runServer(parseServerOptions(args));
     return;
   }
 
