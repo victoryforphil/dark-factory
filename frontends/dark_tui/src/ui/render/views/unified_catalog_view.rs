@@ -5,7 +5,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use ratatui::Frame;
 
-use dark_tui_components::{PaneBlockComponent, StatusPill};
+use dark_tui_components::{compact_text_normalized, PaneBlockComponent, StatusPill};
 
 use crate::app::{App, VizSelection};
 use crate::models::{compact_id, compact_locator};
@@ -28,7 +28,7 @@ const RAIL_DROP_ROWS: i32 = 1;
 
 const VARIANT_H: u16 = 4;
 
-const ACTOR_H: u16 = 4;
+const ACTOR_H: u16 = 7;
 const ACTOR_STACK_GAP: i32 = 2;
 
 /// Max actors rendered per variant column in station mode.
@@ -776,7 +776,7 @@ impl UnifiedCatalogView {
         if let Some(loc_area) = Self::to_screen(inner, offset_x, offset_y, locator_rect) {
             frame.render_widget(
                 Paragraph::new(compact_locator(&product.locator, loc_area.width as usize))
-                    .style(Style::default().fg(Color::Rgb(0x48, 0x48, 0x48))),
+                    .style(Style::default().fg(theme.text_secondary)),
                 loc_area,
             );
         }
@@ -841,15 +841,36 @@ impl UnifiedCatalogView {
             Span::styled(status_tag, Style::default().fg(theme.text_muted)),
         ]);
 
-        // Row 1: ahead/behind delta
+        // Row 1: branch/worktree + ahead/behind
+        let branch = if variant.branch.trim().is_empty() {
+            "-"
+        } else {
+            variant.branch.as_str()
+        };
+        let worktree = if variant.worktree.trim().is_empty() {
+            "-"
+        } else {
+            variant.worktree.as_str()
+        };
+        let branch_meta = compact_text_normalized(
+            &format!(
+                " {branch}  󰉋 {worktree}  +{} -{}",
+                variant.ahead, variant.behind
+            ),
+            inner_w.max(8),
+        );
         let row1 = Line::from(vec![Span::styled(
-            format!("+{} -{}", variant.ahead, variant.behind),
-            Style::default().fg(theme.text_muted),
+            branch_meta,
+            Style::default().fg(theme.text_secondary),
         )]);
 
         frame.render_widget(
-            Paragraph::new(vec![row0, row1])
-                .block(Block::default().borders(Borders::ALL).border_style(border)),
+            Paragraph::new(vec![row0, row1]).block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(border)
+                    .title(" VARIANT "),
+            ),
             area,
         );
 
@@ -884,8 +905,9 @@ impl UnifiedCatalogView {
             Style::default().fg(theme.entity_actor)
         };
 
-        // Row 0: ACTOR {id}   [status]
-        let id_label = compact_id(&actor.id);
+        // Row 0: actor title + status (card title holds ACTOR label)
+        let inner_w = area.width.saturating_sub(2) as usize;
+        let title_label = compact_text_normalized(&actor.title, inner_w.saturating_sub(6).max(8));
         let status_token = match actor.status.as_str() {
             "running" | "active" => "run",
             "stopped" => "stp",
@@ -894,10 +916,8 @@ impl UnifiedCatalogView {
             _ => "unk",
         };
         let status_badge = format!("[{status_token}]");
-        let label_text = format!("ACTOR {id_label}");
-        let label_len = label_text.chars().count();
+        let label_len = title_label.chars().count();
         let badge_len = status_badge.chars().count();
-        let inner_w = area.width.saturating_sub(2) as usize;
         let pad = if inner_w > label_len + badge_len {
             inner_w - label_len - badge_len
         } else {
@@ -906,26 +926,43 @@ impl UnifiedCatalogView {
 
         let row0 = Line::from(vec![
             Span::styled(
-                "ACTOR",
+                title_label,
                 Style::default()
                     .fg(theme.text_primary)
                     .add_modifier(Modifier::BOLD),
             ),
-            Span::raw(" "),
-            Span::styled(id_label, Style::default().fg(theme.text_secondary)),
             Span::raw(" ".repeat(pad)),
             Span::styled(status_badge, Style::default().fg(theme.text_muted)),
         ]);
 
-        // Row 1: provider
-        let row1 = Line::from(vec![Span::styled(
-            actor.provider.clone(),
-            Style::default().fg(theme.text_muted),
-        )]);
+        let actor_type_pill = StatusPill::muted(Self::actor_type_label(actor), theme);
+        let row1 = Line::from(vec![actor_type_pill.span()]);
+
+        // Row 2: last message preview when available
+        let last_message = Self::actor_last_message_preview(app, &actor.id)
+            .or_else(|| {
+                let text = actor.description.trim();
+                if text.is_empty() || text == "-" {
+                    None
+                } else {
+                    Some(text.to_string())
+                }
+            })
+            .unwrap_or_else(|| "no messages yet".to_string());
+        let row2 = Line::from(vec![
+            Span::styled("󰍩 ", Style::default().fg(theme.text_muted)),
+            Span::styled(last_message, Style::default().fg(theme.text_secondary)),
+        ]);
 
         frame.render_widget(
-            Paragraph::new(vec![row0, row1])
-                .block(Block::default().borders(Borders::ALL).border_style(border)),
+            Paragraph::new(vec![row0, row1, row2])
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_style(border)
+                        .title(" ACTOR "),
+                )
+                .wrap(Wrap { trim: true }),
             area,
         );
 
@@ -1004,6 +1041,32 @@ impl UnifiedCatalogView {
         }
 
         buf.set_string(sx as u16, sy as u16, ch, style);
+    }
+
+    fn actor_last_message_preview(app: &App, actor_id: &str) -> Option<String> {
+        if !app.chat_actor().is_some_and(|actor| actor.id == actor_id) {
+            return None;
+        }
+
+        app.chat_messages().iter().rev().find_map(|message| {
+            let text = message.text.trim();
+            if text.is_empty() {
+                None
+            } else {
+                Some(text.to_string())
+            }
+        })
+    }
+
+    fn actor_type_label(actor: &crate::models::ActorRow) -> String {
+        let provider = actor.provider.trim();
+        let kind = if provider.is_empty() {
+            "actor".to_string()
+        } else {
+            provider.to_string()
+        };
+
+        format!("󰘧 {kind}")
     }
 
     fn draw_world_hline(

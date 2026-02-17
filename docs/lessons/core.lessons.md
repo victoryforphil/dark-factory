@@ -15,3 +15,5 @@
 - Keep one command path to run spatial snapshots (`scripts/tui_spatial_snapshots.sh.ts`), with `--update` setting `INSTA_UPDATE=always` to accept intended fixture changes.
 - For interactive attach flows in TUIs, prefer a terminal-native handoff (`LeaveAlternateScreen` + disable raw mode + run attach in inherited stdio + restore TUI) over clipboard-only workflows.
 - Track embedded-PTY attach as a backlog enhancement: it can preserve the TUI shell layer but requires a dedicated PTY integration pass (input routing, resize sync, and lifecycle handling).
+- For Rust TUI refresh loops (`ratatui` + `crossterm`), keep interaction state (compose mode, form state, scroll offsets) in `App` and avoid resetting it in selection/snapshot sync paths; only clear when the underlying entity actually changes.
+- For chat/log panes, follow tail-aware scroll behavior: auto-follow newest content only when at bottom, but preserve relative viewport when users scroll up by increasing stored scroll offset as new messages append.
