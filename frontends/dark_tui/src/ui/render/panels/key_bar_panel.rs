@@ -36,6 +36,13 @@ const VIZ_KEYS: &[KeyBind] = &[KeyBind::new("0", "Reset pan")];
 const CHAT_COMPOSE_KEYS: &[KeyBind] =
     &[KeyBind::new("Enter", "Send"), KeyBind::new("Esc", "Cancel")];
 
+/// Extra key hints while editing the clone variant form.
+const CLONE_FORM_KEYS: &[KeyBind] = &[
+    KeyBind::new("Enter", "Clone"),
+    KeyBind::new("Tab", "Field"),
+    KeyBind::new("Esc", "Cancel"),
+];
+
 /// Horizontal key-hint bar rendered between header and body.
 ///
 /// Combines all available key bindings into a single compact line
@@ -58,6 +65,10 @@ impl KeyBarPanel {
 
         if app.is_chat_composing() {
             all_keys.extend(CHAT_COMPOSE_KEYS.iter());
+        }
+
+        if app.is_clone_form_open() {
+            all_keys.extend(CLONE_FORM_KEYS.iter());
         }
 
         // Build owned KeyBind vec for the bar (KeyHintBar expects a slice).

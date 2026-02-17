@@ -48,10 +48,29 @@ pub struct SpawnRequest {
 }
 
 #[derive(Debug, Clone)]
+pub struct CloneVariantRequest {
+    pub name: Option<String>,
+    pub target_path: Option<String>,
+    pub branch_name: Option<String>,
+    pub clone_type: Option<String>,
+    pub source_variant_id: Option<String>,
+}
+
+#[derive(Debug, Clone)]
 struct SpawnFormState {
     providers: Vec<String>,
     selected_provider: usize,
     initial_prompt: String,
+}
+
+#[derive(Debug, Clone)]
+struct CloneFormState {
+    selected_field: usize,
+    name: String,
+    target_path: String,
+    branch_name: String,
+    clone_type: String,
+    source_variant_id: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -142,6 +161,7 @@ pub struct App {
     /// Color theme — loaded once at startup.
     theme: Theme,
     spawn_form: Option<SpawnFormState>,
+    clone_form: Option<CloneFormState>,
     chat_visible: bool,
     chat_actor_id: Option<String>,
     chat_messages: Vec<ActorChatMessageRow>,
@@ -199,6 +219,7 @@ impl App {
             drag_anchor: None,
             theme,
             spawn_form: None,
+            clone_form: None,
             chat_visible: false,
             chat_actor_id: None,
             chat_messages: Vec::new(),
@@ -302,6 +323,10 @@ impl App {
         self.spawn_form.is_some()
     }
 
+    pub fn is_clone_form_open(&self) -> bool {
+        self.clone_form.is_some()
+    }
+
     pub fn spawn_form_providers(&self) -> Option<&[String]> {
         self.spawn_form
             .as_ref()
@@ -340,6 +365,119 @@ impl App {
 
     pub fn close_spawn_form(&mut self) {
         self.spawn_form = None;
+    }
+
+    pub fn open_clone_form(&mut self) {
+        self.clone_form = Some(CloneFormState {
+            selected_field: 0,
+            name: String::new(),
+            target_path: String::new(),
+            branch_name: String::new(),
+            clone_type: String::new(),
+            source_variant_id: String::new(),
+        });
+    }
+
+    pub fn close_clone_form(&mut self) {
+        self.clone_form = None;
+    }
+
+    pub fn clone_form_selected_field(&self) -> Option<usize> {
+        self.clone_form.as_ref().map(|form| form.selected_field)
+    }
+
+    pub fn clone_form_name(&self) -> Option<&str> {
+        self.clone_form.as_ref().map(|form| form.name.as_str())
+    }
+
+    pub fn clone_form_target_path(&self) -> Option<&str> {
+        self.clone_form
+            .as_ref()
+            .map(|form| form.target_path.as_str())
+    }
+
+    pub fn clone_form_branch_name(&self) -> Option<&str> {
+        self.clone_form
+            .as_ref()
+            .map(|form| form.branch_name.as_str())
+    }
+
+    pub fn clone_form_clone_type(&self) -> Option<&str> {
+        self.clone_form
+            .as_ref()
+            .map(|form| form.clone_type.as_str())
+    }
+
+    pub fn clone_form_source_variant_id(&self) -> Option<&str> {
+        self.clone_form
+            .as_ref()
+            .map(|form| form.source_variant_id.as_str())
+    }
+
+    pub fn clone_form_move_up(&mut self) {
+        let Some(form) = self.clone_form.as_mut() else {
+            return;
+        };
+
+        form.selected_field = previous_index(form.selected_field, 5);
+    }
+
+    pub fn clone_form_move_down(&mut self) {
+        let Some(form) = self.clone_form.as_mut() else {
+            return;
+        };
+
+        form.selected_field = next_index(form.selected_field, 5);
+    }
+
+    pub fn clone_form_insert_char(&mut self, value: char) {
+        let Some(form) = self.clone_form.as_mut() else {
+            return;
+        };
+
+        match form.selected_field {
+            0 => form.name.push(value),
+            1 => form.target_path.push(value),
+            2 => form.branch_name.push(value),
+            3 => form.clone_type.push(value),
+            _ => form.source_variant_id.push(value),
+        }
+    }
+
+    pub fn clone_form_backspace(&mut self) {
+        let Some(form) = self.clone_form.as_mut() else {
+            return;
+        };
+
+        match form.selected_field {
+            0 => {
+                form.name.pop();
+            }
+            1 => {
+                form.target_path.pop();
+            }
+            2 => {
+                form.branch_name.pop();
+            }
+            3 => {
+                form.clone_type.pop();
+            }
+            _ => {
+                form.source_variant_id.pop();
+            }
+        }
+    }
+
+    pub fn take_clone_request(&mut self) -> Option<CloneVariantRequest> {
+        let form = self.clone_form.take()?;
+
+        Some(CloneVariantRequest {
+            name: normalize_optional_input(&form.name),
+            target_path: normalize_optional_input(&form.target_path),
+            branch_name: normalize_optional_input(&form.branch_name),
+            clone_type: normalize_optional_input(&form.clone_type),
+            source_variant_id: normalize_optional_input(&form.source_variant_id),
+        })
     }
 
     pub fn spawn_form_move_provider_up(&mut self) {
@@ -1561,6 +1699,15 @@ fn normalize_string_options(mut values: Vec<String>) -> Vec<String> {
     values.sort();
     values.dedup();
     values
+}
+
+fn normalize_optional_input(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
 }
 
 fn resolve_selected_option(

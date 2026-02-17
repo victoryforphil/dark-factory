@@ -1,13 +1,15 @@
 mod panels;
 mod views;
 
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::layout::{Constraint, Direction, Layout};
+use ratatui::Frame;
 
 use crate::app::{App, ResultsViewMode};
 
-use panels::{ChatPanel, DetailsPanel, FooterPanel, HeaderPanel, KeyBarPanel, SpawnFormPanel};
+use panels::{
+    ChatPanel, CloneFormPanel, DetailsPanel, FooterPanel, HeaderPanel, KeyBarPanel, SpawnFormPanel,
+};
 use views::{CatalogTreeView, UnifiedCatalogView};
 
 pub(crate) use panels::ChatPanelHit;
@@ -39,6 +41,10 @@ pub fn render_dashboard(frame: &mut Frame, app: &App) {
 
     if app.is_spawn_form_open() {
         SpawnFormPanel::render(frame, root, app);
+    }
+
+    if app.is_clone_form_open() {
+        CloneFormPanel::render(frame, root, app);
     }
 }
 

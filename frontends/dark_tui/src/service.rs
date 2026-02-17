@@ -33,6 +33,15 @@ pub struct SpawnOptions {
     pub default_provider: Option<String>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct CloneVariantOptions {
+    pub name: Option<String>,
+    pub target_path: Option<String>,
+    pub branch_name: Option<String>,
+    pub clone_type: Option<String>,
+    pub source_variant_id: Option<String>,
+}
+
 impl DashboardService {
     pub async fn new(base_url: String, directory: String, poll_variants: bool) -> Self {
         let ws_api = DarkCoreWsClient::connect(base_url.clone()).await.ok();
@@ -178,13 +187,37 @@ impl DashboardService {
         ))
     }
 
-    pub async fn clone_product_variant(&self, product_id: &str) -> Result<String> {
+    pub async fn clone_product_variant(
+        &self,
+        product_id: &str,
+        options: &CloneVariantOptions,
+    ) -> Result<String> {
+        let mut payload = serde_json::Map::<String, Value>::new();
+        if let Some(name) = options.name.clone() {
+            payload.insert("name".to_string(), Value::String(name));
+        }
+        if let Some(target_path) = options.target_path.clone() {
+            payload.insert("targetPath".to_string(), Value::String(target_path));
+        }
+        if let Some(branch_name) = options.branch_name.clone() {
+            payload.insert("branchName".to_string(), Value::String(branch_name));
+        }
+        if let Some(clone_type) = options.clone_type.clone() {
+            payload.insert("cloneType".to_string(), Value::String(clone_type));
+        }
+        if let Some(source_variant_id) = options.source_variant_id.clone() {
+            payload.insert(
+                "sourceVariantId".to_string(),
+                Value::String(source_variant_id),
+            );
+        }
+
         let response = self
             .request(
                 "POST",
                 &format!("/products/{product_id}/variants/clone"),
                 None,
-                Some(json!({})),
+                Some(Value::Object(payload)),
             )
             .await?;
         let body = ensure_success(response)?;

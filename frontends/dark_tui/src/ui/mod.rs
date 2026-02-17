@@ -23,7 +23,7 @@ use ratatui::layout::Rect;
 use crate::app::{App, ResultsViewMode};
 use crate::cli::Cli;
 use crate::models::{ActorChatMessageRow, DashboardSnapshot};
-use crate::service::{DashboardService, SpawnOptions};
+use crate::service::{CloneVariantOptions, DashboardService, SpawnOptions};
 use crate::theme::Theme;
 
 type TuiTerminal = Terminal<CrosstermBackend<Stdout>>;
@@ -33,6 +33,7 @@ enum LoopAction {
     None,
     Quit,
     Refresh,
+    OpenCloneForm,
     CloneVariant,
     PollVariant,
     ImportVariantActors,
@@ -509,6 +510,11 @@ async fn run_loop(
                     continue;
                 };
 
+                let Some(request) = app.take_clone_request() else {
+                    app.set_status("Clone skipped: clone form is not open.");
+                    continue;
+                };
+
                 if has_action_in_flight(&action_tasks, BackgroundActionKind::CloneVariant) {
                     app.set_status("Variant clone already in progress.");
                     continue;
@@ -520,11 +526,30 @@ async fn run_loop(
                     kind: BackgroundActionKind::CloneVariant,
                     handle: tokio::spawn(async move {
                         BackgroundActionResult::CloneVariant(
-                            run_with_api_timeout(service.clone_product_variant(&product_id)).await,
+                            run_with_api_timeout(service.clone_product_variant(
+                                &product_id,
+                                &CloneVariantOptions {
+                                    name: request.name,
+                                    target_path: request.target_path,
+                                    branch_name: request.branch_name,
+                                    clone_type: request.clone_type,
+                                    source_variant_id: request.source_variant_id,
+                                },
+                            ))
+                            .await,
                         )
                     }),
                 });
                 app.set_action_requests_in_flight(action_tasks.len());
+            }
+            LoopAction::OpenCloneForm => {
+                if app.selected_product().is_none() {
+                    app.set_status("Clone form unavailable: select a product first.");
+                    continue;
+                }
+
+                app.open_clone_form();
+                app.set_status("Clone form open. Enter options or leave blank for defaults.");
             }
             LoopAction::ImportVariantActors => {
                 let Some(variant_id) = app.selected_variant_id().map(ToString::to_string) else {
@@ -784,6 +809,10 @@ fn copy_to_clipboard(value: &str) -> Result<()> {
 }
 
 fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
+    if app.is_clone_form_open() {
+        return handle_clone_form_key(app, key);
+    }
+
     if app.is_spawn_form_open() {
         return handle_spawn_form_key(app, key);
     }
@@ -832,7 +861,7 @@ fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
             LoopAction::None
         }
         KeyCode::Char('p') => LoopAction::PollVariant,
-        KeyCode::Char('x') => LoopAction::CloneVariant,
+        KeyCode::Char('x') => LoopAction::OpenCloneForm,
         KeyCode::Char('m') => LoopAction::ImportVariantActors,
         KeyCode::Char('i') => LoopAction::InitProduct,
         KeyCode::Char('n') => LoopAction::OpenSpawnForm,
@@ -842,6 +871,37 @@ fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
         KeyCode::Char('0') => {
             app.reset_viz_offset();
             app.set_status("Pan reset to origin");
+            LoopAction::None
+        }
+        _ => LoopAction::None,
+    }
+}
+
+fn handle_clone_form_key(app: &mut App, key: KeyEvent) -> LoopAction {
+    match key.code {
+        KeyCode::Esc => {
+            app.close_clone_form();
+            app.set_status("Clone form closed.");
+            LoopAction::None
+        }
+        KeyCode::Enter => LoopAction::CloneVariant,
+        KeyCode::Up | KeyCode::Char('k') | KeyCode::BackTab => {
+            app.clone_form_move_up();
+            LoopAction::None
+        }
+        KeyCode::Down | KeyCode::Char('j') | KeyCode::Tab => {
+            app.clone_form_move_down();
+            LoopAction::None
+        }
+        KeyCode::Backspace => {
+            app.clone_form_backspace();
+            LoopAction::None
+        }
+        KeyCode::Char(value)
+            if !key.modifiers.contains(KeyModifiers::CONTROL)
+                && !key.modifiers.contains(KeyModifiers::ALT) =>
+        {
+            app.clone_form_insert_char(value);
             LoopAction::None
         }
         _ => LoopAction::None,
