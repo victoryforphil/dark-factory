@@ -1,15 +1,17 @@
-use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::components::PaneBlockComponent;
 use crate::theme::ComponentThemeLike;
 
+/// Generic card grid renderer with paging and selection styling.
 pub struct CardGridComponent;
 
 impl CardGridComponent {
+    /// Renders a responsive grid of cards.
     pub fn render(
         frame: &mut Frame,
         area: Rect,
@@ -147,6 +149,10 @@ impl CardGridComponent {
     }
 
     fn card_height(height: u16) -> u16 {
-        if height >= 14 { 7 } else { 6 }
+        if height >= 14 {
+            7
+        } else {
+            6
+        }
     }
 }

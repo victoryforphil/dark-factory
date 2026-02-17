@@ -3,23 +3,43 @@ use ratatui::text::{Line, Span};
 
 use crate::theme::ComponentThemeLike;
 
+/// Key/action pair displayed in a key hint bar.
 pub struct KeyBind {
     pub key: &'static str,
     pub action: &'static str,
 }
 
 impl KeyBind {
+    /// Creates a key bind with static key and action text.
     pub const fn new(key: &'static str, action: &'static str) -> Self {
         Self { key, action }
     }
 }
 
+#[allow(dead_code)]
+/// Shared key binds reused across chat-oriented frontends.
+pub mod common_keys {
+    use super::KeyBind;
+
+    pub const QUIT: KeyBind = KeyBind::new("q", "Quit");
+    pub const REFRESH: KeyBind = KeyBind::new("r", "Refresh");
+    pub const TAB_FOCUS: KeyBind = KeyBind::new("Tab", "Focus");
+    pub const NAV_UP: KeyBind = KeyBind::new("j/k", "Navigate");
+    pub const COMPOSE: KeyBind = KeyBind::new("c", "Compose");
+    pub const SEND: KeyBind = KeyBind::new("Enter", "Send");
+    pub const ESCAPE: KeyBind = KeyBind::new("Esc", "Cancel");
+    pub const MODEL: KeyBind = KeyBind::new("m", "Model");
+    pub const AGENT: KeyBind = KeyBind::new("a", "Agent");
+}
+
+/// Builder for one-line or wrapped key hint text.
 pub struct KeyHintBar<'a> {
     binds: &'a [KeyBind],
     separator: &'a str,
 }
 
 impl<'a> KeyHintBar<'a> {
+    /// Creates a key hint bar using the default separator.
     pub fn new(binds: &'a [KeyBind]) -> Self {
         Self {
             binds,
@@ -27,6 +47,7 @@ impl<'a> KeyHintBar<'a> {
         }
     }
 
+    /// Overrides the separator rendered between key binds.
     pub fn separator(mut self, sep: &'a str) -> Self {
         self.separator = sep;
         self
@@ -47,6 +68,7 @@ impl<'a> KeyHintBar<'a> {
         Style::default().fg(theme.key_hint_bracket_fg())
     }
 
+    /// Builds a single rendered line of all binds.
     pub fn line(&self, theme: &impl ComponentThemeLike) -> Line<'static> {
         let mut spans: Vec<Span<'static>> = Vec::new();
 
@@ -70,6 +92,7 @@ impl<'a> KeyHintBar<'a> {
         Line::from(spans)
     }
 
+    /// Wraps binds into multiple lines that fit the target width.
     pub fn lines_wrapped(
         &self,
         max_width: u16,

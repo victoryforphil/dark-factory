@@ -1,11 +1,13 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// Stateless spinner glyph helper for status labels.
 pub struct LoadingSpinner;
 
 impl LoadingSpinner {
     const FRAMES: [&str; 4] = ["-", "\\", "|", "/"];
     const STEP_MS: u128 = 120;
 
+    /// Returns the spinner glyph for the current wall-clock time.
     pub fn glyph() -> &'static str {
         let elapsed_ms = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -14,6 +16,7 @@ impl LoadingSpinner {
         Self::glyph_for_elapsed(elapsed_ms)
     }
 
+    /// Returns the spinner glyph for an explicit elapsed millisecond value.
     pub fn glyph_for_elapsed(elapsed_ms: u128) -> &'static str {
         let index = ((elapsed_ms / Self::STEP_MS) % (Self::FRAMES.len() as u128)) as usize;
         Self::FRAMES[index]

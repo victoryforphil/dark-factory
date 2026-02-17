@@ -1,12 +1,13 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
 use crate::components::status_pill::StatusPill;
 use crate::theme::ComponentThemeLike;
 
+/// Semantic tone for conversation status labels.
 #[derive(Debug, Clone, Copy)]
 pub enum ChatStatusTone {
     Info,
@@ -17,6 +18,7 @@ pub enum ChatStatusTone {
     Accent,
 }
 
+/// Props for rendering a conversation header section.
 #[derive(Debug, Clone)]
 pub struct ChatConversationHeaderProps {
     pub title: String,
@@ -25,9 +27,11 @@ pub struct ChatConversationHeaderProps {
     pub status_tone: ChatStatusTone,
 }
 
+/// Renderer for conversation title/subtitle/status rows.
 pub struct ChatConversationHeaderComponent;
 
 impl ChatConversationHeaderComponent {
+    /// Renders a conversation header.
     pub fn render(
         frame: &mut Frame,
         area: Rect,

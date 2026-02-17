@@ -555,8 +555,10 @@ dependencies = [
 name = "dark_tui_components"
 version = "0.1.0"
 dependencies = [
+ "crossterm 0.29.0",
  "pulldown-cmark",
  "ratatui",
+ "tokio",
 ]
 
 [[package]]

@@ -3,6 +3,7 @@ use ratatui::text::Span;
 
 use crate::theme::ComponentThemeLike;
 
+/// Compact colored badge used for status labels.
 pub struct StatusPill {
     label: String,
     fg: Color,
@@ -10,6 +11,7 @@ pub struct StatusPill {
 }
 
 impl StatusPill {
+    /// Creates a pill with explicit foreground/background colors.
     pub fn new(label: impl Into<String>, fg: Color, bg: Color) -> Self {
         Self {
             label: label.into(),
@@ -18,30 +20,37 @@ impl StatusPill {
         }
     }
 
+    /// Creates a success-status pill.
     pub fn ok(label: impl Into<String>, theme: &impl ComponentThemeLike) -> Self {
         Self::new(label, theme.pill_ok_fg(), theme.pill_ok_bg())
     }
 
+    /// Creates a warning-status pill.
     pub fn warn(label: impl Into<String>, theme: &impl ComponentThemeLike) -> Self {
         Self::new(label, theme.pill_warn_fg(), theme.pill_warn_bg())
     }
 
+    /// Creates an error-status pill.
     pub fn error(label: impl Into<String>, theme: &impl ComponentThemeLike) -> Self {
         Self::new(label, theme.pill_err_fg(), theme.pill_err_bg())
     }
 
+    /// Creates an informational pill.
     pub fn info(label: impl Into<String>, theme: &impl ComponentThemeLike) -> Self {
         Self::new(label, theme.pill_info_fg(), theme.pill_info_bg())
     }
 
+    /// Creates a muted-status pill.
     pub fn muted(label: impl Into<String>, theme: &impl ComponentThemeLike) -> Self {
         Self::new(label, theme.pill_muted_fg(), theme.pill_muted_bg())
     }
 
+    /// Creates an accent pill.
     pub fn accent(label: impl Into<String>, theme: &impl ComponentThemeLike) -> Self {
         Self::new(label, theme.pill_accent_fg(), theme.pill_accent_bg())
     }
 
+    /// Renders the pill as a padded span.
     pub fn span(&self) -> Span<'static> {
         Span::styled(
             format!(" {} ", self.label),
@@ -49,6 +58,7 @@ impl StatusPill {
         )
     }
 
+    /// Renders the pill as an unpadded compact span.
     pub fn span_compact(&self) -> Span<'static> {
         Span::styled(self.label.clone(), Style::default().fg(self.fg).bg(self.bg))
     }

@@ -3,9 +3,11 @@ use ratatui::widgets::{Block, Borders};
 
 use crate::theme::ComponentThemeLike;
 
+/// Builds consistent bordered pane containers.
 pub struct PaneBlockComponent;
 
 impl PaneBlockComponent {
+    /// Creates a bordered block with focus-aware border styling.
     pub fn build<'a>(title: &'a str, focused: bool, theme: &impl ComponentThemeLike) -> Block<'a> {
         let border_style = if focused {
             Style::default()

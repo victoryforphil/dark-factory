@@ -1,5 +1,6 @@
 use ratatui::style::Color;
 
+/// Default theme palette used by shared components.
 #[derive(Debug, Clone)]
 pub struct ComponentTheme {
     pub pill_ok_fg: Color,
@@ -51,26 +52,47 @@ impl Default for ComponentTheme {
     }
 }
 
+/// Theme contract consumed by shared components.
 pub trait ComponentThemeLike {
+    /// Foreground color for success pills.
     fn pill_ok_fg(&self) -> Color;
+    /// Background color for success pills.
     fn pill_ok_bg(&self) -> Color;
+    /// Foreground color for warning pills.
     fn pill_warn_fg(&self) -> Color;
+    /// Background color for warning pills.
     fn pill_warn_bg(&self) -> Color;
+    /// Foreground color for error pills.
     fn pill_err_fg(&self) -> Color;
+    /// Background color for error pills.
     fn pill_err_bg(&self) -> Color;
+    /// Foreground color for info pills.
     fn pill_info_fg(&self) -> Color;
+    /// Background color for info pills.
     fn pill_info_bg(&self) -> Color;
+    /// Foreground color for muted pills.
     fn pill_muted_fg(&self) -> Color;
+    /// Background color for muted pills.
     fn pill_muted_bg(&self) -> Color;
+    /// Foreground color for accent pills.
     fn pill_accent_fg(&self) -> Color;
+    /// Background color for accent pills.
     fn pill_accent_bg(&self) -> Color;
+    /// Foreground color for key labels in key hint bars.
     fn key_hint_key_fg(&self) -> Color;
+    /// Background color for key labels in key hint bars.
     fn key_hint_key_bg(&self) -> Color;
+    /// Foreground color for action labels in key hint bars.
     fn key_hint_action_fg(&self) -> Color;
+    /// Foreground color for separators in key hint bars.
     fn key_hint_bracket_fg(&self) -> Color;
+    /// Border color for focused pane blocks.
     fn pane_focused_border(&self) -> Color;
+    /// Border color for unfocused pane blocks.
     fn pane_unfocused_border(&self) -> Color;
+    /// Secondary text color.
     fn text_secondary(&self) -> Color;
+    /// Muted text color.
     fn text_muted(&self) -> Color;
 }
 

@@ -1,13 +1,14 @@
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::components::chat_types::{ChatMessageEntry, ChatMessageRole};
 use crate::theme::ComponentThemeLike;
 
+/// Message-list palette used to color per-role text.
 #[derive(Debug, Clone, Copy)]
 pub struct ChatPalette {
     pub text_primary: Color,
@@ -19,6 +20,7 @@ pub struct ChatPalette {
 }
 
 impl ChatPalette {
+    /// Builds a default palette from a component theme.
     pub fn from_theme(theme: &impl ComponentThemeLike) -> Self {
         Self {
             text_primary: Color::White,
@@ -41,6 +43,7 @@ impl ChatPalette {
     }
 }
 
+/// Props for rendering a scrollable conversation transcript.
 #[derive(Debug, Clone)]
 pub struct ChatMessageListProps<'a> {
     pub messages: &'a [ChatMessageEntry],
@@ -52,6 +55,7 @@ pub struct ChatMessageListProps<'a> {
 }
 
 impl<'a> ChatMessageListProps<'a> {
+    /// Creates baseline list props with sensible defaults.
     pub fn from_messages(
         messages: &'a [ChatMessageEntry],
         theme: &impl ComponentThemeLike,
@@ -67,9 +71,11 @@ impl<'a> ChatMessageListProps<'a> {
     }
 }
 
+/// Renderer for chat message history with markdown-aware formatting.
 pub struct ChatMessageListComponent;
 
 impl ChatMessageListComponent {
+    /// Renders the message list into the target area.
     pub fn render(
         frame: &mut Frame,
         area: Rect,
@@ -732,21 +738,15 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert!(
-            rendered_lines
-                .iter()
-                .any(|line| line.contains("- first line"))
-        );
-        assert!(
-            rendered_lines
-                .iter()
-                .any(|line| line.contains("  continuation line"))
-        );
-        assert!(
-            !rendered_lines
-                .iter()
-                .any(|line| line.contains("- continuation line"))
-        );
+        assert!(rendered_lines
+            .iter()
+            .any(|line| line.contains("- first line")));
+        assert!(rendered_lines
+            .iter()
+            .any(|line| line.contains("  continuation line")));
+        assert!(!rendered_lines
+            .iter()
+            .any(|line| line.contains("- continuation line")));
     }
 }
 

@@ -1,11 +1,12 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::theme::ComponentThemeLike;
 
+/// Props for rendering the chat composer body.
 #[derive(Debug, Clone)]
 pub struct ChatComposerProps<'a> {
     pub enabled: bool,
@@ -17,6 +18,7 @@ pub struct ChatComposerProps<'a> {
 }
 
 impl<'a> ChatComposerProps<'a> {
+    /// Creates default composer props for a draft buffer.
     pub fn new(draft: &'a str) -> Self {
         Self {
             enabled: true,
@@ -29,9 +31,11 @@ impl<'a> ChatComposerProps<'a> {
     }
 }
 
+/// Renderer for chat composer hints and draft text.
 pub struct ChatComposerComponent;
 
 impl ChatComposerComponent {
+    /// Renders composer content into the target area.
     pub fn render(
         frame: &mut Frame,
         area: Rect,

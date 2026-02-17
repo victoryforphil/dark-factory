@@ -3,12 +3,14 @@ use ratatui::text::{Line, Span};
 
 use crate::theme::ComponentThemeLike;
 
+/// Label/value pair renderer used in metadata panes.
 pub struct LabeledField {
     label: String,
     value: String,
 }
 
 impl LabeledField {
+    /// Creates a labeled field.
     pub fn new(label: impl Into<String>, value: impl Into<String>) -> Self {
         Self {
             label: label.into(),
@@ -16,6 +18,7 @@ impl LabeledField {
         }
     }
 
+    /// Renders the field as a fixed-width aligned row.
     pub fn line(&self, theme: &impl ComponentThemeLike) -> Line<'static> {
         let label_width = 12;
         let padded_label = format!("  {:width$}", self.label, width = label_width);
@@ -29,6 +32,7 @@ impl LabeledField {
         ])
     }
 
+    /// Renders the field as a compact `label: value` row.
     pub fn line_compact(&self, theme: &impl ComponentThemeLike) -> Line<'static> {
         Line::from(vec![
             Span::styled(

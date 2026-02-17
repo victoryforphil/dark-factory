@@ -46,3 +46,9 @@ Until language/tool-specific configs exist, follow pragmatic defaults:
 - **DRY (Don't Repeat Yourself):** Keep a single source of truth for shared behavior, rules, and transformations.
   - When duplication appears across modules, extract reusable helpers or modules instead of repeating logic.
   - Avoid copy-paste updates that can drift; prefer centralizing constants, validation rules, and serialization/parsing logic.
+
+## 5) Rust/TUI Component Pattern
+
+- Shared Ratatui primitives belong in `lib/dark_tui_components`.
+- When building reusable interactive widgets, use the `Component` trait with `Event` input and `Action` output instead of ad-hoc per-app event contracts.
+- Keep component methods narrow: parse input in `handle_event`/`handle_*`, mutate local state in `update`, and render-only in `draw`.
