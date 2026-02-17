@@ -5,8 +5,9 @@ use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
 use crate::app::{App, VizSelection};
-use crate::models::{compact_timestamp, ActorRow, ProductRow, VariantRow};
+use crate::models::{compact_timestamp, ActorRow, ProductRow, SubAgentRow, VariantRow};
 use crate::theme::{EntityKind, Theme};
+use crate::ui::render::components::sub_agent_badge;
 
 use dark_tui_components::{compact_text_normalized, SectionHeader, StatusPill};
 
@@ -231,7 +232,23 @@ impl DetailsPanel {
         lines.push(SectionHeader::new("Runtime", theme.entity_actor).line(width, theme));
         Self::push_stacked_field(&mut lines, "Provider", &actor.provider, width, theme);
         Self::push_stacked_field(&mut lines, "Directory", &actor.directory, width, theme);
+        if actor.sub_agent_count() > 0 {
+            Self::push_stacked_field(
+                &mut lines,
+                "Sub-Agents",
+                actor.sub_agent_count().to_string(),
+                width,
+                theme,
+            );
+        }
         lines.push(Line::raw(""));
+
+        // --- Sub-Agents section (when entries exist) ---
+        if !actor.sub_agents.is_empty() {
+            lines.push(SectionHeader::new("Sub-Agents", theme.entity_actor).line(width, theme));
+            Self::push_sub_agent_rows(&mut lines, &actor.sub_agents, width, theme);
+            lines.push(Line::raw(""));
+        }
 
         // --- Timestamps ---
         lines.push(SectionHeader::new("Timestamps", theme.text_muted).line(width, theme));
@@ -313,12 +330,19 @@ impl DetailsPanel {
             _ => StatusPill::muted(&actor.status, theme),
         };
 
-        Line::from(vec![
+        let mut spans = vec![
             Span::raw(" "),
             provider_pill.span(),
             Span::raw(" "),
             status_pill.span(),
-        ])
+        ];
+
+        if let Some(badge) = sub_agent_badge(actor.sub_agent_count(), theme) {
+            spans.push(Span::raw(" "));
+            spans.push(badge);
+        }
+
+        Line::from(spans)
     }
 
     fn variant_summary_line(product: &ProductRow, theme: &Theme) -> Line<'static> {
@@ -360,5 +384,55 @@ impl DetailsPanel {
             format!("  {}{}", " ".repeat(right_pad), value_str),
             Style::default().fg(theme.text_secondary),
         ));
+    }
+
+    /// Render flattened sub-agent rows with depth-aware indentation and status pills.
+    fn push_sub_agent_rows(
+        lines: &mut Vec<Line<'static>>,
+        sub_agents: &[SubAgentRow],
+        _width: u16,
+        theme: &Theme,
+    ) {
+        for agent in sub_agents {
+            // Depth-aware tree prefix: "  " base + "  " per depth level + connector.
+            let indent = "  ".repeat(agent.depth);
+            let connector = if agent.depth > 0 {
+                "\u{251c}\u{2500} "
+            } else {
+                "\u{25aa} "
+            };
+
+            let title_text = format!("  {indent}{connector}{}", agent.title);
+
+            let status_pill = match agent.status.as_str() {
+                "active" | "running" => StatusPill::ok(&agent.status, theme),
+                "error" | "failed" | "dead" => StatusPill::error(&agent.status, theme),
+                "idle" | "waiting" => StatusPill::warn(&agent.status, theme),
+                "-" => StatusPill::muted("--", theme),
+                _ => StatusPill::muted(&agent.status, theme),
+            };
+
+            let mut spans = vec![
+                Span::styled(title_text, Style::default().fg(theme.text_secondary)),
+                Span::raw("  "),
+                status_pill.span(),
+            ];
+
+            // Add summary hint if non-trivial.
+            if agent.summary != "-" && !agent.summary.is_empty() {
+                let summary_display = if agent.summary.len() > 32 {
+                    format!("{}...", &agent.summary[..29])
+                } else {
+                    agent.summary.clone()
+                };
+                spans.push(Span::raw("  "));
+                spans.push(Span::styled(
+                    summary_display,
+                    Style::default().fg(theme.text_muted),
+                ));
+            }
+
+            lines.push(Line::from(spans));
+        }
     }
 }

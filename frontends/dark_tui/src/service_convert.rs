@@ -6,7 +6,7 @@ use anyhow::{anyhow, Result};
 use dark_rust::{DarkRustError, RawApiResponse};
 use serde_json::Value;
 
-use crate::models::{compact_timestamp, ActorRow, ProductRow, VariantRow};
+use crate::models::{compact_timestamp, ActorRow, ProductRow, SubAgentRow, VariantRow};
 use crate::service_wire::{ActorRecord, ProductMetrics, ProductRecord, VariantRecord};
 
 pub(crate) fn collect_product_metrics(variants: &[VariantRow]) -> HashMap<String, ProductMetrics> {
@@ -152,6 +152,8 @@ pub(crate) fn to_variant_row(record: VariantRecord) -> VariantRow {
 }
 
 pub(crate) fn to_actor_row(record: ActorRecord) -> ActorRow {
+    let sub_agents = flatten_sub_agents(&record.sub_agents);
+
     ActorRow {
         id: record.id,
         variant_id: record.variant_id,
@@ -173,8 +175,94 @@ pub(crate) fn to_actor_row(record: ActorRecord) -> ActorRow {
             .map(ToString::to_string)
             .unwrap_or(record.working_locator),
         connection_info: record.connection_info.unwrap_or(Value::Null),
+        sub_agents,
         created_at: compact_timestamp(&record.created_at),
         updated_at: compact_timestamp(&record.updated_at),
+    }
+}
+
+/// Recursively flatten the wire sub-agent tree into depth-tagged rows.
+///
+/// Each `Value` in the input vec is expected to be a JSON object with
+/// optional fields: `id`, `parentId`, `title`, `status`, `summary`,
+/// `updatedAt`, `depth`, and recursive `children: [...]`.
+///
+/// When the wire already provides a `depth` field it is used; otherwise
+/// the function tracks depth from the recursion level.
+fn flatten_sub_agents(agents: &Option<Vec<Value>>) -> Vec<SubAgentRow> {
+    let Some(agents) = agents.as_ref() else {
+        return Vec::new();
+    };
+
+    let mut out = Vec::new();
+    flatten_sub_agents_recursive(agents, 0, &mut out);
+    out
+}
+
+fn flatten_sub_agents_recursive(agents: &[Value], depth: usize, out: &mut Vec<SubAgentRow>) {
+    for agent in agents {
+        let obj = match agent.as_object() {
+            Some(obj) => obj,
+            None => continue,
+        };
+
+        let id = obj
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or("-")
+            .to_string();
+
+        let parent_id = obj
+            .get("parentId")
+            .and_then(Value::as_str)
+            .map(ToString::to_string);
+
+        let title = obj
+            .get("title")
+            .and_then(Value::as_str)
+            .filter(|s| !s.trim().is_empty())
+            .unwrap_or_else(|| id.as_str())
+            .to_string();
+
+        let status = obj
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or("-")
+            .to_string();
+
+        let summary = obj
+            .get("summary")
+            .and_then(Value::as_str)
+            .unwrap_or("-")
+            .to_string();
+
+        let updated_at = obj
+            .get("updatedAt")
+            .and_then(Value::as_str)
+            .map(compact_timestamp)
+            .unwrap_or_else(|| "-".to_string());
+
+        // Prefer wire-provided depth, fall back to recursion level.
+        let effective_depth = obj
+            .get("depth")
+            .and_then(Value::as_u64)
+            .map(|d| d as usize)
+            .unwrap_or(depth);
+
+        out.push(SubAgentRow {
+            id,
+            parent_id,
+            title,
+            status,
+            summary,
+            updated_at,
+            depth: effective_depth,
+        });
+
+        // Recurse into children.
+        if let Some(children) = obj.get("children").and_then(Value::as_array) {
+            flatten_sub_agents_recursive(children, depth + 1, out);
+        }
     }
 }
 
@@ -406,10 +494,167 @@ mod tests {
             connection_info: Some(json!({ "serverUrl": "http://localhost:4096" })),
             title: Some("Agent".to_string()),
             description: Some("hello".to_string()),
+            sub_agents: None,
             created_at: "unix:10".to_string(),
             updated_at: "unix:11".to_string(),
         });
 
         assert_eq!(row.directory, "/tmp/work");
+        assert_eq!(row.sub_agent_count(), 0);
+    }
+
+    #[test]
+    fn to_actor_row_counts_sub_agents() {
+        let row = to_actor_row(ActorRecord {
+            id: "act_2".to_string(),
+            variant_id: "var_1".to_string(),
+            provider: "opencode/server".to_string(),
+            provider_session_id: None,
+            status: "active".to_string(),
+            working_locator: "@local:///tmp/work".to_string(),
+            connection_info: None,
+            title: None,
+            description: None,
+            sub_agents: Some(vec![
+                json!({ "id": "sa_1", "title": "sub-1" }),
+                json!({ "id": "sa_2", "title": "sub-2" }),
+                json!({ "id": "sa_3", "title": "sub-3" }),
+            ]),
+            created_at: "unix:20".to_string(),
+            updated_at: "unix:21".to_string(),
+        });
+
+        assert_eq!(row.sub_agent_count(), 3);
+        assert_eq!(row.title, "Untitled actor");
+        assert_eq!(row.sub_agents[0].title, "sub-1");
+        assert_eq!(row.sub_agents[0].depth, 0);
+        assert_eq!(row.sub_agents[2].id, "sa_3");
+    }
+
+    #[test]
+    fn to_actor_row_handles_empty_sub_agents() {
+        let row = to_actor_row(ActorRecord {
+            id: "act_3".to_string(),
+            variant_id: "var_1".to_string(),
+            provider: "mock".to_string(),
+            provider_session_id: None,
+            status: "idle".to_string(),
+            working_locator: "@local:///tmp/work".to_string(),
+            connection_info: None,
+            title: None,
+            description: None,
+            sub_agents: Some(vec![]),
+            created_at: "unix:30".to_string(),
+            updated_at: "unix:31".to_string(),
+        });
+
+        assert_eq!(row.sub_agent_count(), 0);
+    }
+
+    #[test]
+    fn flatten_sub_agents_recurses_nested_children() {
+        let row = to_actor_row(ActorRecord {
+            id: "act_4".to_string(),
+            variant_id: "var_1".to_string(),
+            provider: "opencode/server".to_string(),
+            provider_session_id: None,
+            status: "active".to_string(),
+            working_locator: "@local:///tmp/work".to_string(),
+            connection_info: None,
+            title: None,
+            description: None,
+            sub_agents: Some(vec![json!({
+                "id": "sa_root",
+                "title": "Root Agent",
+                "status": "running",
+                "summary": "doing work",
+                "children": [
+                    {
+                        "id": "sa_child_1",
+                        "parentId": "sa_root",
+                        "title": "Child 1",
+                        "status": "idle",
+                        "children": [
+                            {
+                                "id": "sa_grandchild",
+                                "parentId": "sa_child_1",
+                                "title": "Grandchild",
+                                "status": "waiting"
+                            }
+                        ]
+                    },
+                    {
+                        "id": "sa_child_2",
+                        "parentId": "sa_root",
+                        "title": "Child 2",
+                        "status": "active"
+                    }
+                ]
+            })]),
+            created_at: "unix:40".to_string(),
+            updated_at: "unix:41".to_string(),
+        });
+
+        // Expect 4 flattened rows: root, child_1, grandchild, child_2.
+        assert_eq!(row.sub_agent_count(), 4);
+
+        assert_eq!(row.sub_agents[0].id, "sa_root");
+        assert_eq!(row.sub_agents[0].depth, 0);
+        assert_eq!(row.sub_agents[0].title, "Root Agent");
+        assert_eq!(row.sub_agents[0].summary, "doing work");
+
+        assert_eq!(row.sub_agents[1].id, "sa_child_1");
+        assert_eq!(row.sub_agents[1].depth, 1);
+        assert_eq!(row.sub_agents[1].parent_id.as_deref(), Some("sa_root"));
+
+        assert_eq!(row.sub_agents[2].id, "sa_grandchild");
+        assert_eq!(row.sub_agents[2].depth, 2);
+
+        assert_eq!(row.sub_agents[3].id, "sa_child_2");
+        assert_eq!(row.sub_agents[3].depth, 1);
+    }
+
+    #[test]
+    fn flatten_sub_agents_uses_wire_depth_when_provided() {
+        let row = to_actor_row(ActorRecord {
+            id: "act_5".to_string(),
+            variant_id: "var_1".to_string(),
+            provider: "opencode/server".to_string(),
+            provider_session_id: None,
+            status: "active".to_string(),
+            working_locator: "@local:///tmp/work".to_string(),
+            connection_info: None,
+            title: None,
+            description: None,
+            sub_agents: Some(vec![
+                json!({ "id": "sa_a", "title": "Agent A", "depth": 3 }),
+                json!({ "id": "sa_b", "depth": 0 }),
+            ]),
+            created_at: "unix:50".to_string(),
+            updated_at: "unix:51".to_string(),
+        });
+
+        assert_eq!(row.sub_agents[0].depth, 3);
+        assert_eq!(row.sub_agents[1].depth, 0);
+        // Title fallback to id when missing.
+        assert_eq!(row.sub_agents[1].title, "sa_b");
+    }
+
+    #[test]
+    fn flatten_sub_agents_handles_none() {
+        let agents = flatten_sub_agents(&None);
+        assert!(agents.is_empty());
+    }
+
+    #[test]
+    fn flatten_sub_agents_skips_non_objects() {
+        let agents = flatten_sub_agents(&Some(vec![
+            json!("not an object"),
+            json!(42),
+            json!({ "id": "valid" }),
+        ]));
+
+        assert_eq!(agents.len(), 1);
+        assert_eq!(agents[0].id, "valid");
     }
 }

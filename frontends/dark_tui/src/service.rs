@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::{Context, Result, anyhow};
 use dark_chat::providers::{ChatProvider, OpenCodeProvider};
 use dark_rust::{
-    DarkCoreClient, DarkCoreWsClient, LocatorId, LocatorKind, RawApiResponse,
+    DarkCoreClient, LocatorId, LocatorKind, RawApiResponse,
 };
 use serde_json::{Value, json};
 
@@ -22,7 +22,6 @@ const PAGE_LIMIT: u32 = 100;
 #[derive(Debug, Clone)]
 pub struct DashboardService {
     api: DarkCoreClient,
-    ws_api: Option<DarkCoreWsClient>,
     directory: String,
     poll_variants: bool,
 }
@@ -44,36 +43,19 @@ pub struct CloneVariantOptions {
 
 impl DashboardService {
     pub async fn new(base_url: String, directory: String, poll_variants: bool) -> Self {
-        let ws_api = DarkCoreWsClient::connect(base_url.clone()).await.ok();
-
         Self {
             api: DarkCoreClient::new(base_url),
-            ws_api,
             directory,
             poll_variants,
         }
     }
 
     pub fn uses_realtime_transport(&self) -> bool {
-        self.ws_api.is_some()
+        false
     }
 
     pub fn directory(&self) -> &str {
         &self.directory
-    }
-
-    pub async fn consume_route_mutation_events(&self) -> usize {
-        let Some(ws_api) = &self.ws_api else {
-            return 0;
-        };
-
-        match ws_api.drain_events().await {
-            Ok(events) => events
-                .into_iter()
-                .filter(|event| event.event == "routes.mutated")
-                .count(),
-            Err(_) => 0,
-        }
     }
 
     pub async fn fetch_snapshot(&self) -> Result<DashboardSnapshot> {
@@ -107,7 +89,12 @@ impl DashboardService {
         let (actors, runtime_status) = match actors_result {
             Ok(records) => {
                 let mut rows = records.into_iter().map(to_actor_row).collect::<Vec<_>>();
-                rows.sort_by(|left, right| right.updated_at.cmp(&left.updated_at));
+                rows.sort_by(|left, right| {
+                    left.title
+                        .to_ascii_lowercase()
+                        .cmp(&right.title.to_ascii_lowercase())
+                        .then_with(|| left.id.cmp(&right.id))
+                });
 
                 let status = format!("actors online ({})", rows.len());
                 (rows, status)
@@ -184,6 +171,87 @@ impl DashboardService {
 
         Ok(format!(
             "Imported actors for {variant_id}: provider={provider_label}, discovered={discovered}, created={created}, updated={updated}"
+        ))
+    }
+
+    pub async fn poll_actor(&self, actor_id: &str) -> Result<String> {
+        let response = self
+            .request("POST", &format!("/actors/{actor_id}/poll"), None, None)
+            .await?;
+        let _ = ensure_success(response)?;
+
+        Ok(format!("Actor polled: {actor_id}"))
+    }
+
+    pub async fn move_actor(
+        &self,
+        actor_id: &str,
+        source_variant_id: &str,
+        target_variant_id: &str,
+        target_variant_name: &str,
+    ) -> Result<String> {
+        if source_variant_id == target_variant_id {
+            return Err(anyhow!(
+                "Dark TUI // Actors // Move skipped: actor already on variant {target_variant_id}"
+            ));
+        }
+
+        let actor = self.fetch_actor_row(actor_id).await.with_context(|| {
+            format!(
+                "Dark TUI // Actors // Unable to read source actor before move (actorId={actor_id})"
+            )
+        })?;
+
+        let create_response = self
+            .request(
+                "POST",
+                "/actors/",
+                None,
+                Some(json!({
+                    "variantId": target_variant_id,
+                    "provider": actor.provider,
+                    "title": normalize_actor_optional_text(&actor.title),
+                    "description": normalize_actor_optional_text(&actor.description),
+                })),
+            )
+            .await?;
+        let create_body = ensure_success(create_response)?;
+        let replacement_actor_id = create_body
+            .get("data")
+            .and_then(|value| value.get("id"))
+            .and_then(Value::as_str)
+            .context("Dark TUI // Actors // Missing replacement actor id during move")?
+            .to_string();
+
+        let terminate_query = [("terminate".to_string(), "true".to_string())];
+        let delete_terminated = self
+            .request(
+                "DELETE",
+                &format!("/actors/{actor_id}"),
+                Some(&terminate_query),
+                None,
+            )
+            .await;
+
+        match delete_terminated {
+            Ok(response) => {
+                if ensure_success(response).is_err() {
+                    let fallback = self
+                        .request("DELETE", &format!("/actors/{actor_id}"), None, None)
+                        .await?;
+                    let _ = ensure_success(fallback)?;
+                }
+            }
+            Err(_) => {
+                let fallback = self
+                    .request("DELETE", &format!("/actors/{actor_id}"), None, None)
+                    .await?;
+                let _ = ensure_success(fallback)?;
+            }
+        }
+
+        Ok(format!(
+            "Moved actor {actor_id}: {source_variant_id} -> {target_variant_name} ({target_variant_id}) as {replacement_actor_id}"
         ))
     }
 
@@ -342,25 +410,17 @@ impl DashboardService {
 
     pub async fn create_session(
         &self,
+        variant_id: &str,
         provider: &str,
         initial_prompt: Option<&str>,
     ) -> Result<String> {
-        let variants = self.fetch_all_variants().await?;
-        let default_variant = variants
-            .into_iter()
-            .find(|variant| {
-                variant.locator.ends_with(&self.directory)
-                    || variant.name.as_deref() == Some("default")
-            })
-            .context("Dark TUI // Actors // No variant available to spawn actor")?;
-
         let response = self
             .request(
                 "POST",
                 "/actors/",
                 None,
                 Some(json!({
-                    "variantId": default_variant.id,
+                    "variantId": variant_id,
                     "provider": provider,
                     "title": format!("Dark TUI // {}", directory_name(&self.directory)),
                     "description": "Spawned from dark_tui",
@@ -493,12 +553,6 @@ impl DashboardService {
         query: Option<&[(String, String)]>,
         body: Option<Value>,
     ) -> Result<RawApiResponse> {
-        if let Some(ws_api) = &self.ws_api {
-            if let Ok(response) = ws_api.request_raw(method, path, query, body.clone()).await {
-                return Ok(response);
-            }
-        }
-
         self.api
             .request_raw(method, path, query, body)
             .await
@@ -621,4 +675,13 @@ impl DashboardService {
             .map(to_actor_row)
             .with_context(|| format!("Dark TUI // Actors // Actor not found: {actor_id}"))
     }
+}
+
+fn normalize_actor_optional_text(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || trimmed == "-" {
+        return None;
+    }
+
+    Some(trimmed.to_string())
 }

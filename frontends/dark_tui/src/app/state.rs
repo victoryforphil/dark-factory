@@ -43,6 +43,7 @@ pub enum VizSelection {
 
 #[derive(Debug, Clone)]
 pub struct SpawnRequest {
+    pub variant_id: String,
     pub provider: String,
     pub initial_prompt: Option<String>,
 }
@@ -63,7 +64,16 @@ pub struct DeleteVariantRequest {
 }
 
 #[derive(Debug, Clone)]
+pub struct MoveActorRequest {
+    pub actor_id: String,
+    pub source_variant_id: String,
+    pub target_variant_id: String,
+    pub target_variant_name: String,
+}
+
+#[derive(Debug, Clone)]
 struct SpawnFormState {
+    variant_id: String,
     providers: Vec<String>,
     selected_provider: usize,
     initial_prompt: String,
@@ -83,6 +93,23 @@ struct CloneFormState {
 struct DeleteVariantFormState {
     variant_id: String,
     remove_clone_directory: bool,
+}
+
+#[derive(Debug, Clone)]
+struct MoveActorOption {
+    variant_id: String,
+    variant_name: String,
+    product_name: String,
+}
+
+#[derive(Debug, Clone)]
+struct MoveActorFormState {
+    actor_id: String,
+    actor_title: String,
+    source_variant_id: String,
+    source_variant_name: String,
+    options: Vec<MoveActorOption>,
+    selected_option: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -184,6 +211,7 @@ pub struct App {
     spawn_form: Option<SpawnFormState>,
     clone_form: Option<CloneFormState>,
     delete_variant_form: Option<DeleteVariantFormState>,
+    move_actor_form: Option<MoveActorFormState>,
     chat_visible: bool,
     chat_actor_id: Option<String>,
     chat_messages: Vec<ActorChatMessageRow>,
@@ -246,6 +274,7 @@ impl App {
             spawn_form: None,
             clone_form: None,
             delete_variant_form: None,
+            move_actor_form: None,
             chat_visible: false,
             chat_actor_id: None,
             chat_messages: Vec::new(),
@@ -385,6 +414,10 @@ impl App {
         self.delete_variant_form.is_some()
     }
 
+    pub fn is_move_actor_form_open(&self) -> bool {
+        self.move_actor_form.is_some()
+    }
+
     pub fn spawn_form_providers(&self) -> Option<&[String]> {
         self.spawn_form
             .as_ref()
@@ -401,7 +434,12 @@ impl App {
             .map(|form| form.initial_prompt.as_str())
     }
 
-    pub fn open_spawn_form(&mut self, mut providers: Vec<String>, default_provider: Option<&str>) {
+    pub fn open_spawn_form(
+        &mut self,
+        variant_id: &str,
+        mut providers: Vec<String>,
+        default_provider: Option<&str>,
+    ) {
         providers.retain(|provider| !provider.trim().is_empty());
         providers.sort();
         providers.dedup();
@@ -415,6 +453,7 @@ impl App {
             .unwrap_or(0);
 
         self.spawn_form = Some(SpawnFormState {
+            variant_id: variant_id.to_string(),
             providers,
             selected_provider,
             initial_prompt: String::new(),
@@ -477,6 +516,158 @@ impl App {
         Some(DeleteVariantRequest {
             variant_id: form.variant_id,
             dry: !form.remove_clone_directory,
+        })
+    }
+
+    pub fn move_actor_form_actor_title(&self) -> Option<&str> {
+        self.move_actor_form
+            .as_ref()
+            .map(|form| form.actor_title.as_str())
+    }
+
+    pub fn move_actor_form_source_variant_id(&self) -> Option<&str> {
+        self.move_actor_form
+            .as_ref()
+            .map(|form| form.source_variant_id.as_str())
+    }
+
+    pub fn move_actor_form_source_variant_name(&self) -> Option<&str> {
+        self.move_actor_form
+            .as_ref()
+            .map(|form| form.source_variant_name.as_str())
+    }
+
+    pub fn move_actor_form_options(&self) -> Option<Vec<(&str, &str, &str)>> {
+        self.move_actor_form.as_ref().map(|form| {
+            form.options
+                .iter()
+                .map(|option| {
+                    (
+                        option.variant_id.as_str(),
+                        option.variant_name.as_str(),
+                        option.product_name.as_str(),
+                    )
+                })
+                .collect()
+        })
+    }
+
+    pub fn move_actor_form_selected_option_index(&self) -> Option<usize> {
+        self.move_actor_form
+            .as_ref()
+            .map(|form| form.selected_option)
+    }
+
+    pub fn open_move_actor_form(&mut self) -> bool {
+        let Some(actor) = self.selected_actor().cloned() else {
+            return false;
+        };
+
+        let source_variant = self
+            .variants
+            .iter()
+            .find(|variant| variant.id == actor.variant_id)
+            .cloned();
+
+        let source_product_id = source_variant
+            .as_ref()
+            .map(|variant| variant.product_id.clone());
+        let source_variant_name = source_variant
+            .as_ref()
+            .map(|variant| variant.name.clone())
+            .unwrap_or_else(|| "unknown".to_string());
+
+        let mut options: Vec<MoveActorOption> = self
+            .variants
+            .iter()
+            .filter(|variant| variant.id != actor.variant_id)
+            .filter(|variant| {
+                source_product_id
+                    .as_ref()
+                    .map_or(true, |product_id| variant.product_id == *product_id)
+            })
+            .map(|variant| MoveActorOption {
+                variant_id: variant.id.clone(),
+                variant_name: variant.name.clone(),
+                product_name: self
+                    .products
+                    .iter()
+                    .find(|product| product.id == variant.product_id)
+                    .map(|product| product.display_name.clone())
+                    .unwrap_or_else(|| variant.product_id.clone()),
+            })
+            .collect();
+
+        if options.is_empty() {
+            options = self
+                .variants
+                .iter()
+                .filter(|variant| variant.id != actor.variant_id)
+                .map(|variant| MoveActorOption {
+                    variant_id: variant.id.clone(),
+                    variant_name: variant.name.clone(),
+                    product_name: self
+                        .products
+                        .iter()
+                        .find(|product| product.id == variant.product_id)
+                        .map(|product| product.display_name.clone())
+                        .unwrap_or_else(|| variant.product_id.clone()),
+                })
+                .collect();
+        }
+
+        if options.is_empty() {
+            return false;
+        }
+
+        options.sort_by(|left, right| {
+            left.product_name
+                .cmp(&right.product_name)
+                .then_with(|| left.variant_name.cmp(&right.variant_name))
+                .then_with(|| left.variant_id.cmp(&right.variant_id))
+        });
+
+        self.move_actor_form = Some(MoveActorFormState {
+            actor_id: actor.id,
+            actor_title: actor.title,
+            source_variant_id: actor.variant_id,
+            source_variant_name,
+            options,
+            selected_option: 0,
+        });
+
+        true
+    }
+
+    pub fn close_move_actor_form(&mut self) {
+        self.move_actor_form = None;
+    }
+
+    pub fn move_actor_form_move_up(&mut self) {
+        let Some(form) = self.move_actor_form.as_mut() else {
+            return;
+        };
+
+        form.selected_option = previous_index(form.selected_option, form.options.len());
+    }
+
+    pub fn move_actor_form_move_down(&mut self) {
+        let Some(form) = self.move_actor_form.as_mut() else {
+            return;
+        };
+
+        form.selected_option = next_index(form.selected_option, form.options.len());
+    }
+
+    pub fn take_move_actor_request(&mut self) -> Option<MoveActorRequest> {
+        let form = self.move_actor_form.take()?;
+        let destination = form.options.get(form.selected_option)?;
+
+        Some(MoveActorRequest {
+            actor_id: form.actor_id,
+            source_variant_id: form.source_variant_id,
+            target_variant_id: destination.variant_id.clone(),
+            target_variant_name: destination.variant_name.clone(),
         })
     }
 
@@ -622,6 +813,7 @@ impl App {
         };
 
         Some(SpawnRequest {
+            variant_id: form.variant_id,
             provider,
             initial_prompt,
         })
@@ -1134,6 +1326,7 @@ impl App {
     }
 
     pub fn apply_snapshot(&mut self, snapshot: DashboardSnapshot) {
+        let previous_viz_selection = self.viz_selection.clone();
         let previous_product_id = self
             .products
             .get(self.selected_product)
@@ -1163,6 +1356,7 @@ impl App {
         self.ensure_variant_selection(previous_variant_id.as_deref());
 
         self.sync_catalog_selection(
+            previous_viz_selection.as_ref(),
             previous_product_id.as_deref(),
             previous_variant_id.as_deref(),
             previous_actor_id.as_deref(),
@@ -1506,6 +1700,7 @@ impl App {
             "  space or v    Toggle table/viz mode".to_string(),
             "  p             Poll selected variant".to_string(),
             "  m             Import active actors".to_string(),
+            "  g             Move actor".to_string(),
             "  i             Init product from directory".to_string(),
             "  n             Spawn actor".to_string(),
             "  a             Build attach command".to_string(),
@@ -1686,6 +1881,7 @@ impl App {
 
     fn sync_catalog_selection(
         &mut self,
+        previous_viz_selection: Option<&VizSelection>,
         previous_product_id: Option<&str>,
         previous_variant_id: Option<&str>,
         previous_actor_id: Option<&str>,
@@ -1693,6 +1889,62 @@ impl App {
         if self.products.is_empty() {
             self.viz_selection = None;
             return;
+        }
+
+        if let Some(selection) = previous_viz_selection {
+            match selection {
+                VizSelection::Product { .. } => {
+                    if let Some(product_id) = previous_product_id {
+                        if let Some(product_index) =
+                            self.products.iter().position(|row| row.id == product_id)
+                        {
+                            self.set_viz_selection(VizSelection::Product { product_index });
+                            return;
+                        }
+                    }
+                }
+                VizSelection::Variant { variant_id, .. } => {
+                    if let Some((product_index, variant_id)) = self
+                        .variants
+                        .iter()
+                        .find(|variant| variant.id == *variant_id)
+                        .and_then(|variant| {
+                            self.products
+                                .iter()
+                                .position(|product| product.id == variant.product_id)
+                                .map(|product_index| (product_index, variant.id.clone()))
+                        })
+                    {
+                        self.set_viz_selection(VizSelection::Variant {
+                            product_index,
+                            variant_id,
+                        });
+                        return;
+                    }
+                }
+                VizSelection::Actor { actor_id, .. } => {
+                    if let Some(actor) = self.actors.iter().find(|actor| actor.id == *actor_id) {
+                        if let Some((product_index, variant_id)) = self
+                            .variants
+                            .iter()
+                            .find(|variant| variant.id == actor.variant_id)
+                            .and_then(|variant| {
+                                self.products
+                                    .iter()
+                                    .position(|product| product.id == variant.product_id)
+                                    .map(|product_index| (product_index, variant.id.clone()))
+                            })
+                        {
+                            self.set_viz_selection(VizSelection::Actor {
+                                product_index,
+                                variant_id,
+                                actor_id: actor_id.clone(),
+                            });
+                            return;
+                        }
+                    }
+                }
+            }
         }
 
         if let Some(actor_id) = previous_actor_id {
@@ -1939,4 +2191,125 @@ fn collect_workspace_files(root: &str, limit: usize, max_depth: usize) -> Vec<St
     walk(root_path, root_path, 0, max_depth, limit, &mut output);
     output.sort();
     output
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn refresh_keeps_product_selection_after_actor_was_selected() {
+        let mut app = App::new(".".to_string(), 5, Theme::default());
+        app.apply_snapshot(snapshot());
+
+        app.select_actor_in_viz(0, "var_1", "act_1");
+        app.select_product_by_index(1);
+        app.apply_snapshot(snapshot());
+
+        assert!(matches!(
+            app.viz_selection(),
+            Some(VizSelection::Product { product_index: 1 })
+        ));
+    }
+
+    #[test]
+    fn refresh_keeps_variant_selection_after_actor_was_selected() {
+        let mut app = App::new(".".to_string(), 5, Theme::default());
+        app.apply_snapshot(snapshot());
+
+        app.select_actor_in_viz(0, "var_1", "act_1");
+        app.select_variant_in_product(1, "var_2");
+        app.apply_snapshot(snapshot());
+
+        assert!(matches!(
+            app.viz_selection(),
+            Some(VizSelection::Variant {
+                product_index: 1,
+                variant_id
+            }) if variant_id == "var_2"
+        ));
+    }
+
+    #[test]
+    fn spawn_request_uses_opened_variant_target() {
+        let mut app = App::new(".".to_string(), 5, Theme::default());
+        app.open_spawn_form("var_2", vec!["mock".to_string()], Some("mock"));
+        app.spawn_form_insert_char(' ');
+        app.spawn_form_insert_char('h');
+        app.spawn_form_insert_char('i');
+        app.spawn_form_insert_char(' ');
+
+        let request = app
+            .take_spawn_request()
+            .expect("spawn request should exist");
+        assert_eq!(request.variant_id, "var_2");
+        assert_eq!(request.provider, "mock");
+        assert_eq!(request.initial_prompt.as_deref(), Some("hi"));
+    }
+
+    fn snapshot() -> DashboardSnapshot {
+        DashboardSnapshot {
+            products: vec![product("prd_1"), product("prd_2")],
+            variants: vec![variant("var_1", "prd_1"), variant("var_2", "prd_2")],
+            actors: vec![actor("act_1", "var_1")],
+            runtime_status: "ok".to_string(),
+            last_updated: "unix:1".to_string(),
+        }
+    }
+
+    fn product(id: &str) -> ProductRow {
+        ProductRow {
+            id: id.to_string(),
+            display_name: id.to_string(),
+            locator: format!("@local:///{id}"),
+            workspace_locator: format!("@local:///{id}"),
+            product_type: "local".to_string(),
+            is_git_repo: false,
+            branch: "main".to_string(),
+            branches: "main".to_string(),
+            repo_name: id.to_string(),
+            updated_at: "unix:1".to_string(),
+            status: "ok".to_string(),
+            variant_total: 1,
+            variant_dirty: 0,
+            variant_drift: 0,
+        }
+    }
+
+    fn variant(id: &str, product_id: &str) -> VariantRow {
+        VariantRow {
+            id: id.to_string(),
+            product_id: product_id.to_string(),
+            locator: format!("@local:///tmp/{id}"),
+            name: "default".to_string(),
+            branch: "main".to_string(),
+            git_state: "clean".to_string(),
+            has_git: true,
+            is_dirty: false,
+            ahead: 0,
+            behind: 0,
+            worktree: "main".to_string(),
+            last_polled_at: "unix:1".to_string(),
+            updated_at: "unix:1".to_string(),
+        }
+    }
+
+    fn actor(id: &str, variant_id: &str) -> ActorRow {
+        ActorRow {
+            id: id.to_string(),
+            variant_id: variant_id.to_string(),
+            title: id.to_string(),
+            description: id.to_string(),
+            provider: "mock".to_string(),
+            provider_session_id: None,
+            status: "running".to_string(),
+            directory: format!("/tmp/{id}"),
+            connection_info: json!({}),
+            created_at: "unix:1".to_string(),
+            updated_at: "unix:1".to_string(),
+            sub_agents: vec![],
+        }
+    }
 }

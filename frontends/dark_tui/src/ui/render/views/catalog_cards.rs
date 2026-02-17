@@ -6,8 +6,11 @@ use ratatui::Frame;
 
 use dark_tui_components::{compact_text_normalized, StatusPill};
 
-use crate::models::{compact_id, compact_timestamp, ActorRow, ProductRow, VariantRow};
+use crate::models::{
+    compact_id, compact_locator, compact_timestamp, ActorRow, ProductRow, VariantRow,
+};
 use crate::theme::Theme;
+use crate::ui::render::components::sub_agent_badge;
 
 pub(crate) struct ProductGroup<'a> {
     pub(crate) product: &'a ProductRow,
@@ -121,6 +124,12 @@ pub(crate) fn render_variant_card(
 
     let pill_line = Line::from(pill_spans);
 
+    // Path line: compact locator for the variant
+    let path_line = Line::from(vec![Span::styled(
+        compact_locator(&variant.locator, 40),
+        Style::default().fg(theme.text_muted),
+    )]);
+
     let detail_line = Line::from(vec![
         Span::styled(
             format!("polled {}", compact_timestamp(&variant.last_polled_at)),
@@ -133,7 +142,7 @@ pub(crate) fn render_variant_card(
         ),
     ]);
 
-    let card = Paragraph::new(vec![pill_line, detail_line])
+    let card = Paragraph::new(vec![pill_line, path_line, detail_line])
         .block(
             Block::default()
                 .borders(Borders::ALL)
@@ -197,11 +206,14 @@ pub(crate) fn render_actor_card(
         _ => StatusPill::muted(&actor.status, theme),
     };
 
-    let badges_line = Line::from(vec![
-        provider_pill.span(),
-        Span::raw(" "),
-        status_pill.span(),
-    ]);
+    let badges_line = {
+        let mut spans = vec![provider_pill.span(), Span::raw(" "), status_pill.span()];
+        if let Some(badge) = sub_agent_badge(actor.sub_agent_count(), theme) {
+            spans.push(Span::raw(" "));
+            spans.push(badge);
+        }
+        Line::from(spans)
+    };
 
     let card = Paragraph::new(vec![title_line, description_line, badges_line])
         .block(

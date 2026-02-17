@@ -47,8 +47,17 @@ impl ChatPanel {
             "Select an actor node to open chat."
         };
 
-        let active_model = app.chat_active_model().unwrap_or("-");
-        let active_agent = app.chat_active_agent().unwrap_or("-");
+        let show_context_labels = should_show_context_labels(app);
+        let active_model = if show_context_labels {
+            app.chat_active_model().unwrap_or("-")
+        } else {
+            ""
+        };
+        let active_agent = if show_context_labels {
+            app.chat_active_agent().unwrap_or("-")
+        } else {
+            ""
+        };
 
         render_conversation_panel(
             frame,
@@ -312,6 +321,10 @@ fn autocomplete_popup_props(area: Rect, app: &App) -> Option<PopupOverlayProps> 
 }
 
 fn composer_label_areas(area: Rect, app: &App) -> Option<(Rect, Rect)> {
+    if !should_show_context_labels(app) {
+        return None;
+    }
+
     let inner = inner_rect(area);
     if inner.width < 10 || inner.height < 6 {
         return None;
@@ -352,6 +365,10 @@ fn composer_label_areas(area: Rect, app: &App) -> Option<(Rect, Rect)> {
     };
 
     Some((model_rect, agent_rect))
+}
+
+fn should_show_context_labels(app: &App) -> bool {
+    app.is_chat_composing() || app.chat_picker_open().is_some()
 }
 
 fn composer_body_area(area: Rect) -> Option<Rect> {

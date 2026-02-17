@@ -8,58 +8,60 @@ use crate::app::App;
 
 use dark_tui_components::PaneBlockComponent;
 
-pub(crate) struct DeleteVariantFormPanel;
+pub(crate) struct MoveActorFormPanel;
 
-impl DeleteVariantFormPanel {
+impl MoveActorFormPanel {
     pub(crate) fn render(frame: &mut Frame, area: Rect, app: &App) {
         let theme = app.theme();
-        let popup = centered_rect(area, 64, 36);
+        let popup = centered_rect(area, 62, 52);
 
         frame.render_widget(Clear, popup);
 
-        let block = PaneBlockComponent::build("Delete Variant", true, theme);
+        let block = PaneBlockComponent::build("Move Actor", true, theme);
         let inner = block.inner(popup);
         frame.render_widget(block, popup);
 
-        let variant_id = app.delete_variant_form_variant_id().unwrap_or("-");
-        let remove_clone_dir = app.delete_variant_form_remove_clone_directory();
-        let (mode_label, action_label) = if remove_clone_dir {
-            ("DESTRUCTIVE", "Delete row + remove clone directory")
-        } else {
-            ("SAFE", "Delete row only, keep clone directory")
-        };
+        let actor_title = app.move_actor_form_actor_title().unwrap_or("-");
+        let source_variant_id = app.move_actor_form_source_variant_id().unwrap_or("-");
+        let source_variant_name = app.move_actor_form_source_variant_name().unwrap_or("-");
+        let options = app.move_actor_form_options().unwrap_or_default();
+        let selected = app.move_actor_form_selected_option_index().unwrap_or(0);
 
-        let lines = vec![
+        let mut lines: Vec<Line<'static>> = vec![
             Line::from(Span::styled(
-                "Confirm delete for variant:",
-                Style::default().fg(theme.text_muted),
-            )),
-            Line::from(Span::styled(
-                format!("  {variant_id}"),
+                format!("Actor: {actor_title}"),
                 Style::default().fg(theme.text_primary),
             )),
-            Line::raw(""),
-            Line::from(vec![
-                Span::styled(
-                    format!("[{}] ", mode_label),
-                    Style::default().fg(if remove_clone_dir {
-                        theme.text_error
-                    } else {
-                        theme.pill_ok_fg
-                    }),
-                ),
-                Span::styled(action_label, Style::default().fg(theme.text_primary)),
-            ]),
-            Line::raw(""),
             Line::from(Span::styled(
-                "Space: toggle safe/destructive mode",
+                format!("From: {source_variant_name} ({source_variant_id})"),
                 Style::default().fg(theme.text_muted),
             )),
+            Line::raw(""),
             Line::from(Span::styled(
-                "Enter: confirm delete   Esc: cancel",
+                "Destination (j/k or arrows):",
                 Style::default().fg(theme.text_muted),
             )),
         ];
+
+        for (index, (variant_id, variant_name, product_name)) in options.iter().enumerate() {
+            let marker = if index == selected { ">" } else { " " };
+            let style = if index == selected {
+                Style::default().fg(theme.entity_actor)
+            } else {
+                Style::default().fg(theme.text_primary)
+            };
+
+            lines.push(Line::from(Span::styled(
+                format!("  {marker} {variant_name} ({variant_id}) [{product_name}]"),
+                style,
+            )));
+        }
+
+        lines.push(Line::raw(""));
+        lines.push(Line::from(Span::styled(
+            "Enter: move actor   Esc: cancel",
+            Style::default().fg(theme.text_muted),
+        )));
 
         frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: false }), inner);
     }

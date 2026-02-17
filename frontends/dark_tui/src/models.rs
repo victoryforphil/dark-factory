@@ -53,8 +53,34 @@ pub struct ActorRow {
     pub status: String,
     pub directory: String,
     pub connection_info: serde_json::Value,
+    pub sub_agents: Vec<SubAgentRow>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+impl ActorRow {
+    /// Returns the total number of flattened sub-agent entries.
+    pub fn sub_agent_count(&self) -> usize {
+        self.sub_agents.len()
+    }
+}
+
+/// A flattened sub-agent entry derived from recursive wire `subAgents` trees.
+///
+/// Depth tracks nesting level: 0 = top-level sub-agent, 1 = child of a
+/// sub-agent, etc. Non-interactive and read-only in the TUI.
+#[derive(Debug, Clone)]
+pub struct SubAgentRow {
+    #[allow(dead_code)]
+    pub id: String,
+    #[allow(dead_code)]
+    pub parent_id: Option<String>,
+    pub title: String,
+    pub status: String,
+    pub summary: String,
+    #[allow(dead_code)]
+    pub updated_at: String,
+    pub depth: usize,
 }
 
 #[derive(Debug, Clone)]

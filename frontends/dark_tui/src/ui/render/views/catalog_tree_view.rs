@@ -7,10 +7,20 @@ use ratatui::Frame;
 use crate::app::{App, VizSelection};
 use crate::models::compact_id;
 use crate::theme::EntityKind;
+use crate::ui::render::components::{sub_agent_badge, sub_agent_tree_line};
 
 use dark_tui_components::{compact_text_normalized, PaneBlockComponent, StatusPill};
 
 pub(crate) struct CatalogTreeView;
+
+/// A display row in the tree list — either a selectable node or a
+/// decorative (non-selectable) sub-agent line.
+enum TreeRow {
+    /// Maps to a `VizSelection` node at `node_index` in the selectable list.
+    Selectable { node_index: usize },
+    /// Decorative sub-agent entry — skipped by selection logic.
+    SubAgent,
+}
 
 impl CatalogTreeView {
     pub(crate) fn render(frame: &mut Frame, area: Rect, app: &App) {
@@ -21,10 +31,28 @@ impl CatalogTreeView {
             .map(Self::entity_kind)
             .unwrap_or(EntityKind::Product);
 
-        let items = nodes
-            .iter()
-            .map(|node| Self::item_for_node(app, node))
-            .collect::<Vec<_>>();
+        // Build display rows: selectable nodes interleaved with decorative
+        // sub-agent lines that sit beneath their parent actor row.
+        let mut items: Vec<ListItem<'static>> = Vec::new();
+        let mut row_map: Vec<TreeRow> = Vec::new();
+
+        for (ni, node) in nodes.iter().enumerate() {
+            items.push(Self::item_for_node(app, node));
+            row_map.push(TreeRow::Selectable { node_index: ni });
+
+            // After an actor node, append its sub-agent lines (if any).
+            if let VizSelection::Actor { actor_id, .. } = node {
+                if let Some(actor) = app.actors().iter().find(|a| a.id == *actor_id) {
+                    let sub_agents = &actor.sub_agents;
+                    for (si, agent) in sub_agents.iter().enumerate() {
+                        let is_last = si == sub_agents.len() - 1;
+                        let line = sub_agent_tree_line(agent, "       ", is_last, theme);
+                        items.push(ListItem::new(line));
+                        row_map.push(TreeRow::SubAgent);
+                    }
+                }
+            }
+        }
 
         let list = List::new(items)
             .block(PaneBlockComponent::build("Catalog Tree", true, theme))
@@ -36,13 +64,19 @@ impl CatalogTreeView {
                     .add_modifier(Modifier::BOLD),
             );
 
+        // Map the currently selected selectable node to its display-row index.
         let mut state = ListState::default();
         if !nodes.is_empty() {
-            let selected = app
+            let selected_node = app
                 .viz_selection()
                 .and_then(|current| nodes.iter().position(|node| node == current))
                 .unwrap_or(0);
-            state.select(Some(selected));
+            // Find the display-row index that corresponds to this selectable node.
+            let display_idx = row_map
+                .iter()
+                .position(|r| matches!(r, TreeRow::Selectable { node_index } if *node_index == selected_node))
+                .unwrap_or(0);
+            state.select(Some(display_idx));
         }
 
         frame.render_stateful_widget(list, area, &mut state);
@@ -159,7 +193,7 @@ impl CatalogTreeView {
                             format!(" -- {}", compact_text_normalized(&actor.description, 56))
                         };
 
-                    vec![
+                    let mut spans = vec![
                         Span::styled("    └─ ", Style::default().fg(theme.catalog_connector)),
                         Span::styled(
                             "● ",
@@ -171,7 +205,12 @@ impl CatalogTreeView {
                         StatusPill::info(&actor.provider, theme).span(),
                         Span::raw(" "),
                         status_pill.span(),
-                    ]
+                    ];
+                    if let Some(badge) = sub_agent_badge(actor.sub_agent_count(), theme) {
+                        spans.push(Span::raw(" "));
+                        spans.push(badge);
+                    }
+                    spans
                 } else {
                     vec![Span::styled(
                         "    └─ ● <missing actor>",

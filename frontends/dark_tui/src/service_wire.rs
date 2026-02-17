@@ -95,6 +95,8 @@ pub(crate) struct ActorRecord {
     pub(crate) title: Option<String>,
     #[serde(default)]
     pub(crate) description: Option<String>,
+    #[serde(default)]
+    pub(crate) sub_agents: Option<Vec<Value>>,
     pub(crate) created_at: String,
     pub(crate) updated_at: String,
 }

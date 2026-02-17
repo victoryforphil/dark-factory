@@ -1,17 +1,21 @@
 mod chat_panel;
 mod clone_form_panel;
+mod context_menu_panel;
 mod delete_variant_form_panel;
 mod details_panel;
 mod footer_panel;
 mod header_panel;
 mod key_bar_panel;
+mod move_actor_form_panel;
 mod spawn_form_panel;
 
 pub(crate) use chat_panel::{ChatPanel, ChatPanelHit};
 pub(crate) use clone_form_panel::CloneFormPanel;
+pub(crate) use context_menu_panel::{ContextMenuHit, ContextMenuPanel};
 pub(crate) use delete_variant_form_panel::DeleteVariantFormPanel;
 pub(crate) use details_panel::DetailsPanel;
 pub(crate) use footer_panel::FooterPanel;
 pub(crate) use header_panel::HeaderPanel;
-pub(crate) use key_bar_panel::KeyBarPanel;
+pub(crate) use key_bar_panel::{KeyBarPanel, KeyHintAction};
+pub(crate) use move_actor_form_panel::MoveActorFormPanel;
 pub(crate) use spawn_form_panel::SpawnFormPanel;
