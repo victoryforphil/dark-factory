@@ -1,7 +1,7 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
 use crate::app::{App, ResultsViewMode};
 
@@ -20,6 +20,7 @@ const CORE_KEYS: &[KeyBind] = &[
 /// Action keys (always visible).
 const ACTION_KEYS: &[KeyBind] = &[
     KeyBind::new("p", "Poll"),
+    KeyBind::new("x", "Clone"),
     KeyBind::new("m", "Import"),
     KeyBind::new("i", "Init"),
     KeyBind::new("n", "Spawn"),

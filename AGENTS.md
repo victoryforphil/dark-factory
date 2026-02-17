@@ -11,6 +11,7 @@ It reflects only what is currently true in this repository.
   - Product identifiers can canonicalize to git locators (`@git://{remote}#{branch}`) when local product creation detects a valid git remote+branch; default variants still keep local working locators.
   - Variant locator values are not globally unique; multiple variants can share a locator and are differentiated by `(productId, name)`.
   - Product IDs are deterministic `prd_{token}` values derived from normalized locator text (SHA-256 first 64 bits encoded as fixed-width base36); repeated creates for the same canonical locator are idempotent.
+  - `Product.workspaceLocator` stores optional local (`@local://...`) workspace home for clone destination defaults.
   - `Product.gitInfo` and `Variant.gitInfo` are optional JSON snapshots populated from local git metadata when available.
   - Variant git polling timestamps are tracked via `gitInfoUpdatedAt` and `gitInfoLastPolledAt`.
   - Actors attach to variants (`Variant 1 -> N Actors`) and store provider/runtime snapshots (`actorLocator`, `workingLocator`, `providerSessionId`, `attachCommand`, `connectionInfo`).
@@ -117,6 +118,7 @@ It reflects only what is currently true in this repository.
 ## 8) Dark Core API Coverage
 
 - Current REST coverage includes CRUD handlers for `/products`, `/variants`, and `/actors`, plus:
+  - product-scoped variant routes: `GET /products/:id/variants`, `POST /products/:id/variants`, and `POST /products/:id/variants/clone`.
   - `POST /variants/:id/poll` for on-demand variant git metadata refresh.
   - `POST /variants/:id/actors/import` for opt-in import of provider-managed active sessions into actor rows.
   - actor lifecycle/interaction endpoints: `POST /actors/:id/poll`, `GET /actors/:id/attach`, `POST /actors/:id/messages`, `GET /actors/:id/messages`, `POST /actors/:id/commands`.

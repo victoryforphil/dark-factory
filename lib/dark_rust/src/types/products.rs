@@ -22,6 +22,8 @@ pub struct ProductCreateInput {
     pub locator: String,
     #[serde(rename = "displayName", skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
+    #[serde(rename = "workspaceLocator", skip_serializing_if = "Option::is_none")]
+    pub workspace_locator: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -30,6 +32,8 @@ pub struct ProductUpdateInput {
     pub locator: Option<String>,
     #[serde(rename = "displayName", skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
+    #[serde(rename = "workspaceLocator", skip_serializing_if = "Option::is_none")]
+    pub workspace_locator: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]

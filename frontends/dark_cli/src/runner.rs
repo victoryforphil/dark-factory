@@ -6,7 +6,8 @@ use anyhow::{Context, Result};
 use dark_rust::types::{
     ActorAttachQuery, ActorCommandInput, ActorCreateInput, ActorDeleteQuery, ActorListQuery,
     ActorMessageInput, ActorMessagesQuery, ActorUpdateInput, ProductCreateInput,
-    ProductIncludeQuery, ProductListQuery, ProductUpdateInput, VariantCreateInput,
+    ProductIncludeQuery, ProductListQuery, ProductUpdateInput, ProductVariantCloneInput,
+    VariantCreateInput,
     VariantImportActorsInput, VariantListQuery, VariantProductConnectInput,
     VariantProductRelationInput, VariantUpdateInput,
 };
@@ -49,6 +50,7 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
             api.products_create(&ProductCreateInput {
                 locator,
                 display_name: Some(directory_name),
+                workspace_locator: None,
             })
             .await
             .map_err(Into::into)
@@ -85,12 +87,17 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
             ProductsAction::Create {
                 locator,
                 display_name,
+                workspace_locator,
             } => {
                 let locator = normalize_locator_input(locator)?;
 
                 api.products_create(&ProductCreateInput {
                     locator,
                     display_name: display_name.clone(),
+                    workspace_locator: workspace_locator
+                        .as_deref()
+                        .map(normalize_locator_input)
+                        .transpose()?,
                 })
                 .await
                 .map_err(Into::into)
@@ -103,6 +110,7 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
                 id,
                 locator,
                 display_name,
+                workspace_locator,
             } => api
                 .products_update(
                     id,
@@ -112,11 +120,35 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
                             .map(normalize_locator_input)
                             .transpose()?,
                         display_name: display_name.clone(),
+                        workspace_locator: workspace_locator
+                            .as_deref()
+                            .map(normalize_locator_input)
+                            .transpose()?,
                     },
                 )
                 .await
                 .map_err(Into::into),
             ProductsAction::Delete { id } => api.products_delete(id).await.map_err(Into::into),
+            ProductsAction::Clone {
+                product_id,
+                name,
+                target_path,
+                branch_name,
+                clone_type,
+                source_variant_id,
+            } => api
+                .product_variants_clone(
+                    product_id,
+                    &ProductVariantCloneInput {
+                        name: name.clone(),
+                        target_path: target_path.clone(),
+                        branch_name: branch_name.clone(),
+                        clone_type: clone_type.clone(),
+                        source_variant_id: source_variant_id.clone(),
+                    },
+                )
+                .await
+                .map_err(Into::into),
         },
         Command::Variants(command) => match &command.action {
             VariantsAction::List {

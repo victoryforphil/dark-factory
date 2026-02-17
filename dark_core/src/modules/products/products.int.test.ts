@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { buildApp } from '../../app';
@@ -300,6 +300,71 @@ describe('products module integration', () => {
       expect(created.locator).toBe('@git://https://github.com/acme/demo.git#git-test-main');
       expect(variants.length).toBe(1);
       expect(variants[0]?.locator).toBe(localLocator);
+      expect(
+        created.workspaceLocator === `@local://${dirname(workspace)}` ||
+          created.workspaceLocator === `@local:///private${dirname(workspace)}`,
+      ).toBe(true);
+    } finally {
+      await rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('derives workspace locator from local product parent directory', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'dark-factory-products-workspace-'));
+    const productPath = join(workspace, 'template-product');
+
+    try {
+      await mkdir(productPath, { recursive: true });
+      await Bun.write(join(productPath, 'README.md'), '# template');
+
+      const created = await createProduct({ locator: `@local://${productPath}` });
+      expect(created.workspaceLocator).toBe(`@local://${workspace}`);
+    } finally {
+      await rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('clones local product variant through product route with generated target path', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'dark-factory-products-clone-'));
+    const sourcePath = join(workspace, 'source-product');
+
+    try {
+      await mkdir(sourcePath, { recursive: true });
+      await Bun.write(join(sourcePath, 'README.md'), '# source');
+      const product = await createProduct({ locator: `@local://${sourcePath}` });
+      const app = buildApp();
+
+      const cloneResponse = await app.handle(
+        new Request(`http://localhost/products/${product.id}/variants/clone`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: 'clone-a',
+          }),
+        }),
+      );
+
+      expect(cloneResponse.status).toBe(201);
+      const cloned = (await cloneResponse.json()) as {
+        ok: true;
+        data: {
+          variant: { id: string; locator: string; name: string };
+          clone: {
+            targetPath: string;
+            generatedTargetPath: boolean;
+            cloneType: string;
+          };
+        };
+      };
+
+      expect(cloned.data.variant.name).toBe('clone-a');
+      expect(cloned.data.clone.cloneType).toBe('local.copy');
+      expect(cloned.data.clone.generatedTargetPath).toBe(true);
+
+      const copiedReadme = await readFile(join(cloned.data.clone.targetPath, 'README.md'), 'utf8');
+      expect(copiedReadme).toContain('# source');
     } finally {
       await rm(workspace, { recursive: true, force: true });
     }

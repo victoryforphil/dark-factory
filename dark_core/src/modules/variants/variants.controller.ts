@@ -45,6 +45,14 @@ const normalizeLimit = (value?: number): number => {
   return Math.max(1, Math.min(MAX_LIST_LIMIT, Math.floor(value)));
 };
 
+const toPrismaJson = (value: Variant['gitInfo']): Prisma.InputJsonValue | Prisma.DbNull => {
+  if (value === null || value === undefined) {
+    return Prisma.DbNull;
+  }
+
+  return value as Prisma.InputJsonValue;
+};
+
 export const listVariants = async (query: ListVariantsQuery = {}): Promise<Variant[]> => {
   const prisma = getPrismaClient();
   const limit = normalizeLimit(query.limit);
@@ -157,7 +165,7 @@ export const syncVariantGitInfo = async (id: string): Promise<Variant> => {
   const updatedVariant = await prisma.variant.update({
     where: { id },
     data: {
-      gitInfo: gitInfo ?? Prisma.DbNull,
+      gitInfo: toPrismaJson(gitInfo),
       gitInfoLastPolledAt: now,
       gitInfoUpdatedAt: gitInfo ? now : null,
     },

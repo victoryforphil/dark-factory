@@ -19,7 +19,7 @@ import {
 } from './variants.controller';
 import { isNotFoundError } from '../common/controller.errors';
 import { failure, success, toErrorMessage } from '../../utils/api-response';
-import Log, { formatLogMetadata } from '../../utils/logging';
+import Log, { formatLogMetadata, logRouteStart, logRouteSuccess } from '../../utils/logging';
 
 export interface VariantsRoutesDependencies {
   createVariant: typeof createVariant;
@@ -124,6 +124,14 @@ export const createVariantsRoutes = (
     .get(
       '/',
       async ({ query, set }) => {
+        const startedAt = logRouteStart('Variants // List', {
+          cursor: query.cursor ?? null,
+          limit: query.limit ?? null,
+          locator: query.locator ?? null,
+          name: query.name ?? null,
+          poll: query.poll ?? null,
+          productId: query.productId ?? null,
+        });
         try {
           const poll = parsePollQuery(query.poll);
           const variants = await dependencies.listVariants({
@@ -135,6 +143,9 @@ export const createVariantsRoutes = (
             poll,
           });
 
+          logRouteSuccess('Variants // List', startedAt, {
+            count: variants.length,
+          });
           return success(variants);
         } catch (error) {
           Log.error(
@@ -162,9 +173,17 @@ export const createVariantsRoutes = (
     .post(
       '/',
       async ({ body, set }) => {
+        const startedAt = logRouteStart('Variants // Create', {
+          locator: body.locator,
+          name: body.name ?? null,
+          productId: body.product?.connect?.id ?? null,
+        });
         try {
           const createdVariant = await dependencies.createVariant(body);
           set.status = 201;
+          logRouteSuccess('Variants // Create', startedAt, {
+            variantId: createdVariant.id,
+          });
           return success(createdVariant);
         } catch (error) {
           Log.error(
@@ -185,9 +204,16 @@ export const createVariantsRoutes = (
     .get(
       '/:id',
       async ({ params, query, set }) => {
+        const startedAt = logRouteStart('Variants // Get', {
+          id: params.id,
+          poll: query.poll ?? null,
+        });
         try {
           const variant = await dependencies.getVariantById(params.id, {
             poll: parsePollQuery(query.poll),
+          });
+          logRouteSuccess('Variants // Get', startedAt, {
+            id: params.id,
           });
           return success(variant);
         } catch (error) {
@@ -224,11 +250,18 @@ export const createVariantsRoutes = (
     .post(
       '/:id/poll',
       async ({ params, query, set }) => {
+        const startedAt = logRouteStart('Variants // Poll', {
+          id: params.id,
+          poll: query.poll ?? null,
+        });
         try {
           const poll = parsePollQuery(query.poll);
           const variant = poll
             ? await dependencies.syncVariantGitInfo(params.id)
             : await dependencies.getVariantById(params.id, { poll: false });
+          logRouteSuccess('Variants // Poll', startedAt, {
+            id: params.id,
+          });
           return success(variant);
         } catch (error) {
           if (isNotFoundError(error)) {

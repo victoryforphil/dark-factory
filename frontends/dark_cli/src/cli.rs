@@ -88,6 +88,8 @@ pub enum ProductsAction {
         locator: String,
         #[arg(long)]
         display_name: Option<String>,
+        #[arg(long)]
+        workspace_locator: Option<String>,
     },
     Get {
         #[arg(long)]
@@ -102,10 +104,26 @@ pub enum ProductsAction {
         locator: Option<String>,
         #[arg(long)]
         display_name: Option<String>,
+        #[arg(long)]
+        workspace_locator: Option<String>,
     },
     Delete {
         #[arg(long)]
         id: String,
+    },
+    Clone {
+        #[arg(long)]
+        product_id: String,
+        #[arg(long)]
+        name: Option<String>,
+        #[arg(long)]
+        target_path: Option<String>,
+        #[arg(long)]
+        branch_name: Option<String>,
+        #[arg(long)]
+        clone_type: Option<String>,
+        #[arg(long)]
+        source_variant_id: Option<String>,
     },
 }
 

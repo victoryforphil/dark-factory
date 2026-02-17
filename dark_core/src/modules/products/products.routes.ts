@@ -7,20 +7,34 @@ import {
 } from '../../../../generated/prismabox/Product';
 
 import {
+  VariantPlain,
+} from '../../../../generated/prismabox/Variant';
+import {
   createProduct,
   deleteProductById,
   getProductById,
   listProducts,
   updateProductById,
 } from './products.controller';
+import { createVariant, listVariants } from '../variants/variants.controller';
+import { cloneVariantForProduct } from '../variant_clones/variant_clones.controller';
 import { isIdCollisionDetectedError, isNotFoundError } from '../common/controller.errors';
 import { failure, success, toErrorMessage } from '../../utils/api-response';
-import Log, { formatLogMetadata } from '../../utils/logging';
+import Log, {
+  formatLogMetadata,
+  logInfoDuration,
+  logRouteStart,
+  logRouteSuccess,
+  startLogTimer,
+} from '../../utils/logging';
 
 export interface ProductsRoutesDependencies {
+  cloneVariantForProduct: typeof cloneVariantForProduct;
   createProduct: typeof createProduct;
+  createVariant: typeof createVariant;
   deleteProductById: typeof deleteProductById;
   getProductById: typeof getProductById;
+  listVariants: typeof listVariants;
   listProducts: typeof listProducts;
   updateProductById: typeof updateProductById;
 }
@@ -48,6 +62,46 @@ const productUpdateResponse = t.Object({
 const productDeleteResponse = t.Object({
   ok: t.Literal(true),
   data: ProductPlain,
+});
+
+const productVariantsListResponse = t.Object({
+  ok: t.Literal(true),
+  data: t.Array(VariantPlain),
+});
+
+const productVariantCreateResponse = t.Object({
+  ok: t.Literal(true),
+  data: VariantPlain,
+});
+
+const productVariantCloneResponse = t.Object({
+  ok: t.Literal(true),
+  data: t.Object({
+    variant: VariantPlain,
+    clone: t.Object({
+      cloneType: t.String(),
+      sourceLocator: t.String(),
+      sourceLocatorKind: t.Union([t.Literal('local'), t.Literal('git')]),
+      targetPath: t.String(),
+      targetLocator: t.String(),
+      branchName: t.Nullable(t.String()),
+      generatedTargetPath: t.Boolean(),
+      generatedBranchName: t.Boolean(),
+    }),
+  }),
+});
+
+const productVariantCloneInput = t.Object({
+  name: t.Optional(t.String()),
+  targetPath: t.Optional(t.String()),
+  cloneType: t.Optional(t.String()),
+  branchName: t.Optional(t.String()),
+  sourceVariantId: t.Optional(t.String()),
+});
+
+const productVariantCreateInput = t.Object({
+  locator: t.String(),
+  name: t.Optional(t.String()),
 });
 
 const productIncludeQuerySchema = t.Optional(t.Union([t.Literal('minimal'), t.Literal('full')]));
@@ -78,9 +132,12 @@ const idCollisionResponse = t.Object({
 
 export const createProductsRoutes = (
   dependencies: ProductsRoutesDependencies = {
+    cloneVariantForProduct,
     createProduct,
+    createVariant,
     deleteProductById,
     getProductById,
+    listVariants,
     listProducts,
     updateProductById,
   },
@@ -89,6 +146,11 @@ export const createProductsRoutes = (
     .get(
       '/',
       async ({ query, set }) => {
+        const startedAt = logRouteStart('Products // List', {
+          cursor: query.cursor ?? null,
+          include: query.include ?? null,
+          limit: query.limit ?? null,
+        });
         try {
           const products = await dependencies.listProducts({
             cursor: query.cursor,
@@ -96,6 +158,9 @@ export const createProductsRoutes = (
             limit: query.limit ? Number(query.limit) : undefined,
           });
 
+          logRouteSuccess('Products // List', startedAt, {
+            count: products.length,
+          });
           return success(products);
         } catch (error) {
           Log.error(
@@ -120,9 +185,17 @@ export const createProductsRoutes = (
     .post(
       '/',
       async ({ body, set }) => {
+        const startedAt = logRouteStart('Products // Create', {
+          displayName: body.displayName ?? null,
+          locator: body.locator,
+        });
         try {
           const createdProduct = await dependencies.createProduct(body);
           set.status = 201;
+          logRouteSuccess('Products // Create', startedAt, {
+            id: createdProduct.id,
+            workspaceLocator: createdProduct.workspaceLocator,
+          });
           return success(createdProduct);
         } catch (error) {
           if (isIdCollisionDetectedError(error)) {
@@ -154,9 +227,14 @@ export const createProductsRoutes = (
     .get(
       '/:id',
       async ({ params, query, set }) => {
+        const startedAt = startLogTimer();
         try {
           const product = await dependencies.getProductById(params.id, {
             include: query.include,
+          });
+          logInfoDuration('Core // Products Route // Get succeeded', startedAt, {
+            id: params.id,
+            include: query.include ?? 'minimal',
           });
           return success(product);
         } catch (error) {
@@ -193,8 +271,12 @@ export const createProductsRoutes = (
     .patch(
       '/:id',
       async ({ params, body, set }) => {
+        const startedAt = startLogTimer();
         try {
           const updatedProduct = await dependencies.updateProductById(params.id, body);
+          logInfoDuration('Core // Products Route // Update succeeded', startedAt, {
+            id: params.id,
+          });
           return success(updatedProduct);
         } catch (error) {
           if (isNotFoundError(error)) {
@@ -228,8 +310,12 @@ export const createProductsRoutes = (
     .delete(
       '/:id',
       async ({ params, set }) => {
+        const startedAt = startLogTimer();
         try {
           const deletedProduct = await dependencies.deleteProductById(params.id);
+          logInfoDuration('Core // Products Route // Delete succeeded', startedAt, {
+            id: params.id,
+          });
           return success(deletedProduct);
         } catch (error) {
           if (isNotFoundError(error)) {
@@ -254,6 +340,174 @@ export const createProductsRoutes = (
         params: t.Object({ id: t.String() }),
         response: {
           200: productDeleteResponse,
+          404: notFoundResponse,
+          500: apiFailureResponse,
+        },
+      },
+    )
+    .get(
+      '/:id/variants',
+      async ({ params, query, set }) => {
+        const startedAt = startLogTimer();
+        try {
+          await dependencies.getProductById(params.id, { include: 'minimal' });
+
+          const variants = await dependencies.listVariants({
+            productId: params.id,
+            cursor: query.cursor,
+            limit: query.limit ? Number(query.limit) : undefined,
+            poll: query.poll !== 'false' && query.poll !== '0',
+          });
+
+          logInfoDuration('Core // Products Route // List variants succeeded', startedAt, {
+            count: variants.length,
+            id: params.id,
+            poll: query.poll ?? 'default',
+          });
+          return success(variants);
+        } catch (error) {
+          if (isNotFoundError(error)) {
+            set.status = 404;
+            return failure('PRODUCTS_NOT_FOUND', error.message);
+          }
+
+          set.status = 500;
+          Log.error(
+            `Core // Products Route // List variants failed ${formatLogMetadata({
+              error: toErrorMessage(error),
+              id: params.id,
+            })}`,
+          );
+          return failure('PRODUCT_VARIANTS_LIST_FAILED', toErrorMessage(error));
+        }
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        query: t.Object({
+          cursor: t.Optional(t.String()),
+          limit: t.Optional(t.String()),
+          poll: t.Optional(t.String()),
+        }),
+        response: {
+          200: productVariantsListResponse,
+          404: notFoundResponse,
+          500: apiFailureResponse,
+        },
+      },
+    )
+    .post(
+      '/:id/variants',
+      async ({ params, body, set }) => {
+        const startedAt = startLogTimer();
+        try {
+          await dependencies.getProductById(params.id, { include: 'minimal' });
+          const variant = await dependencies.createVariant({
+            product: {
+              connect: {
+                id: params.id,
+              },
+            },
+            locator: body.locator,
+            name: body.name,
+          });
+
+          set.status = 201;
+          logInfoDuration('Core // Products Route // Create variant succeeded', startedAt, {
+            id: params.id,
+            variantId: variant.id,
+            variantName: variant.name,
+          });
+          return success(variant);
+        } catch (error) {
+          if (isNotFoundError(error)) {
+            set.status = 404;
+            return failure('PRODUCTS_NOT_FOUND', error.message);
+          }
+
+          set.status = 500;
+          Log.error(
+            `Core // Products Route // Create variant failed ${formatLogMetadata({
+              error: toErrorMessage(error),
+              id: params.id,
+            })}`,
+          );
+          return failure('PRODUCT_VARIANTS_CREATE_FAILED', toErrorMessage(error));
+        }
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        body: productVariantCreateInput,
+        response: {
+          201: productVariantCreateResponse,
+          404: notFoundResponse,
+          500: apiFailureResponse,
+        },
+      },
+    )
+    .post(
+      '/:id/variants/clone',
+      async ({ params, body, set }) => {
+        const startedAt = startLogTimer();
+        try {
+          const cloned = await dependencies.cloneVariantForProduct({
+            productId: params.id,
+            branchName: body.branchName,
+            cloneType:
+              body.cloneType === undefined
+                ? undefined
+                : (body.cloneType as 'auto' | 'local.copy' | 'git.clone_branch'),
+            name: body.name,
+            sourceVariantId: body.sourceVariantId,
+            targetPath: body.targetPath,
+          });
+
+          set.status = 201;
+          logInfoDuration('Core // Products Route // Clone variant succeeded', startedAt, {
+            cloneType: cloned.clone.cloneType,
+            generatedBranchName: cloned.clone.generatedBranchName,
+            generatedTargetPath: cloned.clone.generatedTargetPath,
+            id: params.id,
+            variantId: cloned.variant.id,
+          });
+          return success(cloned);
+        } catch (error) {
+          if (isNotFoundError(error)) {
+            set.status = 404;
+            return failure('PRODUCTS_NOT_FOUND', error.message);
+          }
+
+          const message = toErrorMessage(error);
+          if (message.includes('Workspace unresolved')) {
+            set.status = 400;
+            return failure('VARIANTS_CLONE_WORKSPACE_UNRESOLVED', message);
+          }
+
+          if (message.includes('Target path already exists')) {
+            set.status = 400;
+            return failure('VARIANTS_CLONE_TARGET_INVALID', message);
+          }
+
+          if (message.includes('Unsupported product locator')) {
+            set.status = 400;
+            return failure('VARIANTS_CLONE_UNSUPPORTED', message);
+          }
+
+          set.status = 500;
+          Log.error(
+            `Core // Products Route // Clone variant failed ${formatLogMetadata({
+              error: message,
+              id: params.id,
+            })}`,
+          );
+          return failure('VARIANTS_CLONE_FAILED', message);
+        }
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        body: productVariantCloneInput,
+        response: {
+          201: productVariantCloneResponse,
+          400: apiFailureResponse,
           404: notFoundResponse,
           500: apiFailureResponse,
         },

@@ -5,8 +5,8 @@ use crate::error::DarkRustError;
 use crate::types::{
     ActorAttachQuery, ActorCommandInput, ActorCreateInput, ActorDeleteQuery, ActorListQuery,
     ActorMessageInput, ActorMessagesQuery, ActorUpdateInput, ProductCreateInput,
-    ProductIncludeQuery, ProductListQuery, ProductUpdateInput, VariantCreateInput,
-    VariantImportActorsInput, VariantListQuery, VariantUpdateInput,
+    ProductIncludeQuery, ProductListQuery, ProductVariantCloneInput, ProductUpdateInput,
+    VariantCreateInput, VariantImportActorsInput, VariantListQuery, VariantUpdateInput,
 };
 
 #[derive(Debug, Clone)]
@@ -133,6 +133,62 @@ impl DarkCoreClient {
 
     pub async fn products_delete(&self, product_id: &str) -> Result<RawApiResponse, DarkRustError> {
         self.delete(&format!("/products/{product_id}"), None).await
+    }
+
+    pub async fn product_variants_list(
+        &self,
+        product_id: &str,
+        query: &VariantListQuery,
+    ) -> Result<RawApiResponse, DarkRustError> {
+        let mut query_parts = Vec::new();
+
+        if let Some(cursor) = &query.cursor {
+            query_parts.push(("cursor".to_string(), cursor.clone()));
+        }
+
+        if let Some(limit) = query.limit {
+            query_parts.push(("limit".to_string(), limit.to_string()));
+        }
+
+        if let Some(poll) = query.poll {
+            query_parts.push(("poll".to_string(), poll.to_string()));
+        }
+
+        let query = if query_parts.is_empty() {
+            None
+        } else {
+            Some(query_parts.as_slice())
+        };
+
+        self.get(&format!("/products/{product_id}/variants"), query)
+            .await
+    }
+
+    pub async fn product_variants_create(
+        &self,
+        product_id: &str,
+        input: &VariantCreateInput,
+    ) -> Result<RawApiResponse, DarkRustError> {
+        self.post(
+            &format!("/products/{product_id}/variants"),
+            serde_json::json!({
+                "locator": input.locator,
+                "name": input.name,
+            }),
+        )
+        .await
+    }
+
+    pub async fn product_variants_clone(
+        &self,
+        product_id: &str,
+        input: &ProductVariantCloneInput,
+    ) -> Result<RawApiResponse, DarkRustError> {
+        self.post(
+            &format!("/products/{product_id}/variants/clone"),
+            serde_json::to_value(input)?,
+        )
+        .await
     }
 
     pub async fn variants_list(

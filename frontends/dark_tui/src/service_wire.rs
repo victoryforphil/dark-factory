@@ -23,6 +23,8 @@ pub(crate) struct ProductRecord {
     pub(crate) id: String,
     pub(crate) locator: String,
     #[serde(default)]
+    pub(crate) workspace_locator: Option<String>,
+    #[serde(default)]
     pub(crate) display_name: Option<String>,
     #[serde(default)]
     pub(crate) updated_at: String,

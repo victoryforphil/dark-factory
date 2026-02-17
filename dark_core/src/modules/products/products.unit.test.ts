@@ -5,10 +5,19 @@ import { IdCollisionDetectedError, NotFoundError } from '../common/controller.er
 import { createProductsRoutes } from './products.routes';
 
 const unusedDependencies = {
+  cloneVariantForProduct: async () => {
+    throw new Error('not used in this test');
+  },
+  createVariant: async () => {
+    throw new Error('not used in this test');
+  },
   deleteProductById: async () => {
     throw new Error('not used in this test');
   },
   getProductById: async () => {
+    throw new Error('not used in this test');
+  },
+  listVariants: async () => {
     throw new Error('not used in this test');
   },
   updateProductById: async () => {

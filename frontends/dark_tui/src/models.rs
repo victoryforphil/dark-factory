@@ -12,6 +12,7 @@ pub struct ProductRow {
     pub id: String,
     pub display_name: String,
     pub locator: String,
+    pub workspace_locator: String,
     pub product_type: String,
     pub is_git_repo: bool,
     pub branch: String,

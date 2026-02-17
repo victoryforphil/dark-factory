@@ -33,6 +33,7 @@ enum LoopAction {
     None,
     Quit,
     Refresh,
+    CloneVariant,
     PollVariant,
     ImportVariantActors,
     InitProduct,
@@ -45,6 +46,7 @@ enum LoopAction {
 }
 
 enum BackgroundActionResult {
+    CloneVariant(Result<String>),
     PollVariant(Result<String>),
     ImportVariantActors(Result<String>),
     InitProduct(Result<String>),
@@ -55,6 +57,7 @@ enum BackgroundActionResult {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BackgroundActionKind {
+    CloneVariant,
     PollVariant,
     ImportVariantActors,
     InitProduct,
@@ -291,6 +294,15 @@ async fn run_loop(
                         app.set_status(format!("Variant poll failed: {error}"));
                     }
                 },
+                Ok(BackgroundActionResult::CloneVariant(result)) => match result {
+                    Ok(message) => {
+                        app.set_status(message);
+                        force_refresh = true;
+                    }
+                    Err(error) => {
+                        app.set_status(format!("Clone failed: {error}"));
+                    }
+                },
                 Ok(BackgroundActionResult::ImportVariantActors(result)) => match result {
                     Ok(message) => {
                         app.set_status(message);
@@ -485,6 +497,30 @@ async fn run_loop(
                     handle: tokio::spawn(async move {
                         BackgroundActionResult::PollVariant(
                             run_with_api_timeout(service.poll_variant(&variant_id)).await,
+                        )
+                    }),
+                });
+                app.set_action_requests_in_flight(action_tasks.len());
+            }
+            LoopAction::CloneVariant => {
+                let Some(product_id) = app.selected_product().map(|product| product.id.to_string())
+                else {
+                    app.set_status("Clone skipped: no product selected.");
+                    continue;
+                };
+
+                if has_action_in_flight(&action_tasks, BackgroundActionKind::CloneVariant) {
+                    app.set_status("Variant clone already in progress.");
+                    continue;
+                }
+
+                app.set_status(format!("Cloning variant for product {product_id}..."));
+                let service = service.clone();
+                action_tasks.push(ActionTask {
+                    kind: BackgroundActionKind::CloneVariant,
+                    handle: tokio::spawn(async move {
+                        BackgroundActionResult::CloneVariant(
+                            run_with_api_timeout(service.clone_product_variant(&product_id)).await,
                         )
                     }),
                 });
@@ -796,6 +832,7 @@ fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
             LoopAction::None
         }
         KeyCode::Char('p') => LoopAction::PollVariant,
+        KeyCode::Char('x') => LoopAction::CloneVariant,
         KeyCode::Char('m') => LoopAction::ImportVariantActors,
         KeyCode::Char('i') => LoopAction::InitProduct,
         KeyCode::Char('n') => LoopAction::OpenSpawnForm,

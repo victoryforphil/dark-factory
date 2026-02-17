@@ -90,6 +90,7 @@ pub(crate) fn to_product_row(record: ProductRecord, metrics: ProductMetrics) -> 
         id: record.id,
         display_name,
         locator: record.locator,
+        workspace_locator: record.workspace_locator.unwrap_or_else(|| "-".to_string()),
         product_type: product_type.to_string(),
         is_git_repo,
         branch,
@@ -346,6 +347,7 @@ mod tests {
         let record = ProductRecord {
             id: "prd_1".to_string(),
             locator: "@local:///workspace/dark-factory".to_string(),
+            workspace_locator: Some("@local:///workspace".to_string()),
             display_name: None,
             updated_at: "unix:123".to_string(),
             git_info: Some(ProductGitInfoRecord {

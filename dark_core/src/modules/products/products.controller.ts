@@ -183,6 +183,14 @@ const deriveWorkspaceLocator = (
   }
 };
 
+const toPrismaJson = (value: Product['gitInfo']): Prisma.InputJsonValue | Prisma.DbNull => {
+  if (value === null || value === undefined) {
+    return Prisma.DbNull;
+  }
+
+  return value as Prisma.InputJsonValue;
+};
+
 export const listProducts = async (query: ListProductsQuery = {}): Promise<ProductRecord[]> => {
   const prisma = getPrismaClient();
   const limit = normalizeLimit(query.limit);
@@ -289,7 +297,7 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
             data: {
               locator: productLocator,
               workspaceLocator: existingProductByLegacyLocator.workspaceLocator ?? workspaceLocator,
-              gitInfo: gitInfo ?? Prisma.DbNull,
+              gitInfo: toPrismaJson(gitInfo),
             },
           });
 
@@ -309,7 +317,7 @@ export const createProduct = async (input: CreateProductInput): Promise<Product>
           locator: productLocator,
           displayName: input.displayName ?? null,
           workspaceLocator,
-          gitInfo: gitInfo ?? Prisma.DbNull,
+          gitInfo: toPrismaJson(gitInfo),
         },
       });
 

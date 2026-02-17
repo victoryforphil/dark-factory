@@ -110,6 +110,16 @@ impl DetailsPanel {
             )
             .line(theme),
         );
+        lines.push(
+            LabeledField::new(
+                "Workspace",
+                compact_locator(
+                    &product.workspace_locator,
+                    width.saturating_sub(16) as usize,
+                ),
+            )
+            .line(theme),
+        );
         lines.push(Line::raw(""));
 
         // --- Repository section ---

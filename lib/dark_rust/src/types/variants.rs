@@ -33,6 +33,21 @@ pub struct VariantImportActorsInput {
     pub provider: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ProductVariantCloneInput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_path: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clone_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branch_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_variant_id: Option<String>,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct VariantListQuery {
     pub cursor: Option<String>,

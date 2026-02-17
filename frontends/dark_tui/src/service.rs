@@ -178,6 +178,41 @@ impl DashboardService {
         ))
     }
 
+    pub async fn clone_product_variant(&self, product_id: &str) -> Result<String> {
+        let response = self
+            .request(
+                "POST",
+                &format!("/products/{product_id}/variants/clone"),
+                None,
+                Some(json!({})),
+            )
+            .await?;
+        let body = ensure_success(response)?;
+
+        let variant = body
+            .get("data")
+            .and_then(|value| value.get("variant"))
+            .context("Dark TUI // Clone // Missing variant payload")?;
+        let variant_id = variant
+            .get("id")
+            .and_then(Value::as_str)
+            .unwrap_or("-");
+        let variant_name = variant
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or("-");
+        let target_path = body
+            .get("data")
+            .and_then(|value| value.get("clone"))
+            .and_then(|value| value.get("targetPath"))
+            .and_then(Value::as_str)
+            .unwrap_or("-");
+
+        Ok(format!(
+            "Cloned variant for {product_id}: {variant_id} ({variant_name}) -> {target_path}"
+        ))
+    }
+
     pub async fn init_product(&self) -> Result<String> {
         let locator = LocatorId::from_host_path(Path::new(&self.directory), LocatorKind::Local)
             .map(|parsed| parsed.to_locator_id())?;
