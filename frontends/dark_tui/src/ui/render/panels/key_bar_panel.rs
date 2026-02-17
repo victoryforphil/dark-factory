@@ -1,7 +1,7 @@
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 
 use crate::app::App;
 use crate::ui::command_palette::toolbar_bindings;
@@ -54,6 +54,23 @@ pub enum KeyHintAction {
     ToggleRemove,
     #[allow(dead_code)]
     FieldNav,
+}
+
+#[derive(Debug, Clone)]
+pub struct KeyHoverToken {
+    pub row: u16,
+    pub col: u16,
+    pub width: u16,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct HitBind {
+    key: &'static str,
+    action: &'static str,
+    row: u16,
+    key_start: u16,
+    key_width: u16,
 }
 
 impl KeyHintAction {
@@ -154,6 +171,25 @@ impl KeyBarPanel {
     /// Hit test: returns the key hint action at the given position, or None if not on a key hint.
     /// The area is the key bar bounds, and row/col are absolute terminal coordinates.
     pub(crate) fn hit_test(area: Rect, app: &App, row: u16, col: u16) -> Option<KeyHintAction> {
+        Self::hit_test_bind(area, app, row, col).and_then(|bind| KeyHintAction::from_key(bind.key))
+    }
+
+    pub(crate) fn hover_hint(area: Rect, app: &App, row: u16, col: u16) -> Option<String> {
+        let bind = Self::hit_test_bind(area, app, row, col)?;
+        Some(format!("Click: {}", bind.action))
+    }
+
+    pub(crate) fn hover_token(area: Rect, app: &App, row: u16, col: u16) -> Option<KeyHoverToken> {
+        let bind = Self::hit_test_bind(area, app, row, col)?;
+        Some(KeyHoverToken {
+            row: area.y + bind.row,
+            col: area.x + bind.key_start,
+            width: bind.key_width,
+            text: format!(" {} ", bind.key),
+        })
+    }
+
+    fn hit_test_bind(area: Rect, app: &App, row: u16, col: u16) -> Option<HitBind> {
         // Check if click is within the key bar area
         if col < area.x || col >= area.x + area.width || row < area.y || row >= area.y + area.height
         {
@@ -188,9 +224,17 @@ impl KeyBarPanel {
 
             let text_start = current_width + if current_width > 0 { sep_width } else { 0 };
             let text_end = text_start + entry_width;
+            let key_start = text_start;
+            let key_width = display_width(bind.key) + 2;
 
             if local_row == current_row && local_col >= text_start && local_col < text_end {
-                return KeyHintAction::from_key(bind.key);
+                return Some(HitBind {
+                    key: bind.key,
+                    action: bind.action,
+                    row: current_row,
+                    key_start,
+                    key_width,
+                });
             }
 
             current_width += total_width;

@@ -1,15 +1,15 @@
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem, ListState};
-use ratatui::Frame;
 
 use crate::app::{App, VizSelection};
 use crate::models::compact_id;
 use crate::theme::EntityKind;
 use crate::ui::render::components::{sub_agent_badge, sub_agent_tree_line};
 
-use dark_tui_components::{compact_text_normalized, PaneBlockComponent, StatusPill};
+use dark_tui_components::{PaneBlockComponent, StatusPill, compact_text_normalized};
 
 pub(crate) struct CatalogTreeView;
 
@@ -80,6 +80,53 @@ impl CatalogTreeView {
         }
 
         frame.render_stateful_widget(list, area, &mut state);
+    }
+
+    pub(crate) fn hit_test(area: Rect, app: &App, col: u16, row: u16) -> Option<VizSelection> {
+        let block = PaneBlockComponent::build("Catalog Tree", true, app.theme());
+        let inner = block.inner(area);
+
+        if col < inner.x
+            || col >= inner.x + inner.width
+            || row < inner.y
+            || row >= inner.y + inner.height
+        {
+            return None;
+        }
+
+        let nodes = app.catalog_nodes();
+        if nodes.is_empty() {
+            return None;
+        }
+
+        let row_map = Self::display_row_map(app, &nodes);
+        let row_index = row.saturating_sub(inner.y) as usize;
+        let Some(row_kind) = row_map.get(row_index) else {
+            return None;
+        };
+
+        match row_kind {
+            TreeRow::Selectable { node_index } => nodes.get(*node_index).cloned(),
+            TreeRow::SubAgent => None,
+        }
+    }
+
+    fn display_row_map(app: &App, nodes: &[VizSelection]) -> Vec<TreeRow> {
+        let mut row_map: Vec<TreeRow> = Vec::new();
+
+        for (node_index, node) in nodes.iter().enumerate() {
+            row_map.push(TreeRow::Selectable { node_index });
+
+            if let VizSelection::Actor { actor_id, .. } = node {
+                if let Some(actor) = app.actors().iter().find(|actor| actor.id == *actor_id) {
+                    for _ in &actor.sub_agents {
+                        row_map.push(TreeRow::SubAgent);
+                    }
+                }
+            }
+        }
+
+        row_map
     }
 
     fn item_for_node(app: &App, node: &VizSelection) -> ListItem<'static> {

@@ -1,6 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::app::{App, FocusPane, ResultsViewMode, VizSelection};
+use crate::app::{App, FocusPane, VizSelection};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CommandId {
@@ -159,7 +159,7 @@ const TOOLBAR_VIZ_COMMANDS: &[CommandBinding] = &[CommandBinding {
 pub(crate) fn toolbar_bindings(app: &App) -> Vec<CommandBinding> {
     let mut commands: Vec<CommandBinding> = TOOLBAR_COMMON_COMMANDS.to_vec();
 
-    if app.results_view_mode() == ResultsViewMode::Viz {
+    if app.results_view_mode().is_spatial() {
         commands.extend_from_slice(TOOLBAR_VIZ_COMMANDS);
     }
 
@@ -231,7 +231,7 @@ pub(crate) fn is_command_enabled(app: &App, command: CommandId) -> bool {
         | CommandId::ToggleView
         | CommandId::InitProduct
         | CommandId::ToggleChat => true,
-        CommandId::ResetPan => app.results_view_mode() == ResultsViewMode::Viz,
+        CommandId::ResetPan => app.results_view_mode().is_spatial(),
         CommandId::PollVariant
         | CommandId::OpenDeleteVariantForm
         | CommandId::ImportVariantActors
@@ -391,7 +391,7 @@ enum ToolbarSelectionContext {
 }
 
 fn toolbar_selection_context(app: &App) -> ToolbarSelectionContext {
-    if app.results_view_mode() == ResultsViewMode::Viz {
+    if app.results_view_mode().is_spatial() {
         if let Some(selection) = app.viz_selection() {
             return match selection {
                 VizSelection::Product { .. } => ToolbarSelectionContext::Product,

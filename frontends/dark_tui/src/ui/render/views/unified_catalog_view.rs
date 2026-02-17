@@ -33,13 +33,14 @@ const PRODUCT_LEFT_MARGIN: u16 = 2;
 const CONNECTOR_WIDTH: u16 = 4;
 /// Secondary connector width for actor branches off variants.
 const ACTOR_CONNECTOR_WIDTH: u16 = 3;
+const TREE_PANEL_TITLE: &str = "Catalog Graphical Tree";
 
 pub(crate) struct UnifiedCatalogView;
 
 impl UnifiedCatalogView {
     pub(crate) fn render(frame: &mut Frame, area: Rect, app: &App) {
         let theme = app.theme();
-        let panel = PaneBlockComponent::build("Catalog", true, theme);
+        let panel = PaneBlockComponent::build(TREE_PANEL_TITLE, true, theme);
         let inner = panel.inner(area);
         frame.render_widget(panel, area);
 

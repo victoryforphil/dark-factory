@@ -16,6 +16,6 @@ pub(crate) use delete_variant_form_panel::DeleteVariantFormPanel;
 pub(crate) use details_panel::DetailsPanel;
 pub(crate) use footer_panel::FooterPanel;
 pub(crate) use header_panel::HeaderPanel;
-pub(crate) use key_bar_panel::{KeyBarPanel, KeyHintAction};
+pub(crate) use key_bar_panel::{KeyBarPanel, KeyHintAction, KeyHoverToken};
 pub(crate) use move_actor_form_panel::MoveActorFormPanel;
 pub(crate) use spawn_form_panel::SpawnFormPanel;

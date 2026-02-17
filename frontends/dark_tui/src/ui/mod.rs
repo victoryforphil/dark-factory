@@ -27,12 +27,11 @@ use crate::models::{ActorChatMessageRow, DashboardSnapshot};
 use crate::service::{CloneVariantOptions, DashboardService, SpawnOptions};
 use crate::theme::Theme;
 
-use self::command_palette::{
-    CommandId, ContextMenuState, resolve_key_command,
-};
+use self::command_palette::{CommandId, ContextMenuState, resolve_key_command};
 
 type TuiTerminal = Terminal<CrosstermBackend<Stdout>>;
-type ChatOptionsTask = Option<tokio::task::JoinHandle<(String, Result<(Vec<String>, Vec<String>)>)>>;
+type ChatOptionsTask =
+    Option<tokio::task::JoinHandle<(String, Result<(Vec<String>, Vec<String>)>)>>;
 type ChatSendTask = Option<tokio::task::JoinHandle<(String, Result<()>)>>;
 const API_TIMEOUT_SECONDS: u64 = 20;
 
@@ -184,6 +183,8 @@ async fn run_loop(
     let mut action_tasks: Vec<ActionTask> = Vec::new();
     let mut context_menu: Option<ContextMenuState> = None;
     let mut actor_drag_state: Option<ActorDragState> = None;
+    let mut key_hint_hover_token: Option<render::KeyHoverToken> = None;
+    let mut key_hint_hover: Option<String> = None;
 
     loop {
         if snapshot_task
@@ -215,8 +216,8 @@ async fn run_loop(
         }
 
         if snapshot_task.is_none() && (force_refresh || Instant::now() >= next_refresh_at) {
-            let should_auto_poll_actors = actor_auto_poll_interval
-                .is_some_and(|_| Instant::now() >= next_actor_auto_poll_at);
+            let should_auto_poll_actors =
+                actor_auto_poll_interval.is_some_and(|_| Instant::now() >= next_actor_auto_poll_at);
             let auto_poll_actor_ids: Vec<String> = if should_auto_poll_actors {
                 app.actors().iter().map(|actor| actor.id.clone()).collect()
             } else {
@@ -462,7 +463,14 @@ async fn run_loop(
         });
 
         terminal.draw(|frame| {
-            render::render_dashboard(frame, app, context_menu.as_ref(), drag_preview.as_ref())
+            render::render_dashboard(
+                frame,
+                app,
+                context_menu.as_ref(),
+                drag_preview.as_ref(),
+                key_hint_hover_token.as_ref(),
+                key_hint_hover.as_deref(),
+            )
         })?;
 
         if !event::poll(Duration::from_millis(120))? {
@@ -481,6 +489,8 @@ async fn run_loop(
                 width: size.width,
                 height: size.height,
             };
+            key_hint_hover_token = render::key_bar_hover_token(root, app, mouse.row, mouse.column);
+            key_hint_hover = render::key_bar_hover_hint(root, app, mouse.row, mouse.column);
 
             if let Some(target) = app.resizing_target() {
                 match mouse.kind {
@@ -489,7 +499,8 @@ async fn run_loop(
                             app.set_status("Resizing panels...");
                         }
                     }
-                    MouseEventKind::Up(MouseButton::Left) | MouseEventKind::Up(MouseButton::Right) => {
+                    MouseEventKind::Up(MouseButton::Left)
+                    | MouseEventKind::Up(MouseButton::Right) => {
                         app.stop_resize();
                         app.set_status("Panel resize complete.");
                     }
@@ -543,7 +554,8 @@ async fn run_loop(
             }
 
             if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
-                if let Some(key_hint_action) = render::key_bar_hit_test(root, app, mouse.row, mouse.column)
+                if let Some(key_hint_action) =
+                    render::key_bar_hit_test(root, app, mouse.row, mouse.column)
                 {
                     injected_key = key_event_from_key_hint(key_hint_action);
 
@@ -647,10 +659,12 @@ async fn run_loop(
                 }
             }
 
-            if app.results_view_mode() == ResultsViewMode::Viz {
+            if app.results_view_mode().is_spatial() {
                 match mouse.kind {
                     MouseEventKind::Down(MouseButton::Left) => {
-                        if let Some(selection) = render::viz_hit_test(root, app, mouse.column, mouse.row) {
+                        if let Some(selection) =
+                            render::viz_hit_test(root, app, mouse.column, mouse.row)
+                        {
                             app.set_viz_selection(selection.clone());
                             actor_drag_state = match selection {
                                 VizSelection::Actor {
@@ -685,12 +699,8 @@ async fn run_loop(
                         app.end_drag();
                         if render::try_select_viz_node(root, app, mouse.column, mouse.row) {
                             if let Some(target) = app.viz_selection().cloned() {
-                                context_menu = ContextMenuState::open(
-                                    app,
-                                    target,
-                                    mouse.column,
-                                    mouse.row,
-                                );
+                                context_menu =
+                                    ContextMenuState::open(app, target, mouse.column, mouse.row);
                             }
                         } else {
                             context_menu = None;
@@ -704,12 +714,8 @@ async fn run_loop(
                                 state.moved = true;
                             }
 
-                            state.hovered_variant_id = resolve_drop_target_variant(
-                                root,
-                                app,
-                                mouse.column,
-                                mouse.row,
-                            );
+                            state.hovered_variant_id =
+                                resolve_drop_target_variant(root, app, mouse.column, mouse.row);
                         } else {
                             app.apply_drag(mouse.column, mouse.row);
                         }
@@ -718,13 +724,9 @@ async fn run_loop(
                         app.end_drag();
                         if let Some(state) = actor_drag_state.take() {
                             if state.moved {
-                                let target_variant = resolve_drop_target_variant(
-                                    root,
-                                    app,
-                                    mouse.column,
-                                    mouse.row,
-                                )
-                                .or(state.hovered_variant_id);
+                                let target_variant =
+                                    resolve_drop_target_variant(root, app, mouse.column, mouse.row)
+                                        .or(state.hovered_variant_id);
 
                                 if let Some(target_variant_id) = target_variant {
                                     if target_variant_id == state.source_variant_id {
@@ -777,6 +779,30 @@ async fn run_loop(
                 }
             }
 
+            if app.results_view_mode() == ResultsViewMode::Table {
+                match mouse.kind {
+                    MouseEventKind::Down(MouseButton::Left) => {
+                        if let Some(selection) =
+                            render::tree_hit_test(root, app, mouse.column, mouse.row)
+                        {
+                            app.set_viz_selection(selection);
+                        }
+                    }
+                    MouseEventKind::Down(MouseButton::Right) => {
+                        if let Some(selection) =
+                            render::tree_hit_test(root, app, mouse.column, mouse.row)
+                        {
+                            app.set_viz_selection(selection.clone());
+                            context_menu =
+                                ContextMenuState::open(app, selection, mouse.column, mouse.row);
+                        } else {
+                            context_menu = None;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
             if injected_key.is_none() {
                 continue;
             }
@@ -815,8 +841,7 @@ async fn run_loop(
                                 | LoopAction::OpenDeleteVariantForm
                                 | LoopAction::OpenMoveActorForm
                                 | LoopAction::OpenSpawnForm
-                        )
-                        {
+                        ) {
                             context_menu = None;
                         }
                         process_loop_action(
@@ -1004,7 +1029,9 @@ fn key_event_from_key_hint(action: render::KeyHintAction) -> Option<KeyEvent> {
         render::KeyHintAction::ResetPan => KeyEvent::new(KeyCode::Char('0'), KeyModifiers::NONE),
         render::KeyHintAction::Send => KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
         render::KeyHintAction::Cancel => KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE),
-        render::KeyHintAction::ToggleRemove => KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE),
+        render::KeyHintAction::ToggleRemove => {
+            KeyEvent::new(KeyCode::Char(' '), KeyModifiers::NONE)
+        }
         render::KeyHintAction::FieldNav => KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE),
     };
 
@@ -1061,7 +1088,10 @@ fn apply_command(app: &mut App, command: CommandId) -> LoopAction {
         CommandId::ToggleInspector => LoopAction::ToggleInspector,
         CommandId::ToggleView => {
             app.toggle_results_view_mode();
-            app.set_status(format!("View mode: {}", app.results_view_mode().label()));
+            app.set_status(format!(
+                "View mode: {}",
+                app.results_view_mode().display_label()
+            ));
             LoopAction::None
         }
         CommandId::PollVariant => LoopAction::PollVariant,
@@ -1183,7 +1213,8 @@ fn process_loop_action(
             app.set_action_requests_in_flight(action_tasks.len());
         }
         LoopAction::CloneVariant => {
-            let Some(product_id) = app.selected_product().map(|product| product.id.to_string()) else {
+            let Some(product_id) = app.selected_product().map(|product| product.id.to_string())
+            else {
                 app.set_status("Clone skipped: no product selected.");
                 return;
             };
@@ -1280,7 +1311,8 @@ fn process_loop_action(
                 kind: BackgroundActionKind::ImportVariantActors,
                 handle: tokio::spawn(async move {
                     BackgroundActionResult::ImportVariantActors(
-                        run_with_api_timeout(service.import_variant_actors(&variant_id, None)).await,
+                        run_with_api_timeout(service.import_variant_actors(&variant_id, None))
+                            .await,
                     )
                 }),
             });
@@ -1297,7 +1329,9 @@ fn process_loop_action(
             action_tasks.push(ActionTask {
                 kind: BackgroundActionKind::InitProduct,
                 handle: tokio::spawn(async move {
-                    BackgroundActionResult::InitProduct(run_with_api_timeout(service.init_product()).await)
+                    BackgroundActionResult::InitProduct(
+                        run_with_api_timeout(service.init_product()).await,
+                    )
                 }),
             });
             app.set_action_requests_in_flight(action_tasks.len());
@@ -1386,7 +1420,9 @@ fn process_loop_action(
                     if let Some(actor) = app.chat_actor().cloned() {
                         let service = service.clone();
                         *chat_options_task = Some(tokio::spawn(async move {
-                            let result = run_with_api_timeout(service.fetch_actor_chat_options(&actor)).await;
+                            let result =
+                                run_with_api_timeout(service.fetch_actor_chat_options(&actor))
+                                    .await;
                             (actor.id.clone(), result)
                         }));
                     }
@@ -1412,7 +1448,9 @@ fn process_loop_action(
                     if let Some(actor) = app.chat_actor().cloned() {
                         let service = service.clone();
                         *chat_options_task = Some(tokio::spawn(async move {
-                            let result = run_with_api_timeout(service.fetch_actor_chat_options(&actor)).await;
+                            let result =
+                                run_with_api_timeout(service.fetch_actor_chat_options(&actor))
+                                    .await;
                             (actor.id.clone(), result)
                         }));
                     }
