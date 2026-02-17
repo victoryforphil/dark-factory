@@ -1,0 +1,15 @@
+$schema: "https://moonrepo.dev/schemas/project.json"
+
+type: "tool"
+stack: "backend"
+
+tasks:
+  install:
+    command: "noop"
+
+  build:
+    command: "noop"
+    deps:
+      - "prisma:build"
+    options:
+      cache: false
