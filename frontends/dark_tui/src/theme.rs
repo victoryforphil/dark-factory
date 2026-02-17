@@ -204,54 +204,54 @@ impl Default for Theme {
     fn default() -> Self {
         Self {
             // StatusPill — muted soft palette
-            pill_ok_fg: Color::Rgb(180, 230, 180),
-            pill_ok_bg: Color::Rgb(30, 60, 30),
-            pill_warn_fg: Color::Rgb(230, 210, 140),
-            pill_warn_bg: Color::Rgb(60, 50, 20),
-            pill_err_fg: Color::Rgb(240, 160, 150),
-            pill_err_bg: Color::Rgb(70, 25, 25),
-            pill_info_fg: Color::Rgb(150, 190, 230),
-            pill_info_bg: Color::Rgb(25, 40, 65),
-            pill_muted_fg: Color::Rgb(140, 140, 140),
-            pill_muted_bg: Color::Rgb(40, 40, 40),
-            pill_accent_fg: Color::Rgb(160, 220, 230),
-            pill_accent_bg: Color::Rgb(25, 55, 60),
+            pill_ok_fg: Color::Rgb(206, 238, 206),
+            pill_ok_bg: Color::Rgb(26, 56, 34),
+            pill_warn_fg: Color::Rgb(246, 220, 166),
+            pill_warn_bg: Color::Rgb(70, 50, 18),
+            pill_err_fg: Color::Rgb(248, 184, 184),
+            pill_err_bg: Color::Rgb(72, 22, 22),
+            pill_info_fg: Color::Rgb(244, 244, 244),
+            pill_info_bg: Color::Rgb(58, 58, 58),
+            pill_muted_fg: Color::Rgb(220, 220, 220),
+            pill_muted_bg: Color::Rgb(44, 44, 44),
+            pill_accent_fg: Color::Rgb(255, 255, 255),
+            pill_accent_bg: Color::Rgb(82, 82, 82),
 
             // KeyHintBar
-            key_hint_key_fg: Color::Rgb(220, 220, 220),
-            key_hint_key_bg: Color::Rgb(55, 55, 70),
-            key_hint_action_fg: Color::Rgb(150, 150, 160),
-            key_hint_bracket_fg: Color::Rgb(90, 90, 110),
+            key_hint_key_fg: Color::Rgb(244, 244, 244),
+            key_hint_key_bg: Color::Rgb(48, 48, 48),
+            key_hint_action_fg: Color::Rgb(214, 214, 214),
+            key_hint_bracket_fg: Color::Rgb(150, 150, 150),
 
             // Entity identity
-            entity_product: Color::Cyan,
-            entity_variant: Color::Green,
-            entity_actor: Color::Magenta,
+            entity_product: Color::Rgb(236, 236, 236),
+            entity_variant: Color::Rgb(198, 198, 198),
+            entity_actor: Color::Rgb(242, 210, 168),
 
             // Pane borders
-            pane_focused_border: Color::Cyan,
-            pane_unfocused_border: Color::DarkGray,
+            pane_focused_border: Color::Rgb(220, 220, 220),
+            pane_unfocused_border: Color::Rgb(112, 112, 112),
 
             // Table
-            table_header_fg: Color::White,
+            table_header_fg: Color::Rgb(248, 248, 248),
             table_highlight_fg: Color::Black,
-            table_highlight_bg_product: Color::Cyan,
-            table_highlight_bg_variant: Color::Green,
-            table_highlight_bg_actor: Color::Magenta,
+            table_highlight_bg_product: Color::Rgb(104, 104, 104),
+            table_highlight_bg_variant: Color::Rgb(94, 104, 94),
+            table_highlight_bg_actor: Color::Rgb(110, 92, 78),
 
             // Catalog
-            catalog_connector: Color::DarkGray,
+            catalog_connector: Color::Rgb(124, 124, 124),
 
             // Text
             text_primary: Color::White,
-            text_secondary: Color::Gray,
-            text_muted: Color::DarkGray,
+            text_secondary: Color::Rgb(224, 224, 224),
+            text_muted: Color::Rgb(176, 176, 176),
             text_error: Color::Rgb(240, 160, 150),
-            text_status_normal: Color::Rgb(150, 150, 160),
+            text_status_normal: Color::Rgb(206, 206, 206),
 
             // Header/Footer
-            header_border: Color::Cyan,
-            footer_border: Color::DarkGray,
+            header_border: Color::Rgb(220, 220, 220),
+            footer_border: Color::Rgb(112, 112, 112),
         }
     }
 }

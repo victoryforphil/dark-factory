@@ -638,6 +638,26 @@ async fn run_loop(
             }
 
             match render::chat_hit_test(root, app, mouse.column, mouse.row) {
+                render::ChatPanelHit::DetailPopup => {
+                    match mouse.kind {
+                        MouseEventKind::ScrollUp => app.scroll_chat_detail_popup_up(3),
+                        MouseEventKind::ScrollDown => app.scroll_chat_detail_popup_down(3),
+                        MouseEventKind::Down(MouseButton::Left) => {}
+                        _ => {}
+                    }
+                    continue;
+                }
+                render::ChatPanelHit::DetailPopupBackground => {
+                    if matches!(
+                        mouse.kind,
+                        MouseEventKind::Down(MouseButton::Left)
+                            | MouseEventKind::Down(MouseButton::Right)
+                    ) {
+                        app.close_chat_detail_popup();
+                        app.set_status("Detail popup closed.");
+                    }
+                    continue;
+                }
                 render::ChatPanelHit::ModelLabel => {
                     if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
                         app.open_chat_model_picker();
@@ -649,6 +669,41 @@ async fn run_loop(
                     if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
                         app.open_chat_agent_picker();
                         app.set_status("Agent picker opened. Type to filter.");
+                    }
+                    continue;
+                }
+                render::ChatPanelHit::MessageBody => {
+                    match mouse.kind {
+                        MouseEventKind::ScrollUp => app.scroll_chat_up(3),
+                        MouseEventKind::ScrollDown => app.scroll_chat_down(3),
+                        MouseEventKind::Down(MouseButton::Right) => {
+                            if let Some(message_index) =
+                                render::chat_message_index_at_point(root, app, mouse.column, mouse.row)
+                            {
+                                if app.open_chat_detail_popup_for_message(message_index) {
+                                    app.set_status(
+                                        "Detail popup opened for selected message. Scroll with mouse wheel, click outside to close.",
+                                    );
+                                }
+                            } else if app.open_chat_detail_popup() {
+                                app.set_status(
+                                    "Detail popup opened. Scroll with mouse wheel, click outside to close.",
+                                );
+                            }
+                        }
+                        _ => {}
+                    }
+                    continue;
+                }
+                render::ChatPanelHit::DetailButton => {
+                    if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
+                        if app.toggle_chat_detail_popup() {
+                            app.set_status(
+                                "Detail popup opened. Scroll with mouse wheel, click outside to close.",
+                            );
+                        } else {
+                            app.set_status("Detail popup closed.");
+                        }
                     }
                     continue;
                 }
@@ -825,6 +880,16 @@ async fn run_loop(
 
             if app.results_view_mode() == ResultsViewMode::Table {
                 match mouse.kind {
+                    MouseEventKind::ScrollUp => {
+                        if render::tree_contains(root, app, mouse.column, mouse.row) {
+                            app.move_selection_up();
+                        }
+                    }
+                    MouseEventKind::ScrollDown => {
+                        if render::tree_contains(root, app, mouse.column, mouse.row) {
+                            app.move_selection_down();
+                        }
+                    }
                     MouseEventKind::Down(MouseButton::Left) => {
                         if let Some(selection) =
                             render::tree_hit_test(root, app, mouse.column, mouse.row)
@@ -1642,6 +1707,10 @@ fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
         return LoopAction::None;
     }
 
+    if app.is_chat_detail_popup_open() {
+        return handle_chat_detail_popup_key(app, key);
+    }
+
     if app.chat_picker_open().is_some() {
         return handle_chat_picker_key(app, key);
     }
@@ -1779,6 +1848,25 @@ fn handle_chat_compose_key(app: &mut App, key: KeyEvent) -> LoopAction {
                 && !key.modifiers.contains(KeyModifiers::ALT) =>
         {
             app.chat_insert_char(value);
+            LoopAction::None
+        }
+        _ => LoopAction::None,
+    }
+}
+
+fn handle_chat_detail_popup_key(app: &mut App, key: KeyEvent) -> LoopAction {
+    match key.code {
+        KeyCode::Esc | KeyCode::Char('q') => {
+            app.close_chat_detail_popup();
+            app.set_status("Detail popup closed.");
+            LoopAction::None
+        }
+        KeyCode::Up | KeyCode::Char('k') => {
+            app.scroll_chat_detail_popup_up(3);
+            LoopAction::None
+        }
+        KeyCode::Down | KeyCode::Char('j') => {
+            app.scroll_chat_detail_popup_down(3);
             LoopAction::None
         }
         _ => LoopAction::None,

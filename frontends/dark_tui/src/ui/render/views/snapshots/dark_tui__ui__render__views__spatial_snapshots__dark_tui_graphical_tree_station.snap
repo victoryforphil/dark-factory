@@ -26,9 +26,9 @@ expression: output
 │D2                                              ▌ACTOR act_a1 [run]│      ▌ACTOR act_a2 [stp]│      ▌ACTOR act_a4 [run]│      ▌ACTOR act_a3 [idl]│            │
 │                                                ▌opencode/server   │      ▌opencode/server   │      ▌opencode/server   │      ▌opencode/server   │            │
 │                                                └──────────────────┘      └──────────────────┘      └──────────────────┘      └──────────────────┘            │
-│                                                 │ Quick frontend │        │ Docs pass      │        │ Deploy         │        │ Review         │             │
-│D3                                               │ Quick routes   │        │ Test pass      │        │ Watch          │        │ Verify         │             │
-│                                                                           │ Lint sweep     │        │ Sync           │                                       │
+│                                                 │ ● Quick front~ │        │ ◑ Docs pass    │        │ ● Deploy       │        │ ● Review       │             │
+│D3                                               │ o Quick routes │        │ ● Test pass    │        │ ◑ Watch        │        │ ● Verify       │             │
+│                                                                           │ ◑ Lint sweep   │        │ ◑ Sync         │                                       │
 │                                                                                                                                                              │
 │                                                                                                                                                              │
 │                                                                                                                                                              │

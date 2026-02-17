@@ -12,6 +12,7 @@ use crate::ui::render::components::sub_agent_badge;
 use dark_tui_components::{compact_text_normalized, SectionHeader, StatusPill};
 
 pub(crate) struct DetailsPanel;
+const MAX_SUB_AGENT_ROWS: usize = 12;
 
 impl DetailsPanel {
     pub(crate) fn render(frame: &mut Frame, area: Rect, app: &App) {
@@ -393,7 +394,22 @@ impl DetailsPanel {
         _width: u16,
         theme: &Theme,
     ) {
-        for agent in sub_agents {
+        let total = sub_agents.len();
+        let start = total.saturating_sub(MAX_SUB_AGENT_ROWS);
+        let visible = &sub_agents[start..];
+
+        if total > visible.len() {
+            lines.push(Line::styled(
+                format!(
+                    "  ... showing last {} of {} sub-agents",
+                    visible.len(),
+                    total
+                ),
+                Style::default().fg(theme.text_muted),
+            ));
+        }
+
+        for agent in visible {
             // Depth-aware tree prefix: "  " base + "  " per depth level + connector.
             let indent = "  ".repeat(agent.depth);
             let connector = if agent.depth > 0 {

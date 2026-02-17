@@ -46,7 +46,8 @@ Ratatui-based TUI frontend for monitoring and operating `dark_core`.
 | --- | --- | --- | --- |
 | `--base-url <URL>` | `DARK_CORE_BASE_URL` | `http://localhost:4150` | Base URL for `dark_core` |
 | `--directory <path>` | `DARK_TUI_DIRECTORY` | current directory | Directory used for local product/variant actor workflows |
-| `--refresh-seconds <n>` | `DARK_TUI_REFRESH_SECONDS` | `5` | Auto-refresh cadence |
+| `--refresh-seconds <n>` | `DARK_TUI_REFRESH_SECONDS` | `2` | Base auto-refresh cadence (boosts to 1s while actors/sub-agents are busy) |
+| `--actor-auto-poll-seconds <n>` | `DARK_TUI_ACTOR_AUTO_POLL_SECONDS` | `5` | Base actor status polling cadence (boosts to 2s while actors/sub-agents are busy) |
 | `--poll-variants <true\|false>` | `DARK_TUI_POLL_VARIANTS` | `true` | Poll variant git metadata while listing |
 
 ## Keybindings

@@ -3,6 +3,8 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use throbber_widgets_tui::BLACK_CIRCLE;
 
 use crate::theme::Theme;
 
@@ -31,15 +33,18 @@ pub(crate) fn render_sub_agent_grid(
     let border_style = Style::default().fg(theme.text_muted);
     let text_style = Style::default().fg(theme.text_secondary);
 
-    for (index, (title, _status)) in entries.iter().take(draw_count).enumerate() {
+    let frame_index = throbber_frame_index();
+
+    for (index, (title, status)) in entries.iter().take(draw_count).enumerate() {
         let y = area.y + index as u16;
         if y >= area.y + area.height {
             break;
         }
 
-        let label_width = area.width.saturating_sub(6) as usize;
+        let marker = sub_agent_marker(status, frame_index);
+        let label_width = area.width.saturating_sub(8) as usize;
         let label = compact_cell_text(title, label_width);
-        let padded_label = format!(" {label:<width$} ", width = label_width);
+        let padded_label = format!(" {marker} {label:<width$} ", width = label_width);
         let line = Line::from(vec![
             Span::styled("\u{2502}", border_style),
             Span::styled(padded_label, text_style),
@@ -58,6 +63,26 @@ pub(crate) fn render_sub_agent_grid(
     }
 }
 
+fn sub_agent_marker(status: &str, frame_index: usize) -> &'static str {
+    match status {
+        "active" | "running" | "busy" | "working" | "processing" => {
+            BLACK_CIRCLE.symbols[frame_index % BLACK_CIRCLE.symbols.len()]
+        }
+        "idle" | "waiting" => BLACK_CIRCLE.symbols[0],
+        "error" | "failed" | "dead" => BLACK_CIRCLE.symbols[1],
+        _ => "o",
+    }
+}
+
+fn throbber_frame_index() -> usize {
+    const FRAME_MS: u128 = 120;
+    let elapsed = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or(Duration::ZERO)
+        .as_millis();
+    (elapsed / FRAME_MS) as usize
+}
+
 fn compact_cell_text(value: &str, max_len: usize) -> String {
     if max_len == 0 {
         return String::new();
@@ -72,5 +97,23 @@ fn compact_cell_text(value: &str, max_len: usize) -> String {
         let mut out: String = chars[..max_len - 1].iter().collect();
         out.push('~');
         out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{sub_agent_marker, BLACK_CIRCLE};
+
+    #[test]
+    fn marker_uses_solid_dot_for_active_rows() {
+        assert_eq!(sub_agent_marker("active", 0), BLACK_CIRCLE.symbols[0]);
+        assert_eq!(sub_agent_marker("running", 1), BLACK_CIRCLE.symbols[1]);
+        assert_eq!(sub_agent_marker("busy", 2), BLACK_CIRCLE.symbols[2]);
+    }
+
+    #[test]
+    fn marker_falls_back_to_tree_dot_for_unknown_status() {
+        assert_eq!(sub_agent_marker("unknown", 0), "o");
+        assert_eq!(sub_agent_marker("", 3), "o");
     }
 }

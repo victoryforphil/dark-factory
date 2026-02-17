@@ -227,6 +227,7 @@ pub struct App {
     chat_visible: bool,
     chat_actor_id: Option<String>,
     chat_messages: Vec<ActorChatMessageRow>,
+    chat_scroll_lines: u16,
     chat_draft: String,
     chat_composing: bool,
     chat_model_options: Vec<String>,
@@ -243,6 +244,9 @@ pub struct App {
     chat_autocomplete_query: String,
     chat_autocomplete_selected: usize,
     chat_autocomplete_items: Vec<String>,
+    chat_detail_popup_open: bool,
+    chat_detail_popup_scroll_lines: u16,
+    chat_detail_popup_message_index: Option<usize>,
     chat_workspace_file_cache: Vec<String>,
     chat_workspace_file_cache_loaded: bool,
     chat_needs_refresh: bool,
@@ -291,6 +295,7 @@ impl App {
             chat_visible: false,
             chat_actor_id: None,
             chat_messages: Vec::new(),
+            chat_scroll_lines: 0,
             chat_draft: String::new(),
             chat_composing: false,
             chat_model_options: Vec::new(),
@@ -307,6 +312,9 @@ impl App {
             chat_autocomplete_query: String::new(),
             chat_autocomplete_selected: 0,
             chat_autocomplete_items: Vec::new(),
+            chat_detail_popup_open: false,
+            chat_detail_popup_scroll_lines: 0,
+            chat_detail_popup_message_index: None,
             chat_workspace_file_cache: Vec::new(),
             chat_workspace_file_cache_loaded: false,
             chat_needs_refresh: false,
@@ -852,6 +860,8 @@ impl App {
 
         if !self.chat_visible {
             self.chat_composing = false;
+            self.chat_scroll_lines = 0;
+            self.close_chat_detail_popup();
             return;
         }
 
@@ -867,6 +877,18 @@ impl App {
 
     pub fn chat_messages(&self) -> &[ActorChatMessageRow] {
         &self.chat_messages
+    }
+
+    pub fn chat_scroll_lines(&self) -> u16 {
+        self.chat_scroll_lines
+    }
+
+    pub fn scroll_chat_up(&mut self, amount: u16) {
+        self.chat_scroll_lines = self.chat_scroll_lines.saturating_sub(amount);
+    }
+
+    pub fn scroll_chat_down(&mut self, amount: u16) {
+        self.chat_scroll_lines = self.chat_scroll_lines.saturating_add(amount);
     }
 
     pub fn is_chat_composing(&self) -> bool {
@@ -945,6 +967,86 @@ impl App {
 
     pub fn chat_autocomplete_selected(&self) -> usize {
         self.chat_autocomplete_selected
+    }
+
+    pub fn is_chat_detail_popup_open(&self) -> bool {
+        self.chat_detail_popup_open
+    }
+
+    pub fn open_chat_detail_popup(&mut self) -> bool {
+        if self.chat_messages.is_empty() {
+            return false;
+        }
+
+        self.chat_detail_popup_message_index = self.latest_rich_chat_message_index();
+        if self.chat_detail_popup_message_index.is_none() {
+            self.chat_detail_popup_message_index = Some(self.chat_messages.len().saturating_sub(1));
+        }
+        self.chat_detail_popup_open = true;
+        self.chat_detail_popup_scroll_lines = 0;
+        true
+    }
+
+    pub fn open_chat_detail_popup_for_message(&mut self, message_index: usize) -> bool {
+        if message_index >= self.chat_messages.len() {
+            return false;
+        }
+
+        self.chat_detail_popup_message_index = Some(message_index);
+        self.chat_detail_popup_open = true;
+        self.chat_detail_popup_scroll_lines = 0;
+        true
+    }
+
+    pub fn close_chat_detail_popup(&mut self) {
+        self.chat_detail_popup_open = false;
+        self.chat_detail_popup_scroll_lines = 0;
+        self.chat_detail_popup_message_index = None;
+    }
+
+    pub fn toggle_chat_detail_popup(&mut self) -> bool {
+        if self.chat_detail_popup_open {
+            self.close_chat_detail_popup();
+            false
+        } else {
+            self.open_chat_detail_popup()
+        }
+    }
+
+    pub fn chat_detail_popup_scroll_lines(&self) -> u16 {
+        self.chat_detail_popup_scroll_lines
+    }
+
+    pub fn scroll_chat_detail_popup_up(&mut self, amount: u16) {
+        self.chat_detail_popup_scroll_lines =
+            self.chat_detail_popup_scroll_lines.saturating_sub(amount);
+    }
+
+    pub fn scroll_chat_detail_popup_down(&mut self, amount: u16) {
+        self.chat_detail_popup_scroll_lines =
+            self.chat_detail_popup_scroll_lines.saturating_add(amount);
+    }
+
+    /// Returns the full message row for the detail popup (text + role + timestamp).
+    pub fn chat_detail_popup_message(&self) -> Option<&ActorChatMessageRow> {
+        if let Some(index) = self.chat_detail_popup_message_index {
+            return self.chat_messages.get(index);
+        }
+
+        self.latest_rich_chat_message_index()
+            .and_then(|index| self.chat_messages.get(index))
+            .or_else(|| self.chat_messages.last())
+    }
+
+    fn latest_rich_chat_message_index(&self) -> Option<usize> {
+        self.chat_messages.iter().rposition(|message| {
+            message.text.contains("### Tool //")
+                || message.text.contains("Tool //")
+                || message.text.contains("### Shell")
+                || message.text.contains("Shell ")
+                || message.text.contains("### Thinking")
+                || message.text.contains("Thinking")
+        })
     }
 
     pub fn open_chat_composer(&mut self) -> bool {
@@ -1347,6 +1449,12 @@ impl App {
 
         messages.sort_by(|left, right| left.created_at.cmp(&right.created_at));
         self.chat_messages = messages;
+        if self.chat_messages.is_empty() {
+            self.close_chat_detail_popup();
+        } else if let Some(index) = self.chat_detail_popup_message_index {
+            let last = self.chat_messages.len().saturating_sub(1);
+            self.chat_detail_popup_message_index = Some(index.min(last));
+        }
     }
 
     pub fn apply_snapshot(&mut self, snapshot: DashboardSnapshot) {
@@ -1889,8 +1997,10 @@ impl App {
 
         if changed {
             self.chat_messages.clear();
+            self.chat_scroll_lines = 0;
             self.chat_draft.clear();
             self.chat_composing = false;
+            self.close_chat_detail_popup();
         }
     }
 
@@ -1905,8 +2015,10 @@ impl App {
 
         self.chat_actor_id = None;
         self.chat_messages.clear();
+        self.chat_scroll_lines = 0;
         self.chat_draft.clear();
         self.chat_composing = false;
+        self.close_chat_detail_popup();
         self.chat_needs_refresh = false;
     }
 

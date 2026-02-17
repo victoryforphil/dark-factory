@@ -34,6 +34,7 @@ const ACTOR_STACK_GAP: i32 = 2;
 /// Max actors rendered per variant column in station mode.
 /// Beyond this count a "+N more" overflow indicator is shown.
 const STATION_MAX_ACTORS_PER_VARIANT: usize = 4;
+const MAX_SUB_AGENT_ROWS: usize = 12;
 
 const GROUP_GAP_Y: i32 = 2;
 
@@ -938,6 +939,7 @@ impl UnifiedCatalogView {
             let entries: Vec<(&str, &str)> = actor
                 .sub_agents
                 .iter()
+                .skip(actor.sub_agents.len().saturating_sub(MAX_SUB_AGENT_ROWS))
                 .map(|sub| (sub.title.as_str(), sub.status.as_str()))
                 .collect();
             render_sub_agent_grid(frame, sub_area, &entries, actor.sub_agents.len(), theme);

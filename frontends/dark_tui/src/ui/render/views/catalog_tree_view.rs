@@ -12,6 +12,7 @@ use crate::ui::render::components::{sub_agent_badge, sub_agent_tree_line};
 use dark_tui_components::{compact_text_normalized, PaneBlockComponent, StatusPill};
 
 pub(crate) struct CatalogTreeView;
+const MAX_SUB_AGENT_ROWS: usize = 12;
 
 /// A display row in the tree list — either a selectable node or a
 /// decorative (non-selectable) sub-agent line.
@@ -44,8 +45,9 @@ impl CatalogTreeView {
             if let VizSelection::Actor { actor_id, .. } = node {
                 if let Some(actor) = app.actors().iter().find(|a| a.id == *actor_id) {
                     let sub_agents = &actor.sub_agents;
-                    for (si, agent) in sub_agents.iter().enumerate() {
-                        let is_last = si == sub_agents.len() - 1;
+                    let visible_sub_agents = recent_sub_agents(sub_agents);
+                    for (si, agent) in visible_sub_agents.iter().enumerate() {
+                        let is_last = si == visible_sub_agents.len() - 1;
                         let line = sub_agent_tree_line(agent, "       ", is_last, theme);
                         items.push(ListItem::new(line));
                         row_map.push(TreeRow::SubAgent);
@@ -119,7 +121,7 @@ impl CatalogTreeView {
 
             if let VizSelection::Actor { actor_id, .. } = node {
                 if let Some(actor) = app.actors().iter().find(|actor| actor.id == *actor_id) {
-                    for _ in &actor.sub_agents {
+                    for _ in recent_sub_agents(&actor.sub_agents) {
                         row_map.push(TreeRow::SubAgent);
                     }
                 }
@@ -275,4 +277,9 @@ impl CatalogTreeView {
             VizSelection::Actor { .. } => EntityKind::Actor,
         }
     }
+}
+
+fn recent_sub_agents(sub_agents: &[crate::models::SubAgentRow]) -> &[crate::models::SubAgentRow] {
+    let start = sub_agents.len().saturating_sub(MAX_SUB_AGENT_ROWS);
+    &sub_agents[start..]
 }

@@ -177,6 +177,19 @@ pub(crate) fn tree_hit_test(
     CatalogTreeView::hit_test(main_area, app, col, row)
 }
 
+pub(crate) fn tree_contains(root: Rect, app: &App, col: u16, row: u16) -> bool {
+    let body = body_area(root);
+    let columns = resolve_columns(body, app);
+    let Some(main_area) = columns.first().copied() else {
+        return false;
+    };
+
+    col >= main_area.x
+        && col < main_area.x + main_area.width
+        && row >= main_area.y
+        && row < main_area.y + main_area.height
+}
+
 pub(crate) fn viz_hit_test(
     root: Rect,
     app: &App,
@@ -252,6 +265,16 @@ pub(crate) fn chat_hit_test(root: Rect, app: &App, col: u16, row: u16) -> ChatPa
     };
 
     ChatPanel::hit_test(chat, app, col, row)
+}
+
+pub(crate) fn chat_message_index_at_point(
+    root: Rect,
+    app: &App,
+    col: u16,
+    row: u16,
+) -> Option<usize> {
+    let chat = chat_area(root, app)?;
+    ChatPanel::message_index_at_point(chat, app, col, row)
 }
 
 fn body_area(root: Rect) -> Rect {

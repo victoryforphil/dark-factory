@@ -13,10 +13,10 @@ pub struct Cli {
     #[arg(long, env = "DARK_TUI_DIRECTORY")]
     pub directory: Option<String>,
 
-    #[arg(long, env = "DARK_TUI_REFRESH_SECONDS", default_value_t = 5)]
+    #[arg(long, env = "DARK_TUI_REFRESH_SECONDS", default_value_t = 2)]
     pub refresh_seconds: u64,
 
-    #[arg(long, env = "DARK_TUI_ACTOR_AUTO_POLL_SECONDS", default_value_t = 15)]
+    #[arg(long, env = "DARK_TUI_ACTOR_AUTO_POLL_SECONDS", default_value_t = 5)]
     pub actor_auto_poll_seconds: u64,
 
     #[arg(
