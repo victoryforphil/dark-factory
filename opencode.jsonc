@@ -33,7 +33,7 @@
       "command": ["npx", "-y", "@perplexity-ai/mcp-server"],
       "enabled": true,
       "environment": {
-        "PERPLEXITY_API_KEY": "{env:PERPLEXITY_API_KEY}",
+        "PERPLEXITY_API_KEY": "{env:PERPEXTITY_API_KEY}",
       },
     },
     "context7": {
