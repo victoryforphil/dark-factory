@@ -988,7 +988,7 @@ fn key_event_from_key_hint(action: render::KeyHintAction) -> Option<KeyEvent> {
         render::KeyHintAction::View => KeyEvent::new(KeyCode::Char('v'), KeyModifiers::NONE),
         render::KeyHintAction::Filter => KeyEvent::new(KeyCode::Char('f'), KeyModifiers::NONE),
         render::KeyHintAction::ToggleInspector => {
-            KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE)
+            KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE)
         }
         render::KeyHintAction::Poll => KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE),
         render::KeyHintAction::PollActor => KeyEvent::new(KeyCode::Char('o'), KeyModifiers::NONE),
@@ -1019,7 +1019,7 @@ fn command_key_event(command: CommandId) -> Option<KeyEvent> {
         CommandId::MoveUp => KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
         CommandId::Refresh => KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE),
         CommandId::ToggleFilter => KeyEvent::new(KeyCode::Char('f'), KeyModifiers::NONE),
-        CommandId::ToggleInspector => KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE),
+        CommandId::ToggleInspector => KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE),
         CommandId::ToggleView => KeyEvent::new(KeyCode::Char('v'), KeyModifiers::NONE),
         CommandId::PollVariant => KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE),
         CommandId::PollActor => KeyEvent::new(KeyCode::Char('o'), KeyModifiers::NONE),
@@ -1061,7 +1061,7 @@ fn apply_command(app: &mut App, command: CommandId) -> LoopAction {
         CommandId::ToggleInspector => LoopAction::ToggleInspector,
         CommandId::ToggleView => {
             app.toggle_results_view_mode();
-            app.set_status(format!("Results view mode: {}", app.results_view_mode().label()));
+            app.set_status(format!("View mode: {}", app.results_view_mode().label()));
             LoopAction::None
         }
         CommandId::PollVariant => LoopAction::PollVariant,
@@ -1077,7 +1077,7 @@ fn apply_command(app: &mut App, command: CommandId) -> LoopAction {
         CommandId::OpenChatCompose => LoopAction::OpenChatCompose,
         CommandId::ResetPan => {
             app.reset_viz_offset();
-            app.set_status("Pan reset to origin");
+            app.set_status("Reset pan to origin.");
             LoopAction::None
         }
     }
@@ -1391,18 +1391,18 @@ fn process_loop_action(
                         }));
                     }
                 }
-                "Chat panel shown."
+                "Chat shown."
             } else {
-                "Chat panel hidden."
+                "Chat hidden."
             };
             app.set_status(status);
         }
         LoopAction::ToggleInspector => {
             app.toggle_inspector_visibility();
             let status = if app.is_inspector_visible() {
-                "Inspector shown."
+                "Sidebar shown."
             } else {
-                "Inspector hidden."
+                "Sidebar hidden."
             };
             app.set_status(status);
         }
@@ -1417,9 +1417,9 @@ fn process_loop_action(
                         }));
                     }
                 }
-                app.set_status("Chat compose mode enabled.");
+                app.set_status("Compose chat enabled.");
             } else {
-                app.set_status("Chat compose skipped: select an actor first.");
+                app.set_status("Compose chat skipped: select an actor first.");
             }
         }
         LoopAction::SendChatMessage => {

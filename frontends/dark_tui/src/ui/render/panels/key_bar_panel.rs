@@ -66,7 +66,7 @@ impl KeyHintAction {
             "r" => Some(Self::Refresh),
             "v" => Some(Self::View),
             "f" => Some(Self::Filter),
-            "b" => Some(Self::ToggleInspector),
+            "s" => Some(Self::ToggleInspector),
             "p" => Some(Self::Poll),
             "o" => Some(Self::PollActor),
             "x" => Some(Self::Clone),
