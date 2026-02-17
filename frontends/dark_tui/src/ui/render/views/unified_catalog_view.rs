@@ -1,295 +1,946 @@
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
+use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
 use ratatui::Frame;
 
-use crate::app::{App, VizSelection};
-use crate::models::{compact_id, compact_locator, VariantRow};
-use crate::theme::Theme;
-use crate::ui::render::components::sub_agent_tree_line;
-
 use dark_tui_components::{PaneBlockComponent, StatusPill};
 
-use super::catalog_cards::{
-    draw_junction, draw_trunk, render_actor_card, render_variant_card, ClickHit, ProductGroup,
-};
+use crate::app::{App, VizSelection};
+use crate::models::{compact_id, compact_locator};
+use crate::theme::Theme;
+use crate::ui::render::components::{render_sub_agent_grid, sub_agent_grid_container_height};
 
-/// Max width for product card tiles.
-const PRODUCT_CARD_WIDTH: u16 = 48;
-/// Max width for variant card tiles.
-const VARIANT_CARD_WIDTH: u16 = 44;
-/// Max width for actor card tiles.
-const ACTOR_CARD_WIDTH: u16 = 38;
-/// Height of a product card (border + 2 content lines + border).
-const PRODUCT_CARD_HEIGHT: u16 = 4;
-/// Height of a variant card (border + 3 content lines + border).
-const VARIANT_CARD_HEIGHT: u16 = 5;
-/// Height of an actor card (border + 3 content lines + border).
-const ACTOR_CARD_HEIGHT: u16 = 5;
-/// Left margin before the product card.
-const PRODUCT_LEFT_MARGIN: u16 = 2;
-/// Connector column width (the `│` / `├─` / `└─` gutter).
-const CONNECTOR_WIDTH: u16 = 4;
-/// Secondary connector width for actor branches off variants.
-const ACTOR_CONNECTOR_WIDTH: u16 = 3;
+use super::catalog_cards::ProductGroup;
+use super::catalog_tree_view::CatalogTreeView;
+
 const TREE_PANEL_TITLE: &str = "Catalog Graphical Tree";
+
+const STATION_MIN_WIDTH: u16 = 72;
+const STATION_MIN_HEIGHT: u16 = 16;
+
+const PRODUCT_LEFT_MARGIN: i32 = 8;
+const PRODUCT_W: u16 = 48;
+const PRODUCT_H: u16 = 10;
+
+const RAIL_DROP_ROWS: i32 = 1;
+
+const VARIANT_H: u16 = 4;
+
+const ACTOR_H: u16 = 4;
+const ACTOR_STACK_GAP: i32 = 2;
+
+/// Max actors rendered per variant column in station mode.
+/// Beyond this count a "+N more" overflow indicator is shown.
+const STATION_MAX_ACTORS_PER_VARIANT: usize = 4;
+
+const GROUP_GAP_Y: i32 = 2;
 
 pub(crate) struct UnifiedCatalogView;
 
+#[derive(Debug, Clone, Copy)]
+struct WorldRect {
+    x: i32,
+    y: i32,
+    width: u16,
+    height: u16,
+}
+
+impl WorldRect {
+    fn contains(self, x: i32, y: i32) -> bool {
+        x >= self.x
+            && y >= self.y
+            && x < self.x + self.width as i32
+            && y < self.y + self.height as i32
+    }
+
+    fn right(self) -> i32 {
+        self.x + self.width as i32
+    }
+
+    fn bottom(self) -> i32 {
+        self.y + self.height as i32
+    }
+
+    fn mid_x(self) -> i32 {
+        self.x + (self.width as i32) / 2
+    }
+}
+
+struct StationLayout {
+    groups: Vec<ProductLayout>,
+}
+
+struct ProductLayout {
+    product_index: usize,
+    product_rect: WorldRect,
+    rail_y: i32,
+    rail_end_x: i32,
+    variants: Vec<VariantLayout>,
+}
+
+struct VariantLayout {
+    product_index: usize,
+    variant_id: String,
+    tick_x: i32,
+    variant_rect: WorldRect,
+    actors: Vec<ActorLayout>,
+    /// Number of actors beyond the visible cap (for overflow indicator).
+    overflow_count: usize,
+}
+
+struct ActorLayout {
+    product_index: usize,
+    variant_id: String,
+    actor_id: String,
+    actor_rect: WorldRect,
+    sub_grid_rect: Option<WorldRect>,
+}
+
 impl UnifiedCatalogView {
     pub(crate) fn render(frame: &mut Frame, area: Rect, app: &App) {
+        if area.width < STATION_MIN_WIDTH || area.height < STATION_MIN_HEIGHT {
+            CatalogTreeView::render(frame, area, app);
+            return;
+        }
+
         let theme = app.theme();
         let panel = PaneBlockComponent::build(TREE_PANEL_TITLE, true, theme);
         let inner = panel.inner(area);
         frame.render_widget(panel, area);
 
-        if inner.width < 20 || inner.height < 6 {
+        if inner.width < STATION_MIN_WIDTH || inner.height < 8 {
             return;
         }
 
         if app.products().is_empty() {
-            let empty = Paragraph::new("No products")
-                .style(Style::default().fg(theme.text_muted))
-                .wrap(Wrap { trim: true });
-            frame.render_widget(empty, inner);
+            frame.render_widget(
+                Paragraph::new("No products")
+                    .style(Style::default().fg(theme.text_muted))
+                    .wrap(Wrap { trim: true }),
+                inner,
+            );
             return;
         }
 
-        let groups = Self::product_groups(app);
-        let viz_sel = app.viz_selection();
-
-        // Compute absolute Y positions for each group (world-space, origin=0).
-        let mut group_positions: Vec<i32> = Vec::with_capacity(groups.len());
-        let mut world_y: i32 = 0;
-        for group in &groups {
-            group_positions.push(world_y);
-            world_y += Self::group_height(group, app) as i32 + 1; // +1 gap between groups
-        }
-
-        // Read viz offset (camera position).
         let (offset_x, offset_y) = app.viz_offset();
+        let layout = Self::build_layout(app, inner.width);
 
-        // Render each group translated by the camera offset.
-        for (gi, group) in groups.iter().enumerate() {
-            let world_group_y = group_positions[gi];
-            let group_h = Self::group_height(group, app) as i32;
+        Self::render_connectors(
+            frame.buffer_mut(),
+            inner,
+            offset_x,
+            offset_y,
+            &layout,
+            theme,
+        );
 
-            // Translate to screen coordinates (relative to inner area).
-            let screen_y = world_group_y + offset_y;
-            let screen_x = offset_x;
-
-            // Cull groups entirely outside the visible viewport.
-            if screen_y + group_h < 0 || screen_y >= inner.height as i32 {
-                continue;
+        // Depth guides (D0/D1/D2/D3) in the left margin per SVG reference
+        let depth_style = Style::default().fg(Color::Rgb(0x38, 0x38, 0x38));
+        for group in &layout.groups {
+            // D0 = rail row
+            Self::draw_world_char(
+                frame.buffer_mut(),
+                inner,
+                offset_x,
+                offset_y,
+                0,
+                group.rail_y,
+                "D0",
+                depth_style,
+            );
+            // D1 = first variant row
+            if let Some(first_v) = group.variants.first() {
+                Self::draw_world_char(
+                    frame.buffer_mut(),
+                    inner,
+                    offset_x,
+                    offset_y,
+                    0,
+                    first_v.variant_rect.y + 1,
+                    "D1",
+                    depth_style,
+                );
+                // D2 = first actor row
+                if let Some(first_a) = first_v.actors.first() {
+                    Self::draw_world_char(
+                        frame.buffer_mut(),
+                        inner,
+                        offset_x,
+                        offset_y,
+                        0,
+                        first_a.actor_rect.y + 1,
+                        "D2",
+                        depth_style,
+                    );
+                    // D3 = sub-agent grid row
+                    if let Some(sub) = first_a.sub_grid_rect {
+                        Self::draw_world_char(
+                            frame.buffer_mut(),
+                            inner,
+                            offset_x,
+                            offset_y,
+                            0,
+                            sub.y + 1,
+                            "D3",
+                            depth_style,
+                        );
+                    }
+                }
             }
-            if screen_x + (inner.width as i32) < 0 {
-                continue;
-            }
-
-            // Clamp the group area to the visible inner rect.
-            let abs_y = inner.y as i32 + screen_y;
-            let abs_x = inner.x as i32 + screen_x;
-
-            // Compute the visible slice of this group.
-            let vis_top = abs_y.max(inner.y as i32) as u16;
-            let vis_bot = (abs_y + group_h).min((inner.y + inner.height) as i32) as u16;
-            let vis_left = abs_x.max(inner.x as i32) as u16;
-            let vis_right = (abs_x + inner.width as i32).min((inner.x + inner.width) as i32) as u16;
-
-            if vis_top >= vis_bot || vis_left >= vis_right {
-                continue;
-            }
-
-            // Build the group area in absolute terminal coordinates.
-            let group_area = Rect {
-                x: abs_x.max(inner.x as i32) as u16,
-                y: abs_y.max(inner.y as i32) as u16,
-                width: vis_right.saturating_sub(vis_left),
-                height: vis_bot.saturating_sub(vis_top),
-            };
-
-            Self::render_product_group(frame, group_area, group, viz_sel, app, theme);
         }
 
-        // Scroll position hint in bottom-right corner.
+        for group in &layout.groups {
+            Self::render_product(frame, inner, offset_x, offset_y, app, group, theme);
+            for variant in &group.variants {
+                Self::render_variant(frame, inner, offset_x, offset_y, app, variant, theme);
+                for actor in &variant.actors {
+                    Self::render_actor(frame, inner, offset_x, offset_y, app, actor, theme);
+                }
+                // Overflow indicator when actors are capped
+                if variant.overflow_count > 0 {
+                    let overflow_y = variant
+                        .actors
+                        .last()
+                        .map(|a| {
+                            a.sub_grid_rect
+                                .map(|s| s.bottom())
+                                .unwrap_or(a.actor_rect.bottom())
+                                + 1
+                        })
+                        .unwrap_or(variant.variant_rect.bottom() + 3);
+                    let label = format!("+{} more", variant.overflow_count);
+                    let label_w = label.len() as u16;
+                    let overflow_rect = WorldRect {
+                        x: variant.variant_rect.mid_x() - label_w as i32 / 2,
+                        y: overflow_y,
+                        width: label_w,
+                        height: 1,
+                    };
+                    if let Some(ov_area) = Self::to_screen(inner, offset_x, offset_y, overflow_rect)
+                    {
+                        frame.render_widget(
+                            Paragraph::new(label).style(Style::default().fg(theme.text_muted)),
+                            ov_area,
+                        );
+                    }
+                }
+            }
+        }
+
         if offset_x != 0 || offset_y != 0 {
-            let hint = format!("pan({},{}) [0]=reset", offset_x, offset_y);
-            let hint_len = hint.len() as u16;
+            let hint = format!("pan({offset_x},{offset_y}) [0]=reset");
+            let hint_len = hint.chars().count() as u16;
             if hint_len < inner.width {
-                let hint_area = Rect {
-                    x: inner.x + inner.width - hint_len,
-                    y: inner.y + inner.height - 1,
-                    width: hint_len,
-                    height: 1,
-                };
-                let hint_widget = Paragraph::new(hint).style(Style::default().fg(theme.text_muted));
-                frame.render_widget(hint_widget, hint_area);
+                frame.render_widget(
+                    Paragraph::new(hint).style(Style::default().fg(theme.text_muted)),
+                    Rect {
+                        x: inner.x + inner.width - hint_len,
+                        y: inner.y + inner.height - 1,
+                        width: hint_len,
+                        height: 1,
+                    },
+                );
             }
         }
     }
 
     pub(crate) fn click_select(area: Rect, app: &mut App, col: u16, row: u16) -> bool {
-        let hit = Self::click_hit(area, app, col, row);
-
-        // Apply the hit with mutable access.
-        match hit {
-            Some(ClickHit::Product { product_index }) => {
-                app.select_product_by_index(product_index);
-                true
-            }
-            Some(ClickHit::Variant {
-                product_index,
-                variant_id,
-            }) => {
-                app.select_variant_in_product(product_index, &variant_id);
-                true
-            }
-            Some(ClickHit::Actor {
-                product_index,
-                variant_id,
-                actor_id,
-            }) => {
-                app.select_actor_in_viz(product_index, &variant_id, &actor_id);
-                true
-            }
-            None => false,
-        }
+        let Some(hit) = Self::hit_test(area, app, col, row) else {
+            return false;
+        };
+        app.set_viz_selection(hit);
+        true
     }
 
     pub(crate) fn hit_test(area: Rect, app: &App, col: u16, row: u16) -> Option<VizSelection> {
-        let hit = Self::click_hit(area, app, col, row)?;
-        Some(match hit {
-            ClickHit::Product { product_index } => VizSelection::Product { product_index },
-            ClickHit::Variant {
-                product_index,
-                variant_id,
-            } => VizSelection::Variant {
-                product_index,
-                variant_id,
-            },
-            ClickHit::Actor {
-                product_index,
-                variant_id,
-                actor_id,
-            } => VizSelection::Actor {
-                product_index,
-                variant_id,
-                actor_id,
-            },
-        })
-    }
+        if area.width < STATION_MIN_WIDTH || area.height < STATION_MIN_HEIGHT {
+            return CatalogTreeView::hit_test(area, app, col, row);
+        }
 
-    fn click_hit(area: Rect, app: &App, col: u16, row: u16) -> Option<ClickHit> {
-        let inner = Self::panel_inner(area);
+        let panel = PaneBlockComponent::build(TREE_PANEL_TITLE, true, app.theme());
+        let inner = panel.inner(area);
 
-        if inner.width < 20
-            || inner.height < 6
-            || app.products().is_empty()
-            || col < inner.x
-            || col >= inner.x + inner.width
+        if col < inner.x
             || row < inner.y
+            || col >= inner.x + inner.width
             || row >= inner.y + inner.height
         {
             return None;
         }
 
-        let groups = Self::product_groups(app);
         let (offset_x, offset_y) = app.viz_offset();
         let world_x = (col - inner.x) as i32 - offset_x;
         let world_y = (row - inner.y) as i32 - offset_y;
 
-        let product_w = PRODUCT_CARD_WIDTH.min(inner.width.saturating_sub(PRODUCT_LEFT_MARGIN));
-        if product_w == 0 {
-            return None;
-        }
+        let layout = Self::build_layout(app, inner.width);
+        for group in &layout.groups {
+            for variant in &group.variants {
+                for actor in &variant.actors {
+                    if actor.actor_rect.contains(world_x, world_y) {
+                        return Some(VizSelection::Actor {
+                            product_index: actor.product_index,
+                            variant_id: actor.variant_id.clone(),
+                            actor_id: actor.actor_id.clone(),
+                        });
+                    }
+                }
+                if variant.variant_rect.contains(world_x, world_y) {
+                    return Some(VizSelection::Variant {
+                        product_index: variant.product_index,
+                        variant_id: variant.variant_id.clone(),
+                    });
+                }
+            }
 
-        let connector_x_pos = PRODUCT_LEFT_MARGIN + 3;
-        let variant_x = connector_x_pos + CONNECTOR_WIDTH;
-        let variant_w = VARIANT_CARD_WIDTH.min(inner.width.saturating_sub(variant_x));
-
-        let actor_connector_x = variant_x + 3;
-        let actor_x = actor_connector_x + ACTOR_CONNECTOR_WIDTH;
-        let actor_w = ACTOR_CARD_WIDTH.min(inner.width.saturating_sub(actor_x));
-
-        let mut result: Option<ClickHit> = None;
-        let mut group_y: i32 = 0;
-
-        'outer: for group in &groups {
-            let product_left = PRODUCT_LEFT_MARGIN as i32;
-            let product_right = product_left + product_w as i32;
-            let product_top = group_y;
-            let product_bottom = product_top + PRODUCT_CARD_HEIGHT as i32;
-
-            if world_x >= product_left
-                && world_x < product_right
-                && world_y >= product_top
-                && world_y < product_bottom
-            {
-                result = Some(ClickHit::Product {
+            if group.product_rect.contains(world_x, world_y) {
+                return Some(VizSelection::Product {
                     product_index: group.product_index,
                 });
-                break;
             }
-
-            let mut slot_y = group_y + PRODUCT_CARD_HEIGHT as i32;
-            for variant in &group.variants {
-                let v_top = slot_y;
-                let v_bottom = v_top + VARIANT_CARD_HEIGHT as i32;
-
-                if variant_w > 0
-                    && world_x >= variant_x as i32
-                    && world_x < (variant_x + variant_w) as i32
-                    && world_y >= v_top
-                    && world_y < v_bottom
-                {
-                    result = Some(ClickHit::Variant {
-                        product_index: group.product_index,
-                        variant_id: variant.id.clone(),
-                    });
-                    break 'outer;
-                }
-                slot_y += VARIANT_CARD_HEIGHT as i32;
-
-                let actors = app.actors_for_variant(&variant.id);
-                for actor in &actors {
-                    let a_top = slot_y;
-                    let a_bottom = a_top + ACTOR_CARD_HEIGHT as i32;
-
-                    if actor_w > 0
-                        && world_x >= actor_x as i32
-                        && world_x < (actor_x + actor_w) as i32
-                        && world_y >= a_top
-                        && world_y < a_bottom
-                    {
-                        result = Some(ClickHit::Actor {
-                            product_index: group.product_index,
-                            variant_id: variant.id.clone(),
-                            actor_id: actor.id.clone(),
-                        });
-                        break 'outer;
-                    }
-                    // Actor card height + sub-agent lines (no hit targets).
-                    slot_y += ACTOR_CARD_HEIGHT as i32 + actor.sub_agents.len() as i32;
-                }
-            }
-
-            group_y += Self::group_height(group, app) as i32 + 1;
         }
 
-        result
+        None
     }
 
-    fn panel_inner(area: Rect) -> Rect {
-        if area.width < 2 || area.height < 2 {
-            return area;
+    fn build_layout(app: &App, inner_width: u16) -> StationLayout {
+        let groups = Self::product_groups(app);
+        let mut cursor_y = 0i32;
+        let mut layouts = Vec::with_capacity(groups.len());
+
+        for group in groups {
+            let product_rect = WorldRect {
+                x: PRODUCT_LEFT_MARGIN,
+                y: cursor_y,
+                width: PRODUCT_W.min(inner_width.saturating_sub(4)),
+                height: PRODUCT_H,
+            };
+            let rail_y = product_rect.y + PRODUCT_H as i32 + RAIL_DROP_ROWS;
+            let variant_count = group.variants.len();
+            let compact_many = variant_count >= 4;
+            let col_start_x = product_rect.right() + if compact_many { 2 } else { 4 };
+
+            let mut variants = Vec::with_capacity(group.variants.len());
+            let mut group_bottom = product_rect.bottom();
+            let mut rail_end_x = product_rect.mid_x() + 10;
+
+            let wide_columns = group.variants.len() <= 2;
+            let variant_w: u16 = if wide_columns {
+                34
+            } else if compact_many {
+                22
+            } else {
+                26
+            };
+            let actor_w: u16 = if wide_columns {
+                34
+            } else if compact_many {
+                20
+            } else {
+                26
+            };
+            // Widen pitch when any variant has 2+ actors (wider cards need breathing room)
+            let max_actors_in_group: usize = group
+                .variants
+                .iter()
+                .map(|v| app.actors_for_variant(&v.id).len())
+                .max()
+                .unwrap_or(0);
+            let base_variant_pitch: i32 = if wide_columns {
+                if max_actors_in_group >= 2 {
+                    46
+                } else {
+                    42
+                }
+            } else if compact_many {
+                if max_actors_in_group >= 2 {
+                    28
+                } else {
+                    26
+                }
+            } else {
+                if max_actors_in_group >= 2 {
+                    38
+                } else {
+                    34
+                }
+            };
+
+            // Aggressively spread for 2-variant layouts, but clamp so dense
+            // variant rows remain visible in the current viewport.
+            let variant_pitch = if variant_count > 1 {
+                let max_fit = (inner_width as i32 - col_start_x - 3) / (variant_count as i32 - 1);
+                base_variant_pitch.min(max_fit.max(24))
+            } else {
+                base_variant_pitch
+            };
+
+            for (index, variant) in group.variants.iter().enumerate() {
+                let tick_x = col_start_x + (index as i32) * variant_pitch;
+                rail_end_x = rail_end_x.max(tick_x);
+                let variant_rect = WorldRect {
+                    x: tick_x - (variant_w as i32 / 2),
+                    y: rail_y + 2,
+                    width: variant_w,
+                    height: VARIANT_H,
+                };
+
+                let actors = app.actors_for_variant(&variant.id);
+                let visible_count = actors.len().min(STATION_MAX_ACTORS_PER_VARIANT);
+                let overflow_count = actors.len().saturating_sub(STATION_MAX_ACTORS_PER_VARIANT);
+                let mut actor_layouts = Vec::with_capacity(visible_count);
+                let mut actor_y = variant_rect.bottom() + 2; // extra gap before first actor
+                for actor in actors.iter().take(visible_count) {
+                    let actor_rect = WorldRect {
+                        x: variant_rect.x + (variant_w as i32 - actor_w as i32) / 2,
+                        y: actor_y,
+                        width: actor_w,
+                        height: ACTOR_H,
+                    };
+
+                    let grid_h = sub_agent_grid_container_height(actor.sub_agents.len(), actor_w);
+                    let sub_grid_rect = if grid_h > 0 {
+                        Some(WorldRect {
+                            x: actor_rect.x,
+                            y: actor_rect.bottom(),
+                            width: actor_rect.width,
+                            height: grid_h,
+                        })
+                    } else {
+                        None
+                    };
+
+                    actor_y = actor_rect.bottom()
+                        + sub_grid_rect.map(|r| r.height as i32).unwrap_or(0)
+                        + ACTOR_STACK_GAP;
+
+                    group_bottom = group_bottom.max(actor_y);
+
+                    actor_layouts.push(ActorLayout {
+                        product_index: group.product_index,
+                        variant_id: variant.id.clone(),
+                        actor_id: actor.id.clone(),
+                        actor_rect,
+                        sub_grid_rect,
+                    });
+                }
+                // Reserve space for overflow indicator
+                if overflow_count > 0 {
+                    group_bottom = group_bottom.max(actor_y + 1);
+                }
+
+                if actor_layouts.is_empty() {
+                    group_bottom = group_bottom.max(variant_rect.bottom() + 3);
+                }
+
+                variants.push(VariantLayout {
+                    product_index: group.product_index,
+                    variant_id: variant.id.clone(),
+                    tick_x,
+                    variant_rect,
+                    actors: actor_layouts,
+                    overflow_count,
+                });
+            }
+
+            let group_end_y = group_bottom + 1;
+
+            layouts.push(ProductLayout {
+                product_index: group.product_index,
+                product_rect,
+                rail_y,
+                rail_end_x,
+                variants,
+            });
+
+            cursor_y = group_end_y + GROUP_GAP_Y;
         }
 
-        Rect {
-            x: area.x + 1,
-            y: area.y + 1,
-            width: area.width.saturating_sub(2),
-            height: area.height.saturating_sub(2),
+        StationLayout { groups: layouts }
+    }
+
+    fn render_connectors(
+        buf: &mut Buffer,
+        inner: Rect,
+        offset_x: i32,
+        offset_y: i32,
+        layout: &StationLayout,
+        theme: &Theme,
+    ) {
+        let strong = Style::default().fg(theme.catalog_connector);
+        let muted = Style::default().fg(theme.text_muted);
+
+        for group in &layout.groups {
+            let stem_x = group.product_rect.mid_x();
+            let stem_start = group.product_rect.bottom();
+            let stem_end = group.rail_y - 1;
+            for y in stem_start..=stem_end {
+                let glyph = if (y - stem_start) % 2 == 0 {
+                    "\u{2502}"
+                } else {
+                    " "
+                };
+                Self::draw_world_char(buf, inner, offset_x, offset_y, stem_x, y, glyph, muted);
+            }
+            Self::draw_world_char(
+                buf,
+                inner,
+                offset_x,
+                offset_y,
+                stem_x,
+                group.rail_y - 1,
+                "\u{25c7}",
+                muted,
+            );
+
+            Self::draw_world_hline(
+                buf,
+                inner,
+                offset_x,
+                offset_y,
+                group.rail_y,
+                stem_x,
+                group.rail_end_x,
+                strong,
+                "\u{2501}",
+            );
+            // Rail end-cap block (matches SVG terminal marker)
+            Self::draw_world_char(
+                buf,
+                inner,
+                offset_x,
+                offset_y,
+                group.rail_end_x + 1,
+                group.rail_y,
+                "\u{2588}",
+                strong,
+            );
+
+            for variant in &group.variants {
+                Self::draw_world_vline(
+                    buf,
+                    inner,
+                    offset_x,
+                    offset_y,
+                    variant.tick_x,
+                    group.rail_y,
+                    variant.variant_rect.y - 1,
+                    strong,
+                    "\u{2502}",
+                );
+
+                if variant.actors.is_empty() {
+                    Self::draw_world_vline(
+                        buf,
+                        inner,
+                        offset_x,
+                        offset_y,
+                        variant.tick_x,
+                        variant.variant_rect.bottom(),
+                        variant.variant_rect.bottom() + 2,
+                        muted,
+                        "\u{2502}",
+                    );
+                    let box_top = variant.variant_rect.bottom() + 2;
+                    let box_left = variant.variant_rect.x;
+                    let box_right = variant.variant_rect.right() - 1;
+                    let box_bottom = box_top + 2;
+                    Self::draw_dashed_hline(
+                        buf, inner, offset_x, offset_y, box_top, box_left, box_right, muted,
+                    );
+                    Self::draw_dashed_hline(
+                        buf, inner, offset_x, offset_y, box_bottom, box_left, box_right, muted,
+                    );
+                    Self::draw_world_vline(
+                        buf, inner, offset_x, offset_y, box_left, box_top, box_bottom, muted,
+                        "\u{2506}",
+                    );
+                    Self::draw_world_vline(
+                        buf, inner, offset_x, offset_y, box_right, box_top, box_bottom, muted,
+                        "\u{2506}",
+                    );
+                    // "no actors" centered text inside placeholder
+                    let label = "no actors";
+                    let label_x = box_left + (box_right - box_left - label.len() as i32) / 2 + 1;
+                    let label_y = box_top + 1;
+                    for (i, ch) in label.chars().enumerate() {
+                        Self::draw_world_char(
+                            buf,
+                            inner,
+                            offset_x,
+                            offset_y,
+                            label_x + i as i32,
+                            label_y,
+                            &ch.to_string(),
+                            muted,
+                        );
+                    }
+                    continue;
+                }
+
+                for (ai, actor) in variant.actors.iter().enumerate() {
+                    let actor_x = actor.actor_rect.mid_x();
+                    // Chain connectors: first actor from variant bottom,
+                    // subsequent actors from previous actor's bottom (or sub-grid bottom).
+                    let connector_start = if ai == 0 {
+                        variant.variant_rect.bottom()
+                    } else {
+                        let prev = &variant.actors[ai - 1];
+                        prev.sub_grid_rect
+                            .map(|s| s.bottom())
+                            .unwrap_or(prev.actor_rect.bottom())
+                    };
+                    Self::draw_world_vline(
+                        buf,
+                        inner,
+                        offset_x,
+                        offset_y,
+                        actor_x,
+                        connector_start,
+                        actor.actor_rect.y,
+                        muted,
+                        "\u{2502}",
+                    );
+
+                    if let Some(sub_rect) = actor.sub_grid_rect {
+                        Self::draw_world_vline(
+                            buf,
+                            inner,
+                            offset_x,
+                            offset_y,
+                            actor_x,
+                            actor.actor_rect.bottom(),
+                            sub_rect.y,
+                            muted,
+                            "\u{2502}",
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    fn render_product(
+        frame: &mut Frame,
+        inner: Rect,
+        offset_x: i32,
+        offset_y: i32,
+        app: &App,
+        group: &ProductLayout,
+        theme: &Theme,
+    ) {
+        let Some(product) = app.products().get(group.product_index) else {
+            return;
+        };
+        let Some(area) = Self::to_screen(inner, offset_x, offset_y, group.product_rect) else {
+            return;
+        };
+
+        let selected = matches!(
+            app.viz_selection(),
+            Some(VizSelection::Product { product_index }) if *product_index == group.product_index
+        );
+
+        let border = if selected {
+            Style::default()
+                .fg(theme.entity_product)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(theme.entity_product)
+        };
+
+        // Count actors for aggregate badge
+        let actor_count: usize = app
+            .variants()
+            .iter()
+            .filter(|v| v.product_id == product.id)
+            .map(|v| app.actors_for_variant(&v.id).len())
+            .sum();
+
+        // Row 0: PRODUCT {id}  [NV] [NA]
+        let id_label = compact_id(&product.id);
+        let v_badge = format!("[{}V]", product.variant_total);
+        let a_badge = format!("[{}A]", actor_count);
+        let agg = format!("{} {}", v_badge, a_badge);
+        let id_part_width = 8 + id_label.len(); // "PRODUCT " + id
+        let inner_w = area.width.saturating_sub(2) as usize;
+        let pad = if inner_w > id_part_width + agg.len() {
+            inner_w - id_part_width - agg.len()
+        } else {
+            1
+        };
+
+        let row0 = Line::from(vec![
+            Span::styled(
+                "PRODUCT",
+                Style::default()
+                    .fg(theme.text_primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" "),
+            Span::styled(id_label, Style::default().fg(theme.text_secondary)),
+            Span::raw(" ".repeat(pad)),
+            Span::styled(v_badge, Style::default().fg(Color::Rgb(0xa0, 0xa0, 0xa0))),
+            Span::raw(" "),
+            Span::styled(a_badge, Style::default().fg(Color::Rgb(0xa0, 0xa0, 0xa0))),
+        ]);
+
+        // Row 1: status | variant+actor counts (matches SVG "4v 3a")
+        let row1 = Line::from(vec![
+            StatusPill::muted(&product.status, theme).span(),
+            Span::styled(" \u{2502} ", Style::default().fg(theme.text_muted)),
+            Span::styled(
+                format!("{}v {}a", product.variant_total, actor_count),
+                Style::default().fg(theme.text_muted),
+            ),
+        ]);
+
+        // Topology rows embedded inside product card (rows 2-7)
+        let variants: Vec<_> = app
+            .variants()
+            .iter()
+            .filter(|v| v.product_id == product.id)
+            .collect();
+        let variant_ids: Vec<&str> = variants.iter().map(|v| v.id.as_str()).collect();
+        let actors: Vec<_> = app
+            .actors()
+            .iter()
+            .filter(|a| variant_ids.contains(&a.variant_id.as_str()))
+            .collect();
+        let sub_agent_count: usize = actors.iter().map(|a| a.sub_agents.len()).sum();
+        let running = actors
+            .iter()
+            .filter(|a| a.status == "running" || a.status == "active")
+            .count();
+        let stopped = actors
+            .iter()
+            .filter(|a| a.status == "stopped" || a.status == "stop")
+            .count();
+        let empty_v = variants.len()
+            - variants
+                .iter()
+                .filter(|v| actors.iter().any(|a| a.variant_id == v.id))
+                .count();
+
+        let fmt_leader = |label: &str, value: usize| -> Line {
+            let dots_len = 14usize.saturating_sub(label.len() + 1);
+            let dots: String = ".".repeat(dots_len);
+            Line::from(vec![
+                Span::styled(
+                    format!("{label} {dots}"),
+                    Style::default().fg(theme.text_muted),
+                ),
+                Span::styled(
+                    format!(" {value}"),
+                    Style::default().fg(theme.text_secondary),
+                ),
+            ])
+        };
+
+        let topo_divider = Line::from(vec![Span::styled(
+            "\u{2500}".repeat(inner_w.min(44)),
+            Style::default().fg(theme.text_muted),
+        )]);
+        let topo_status = Line::from(vec![Span::styled(
+            format!("run:{running} stop:{stopped} empty:{empty_v}"),
+            Style::default().fg(theme.text_muted),
+        )]);
+
+        frame.render_widget(
+            Paragraph::new(vec![
+                row0,
+                row1,
+                topo_divider,
+                fmt_leader("variants", variants.len()),
+                fmt_leader("actors", actors.len()),
+                fmt_leader("sub-agents", sub_agent_count),
+                Line::from(""),
+                topo_status,
+            ])
+            .block(Block::default().borders(Borders::ALL).border_style(border)),
+            area,
+        );
+
+        // Left accent bar
+        Self::draw_accent_bar_left(frame.buffer_mut(), area, theme.entity_product);
+
+        // Locator below card
+        let locator_rect = WorldRect {
+            x: group.product_rect.x + 1,
+            y: group.product_rect.bottom(),
+            width: group.product_rect.width.saturating_sub(2),
+            height: 1,
+        };
+        if let Some(loc_area) = Self::to_screen(inner, offset_x, offset_y, locator_rect) {
+            frame.render_widget(
+                Paragraph::new(compact_locator(&product.locator, loc_area.width as usize))
+                    .style(Style::default().fg(Color::Rgb(0x48, 0x48, 0x48))),
+                loc_area,
+            );
+        }
+    }
+
+    fn render_variant(
+        frame: &mut Frame,
+        inner: Rect,
+        offset_x: i32,
+        offset_y: i32,
+        app: &App,
+        layout: &VariantLayout,
+        theme: &Theme,
+    ) {
+        let Some(variant) = app.variants().iter().find(|v| v.id == layout.variant_id) else {
+            return;
+        };
+        let Some(area) = Self::to_screen(inner, offset_x, offset_y, layout.variant_rect) else {
+            return;
+        };
+
+        let selected = matches!(
+            app.viz_selection(),
+            Some(VizSelection::Variant {
+                product_index,
+                variant_id,
+            }) if *product_index == layout.product_index && *variant_id == layout.variant_id
+        );
+
+        let border = if selected {
+            Style::default()
+                .fg(theme.entity_variant)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(theme.entity_variant)
+        };
+
+        // Row 0: variant name bold + [status] right-justified
+        // Compact status for tight columns: dirty→drt, clean→cln
+        let status_short = match variant.git_state.as_str() {
+            "dirty" => "dirty",
+            "clean" => "clean",
+            other => other,
+        };
+        let status_tag = format!("[{}]", status_short);
+        let inner_w = area.width.saturating_sub(2) as usize;
+        let name_len = variant.name.chars().count();
+        let pad = if inner_w > name_len + status_tag.len() {
+            inner_w - name_len - status_tag.len()
+        } else {
+            1
+        };
+
+        let row0 = Line::from(vec![
+            Span::styled(
+                variant.name.clone(),
+                Style::default()
+                    .fg(theme.text_primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" ".repeat(pad)),
+            Span::styled(status_tag, Style::default().fg(theme.text_muted)),
+        ]);
+
+        // Row 1: ahead/behind delta
+        let row1 = Line::from(vec![Span::styled(
+            format!("+{} -{}", variant.ahead, variant.behind),
+            Style::default().fg(theme.text_muted),
+        )]);
+
+        frame.render_widget(
+            Paragraph::new(vec![row0, row1])
+                .block(Block::default().borders(Borders::ALL).border_style(border)),
+            area,
+        );
+
+        Self::draw_accent_bar_left(frame.buffer_mut(), area, theme.entity_variant);
+    }
+
+    fn render_actor(
+        frame: &mut Frame,
+        inner: Rect,
+        offset_x: i32,
+        offset_y: i32,
+        app: &App,
+        layout: &ActorLayout,
+        theme: &Theme,
+    ) {
+        let Some(actor) = app.actors().iter().find(|a| a.id == layout.actor_id) else {
+            return;
+        };
+        let Some(area) = Self::to_screen(inner, offset_x, offset_y, layout.actor_rect) else {
+            return;
+        };
+
+        let selected = matches!(
+            app.viz_selection(),
+            Some(VizSelection::Actor { actor_id, .. }) if *actor_id == layout.actor_id
+        );
+        let border = if selected {
+            Style::default()
+                .fg(theme.entity_actor)
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(theme.entity_actor)
+        };
+
+        // Row 0: ACTOR {id}   [status]
+        let id_label = compact_id(&actor.id);
+        let status_token = match actor.status.as_str() {
+            "running" | "active" => "run",
+            "stopped" => "stp",
+            "idle" => "idl",
+            "error" | "failed" => "err",
+            _ => "unk",
+        };
+        let status_badge = format!("[{status_token}]");
+        let label_text = format!("ACTOR {id_label}");
+        let label_len = label_text.chars().count();
+        let badge_len = status_badge.chars().count();
+        let inner_w = area.width.saturating_sub(2) as usize;
+        let pad = if inner_w > label_len + badge_len {
+            inner_w - label_len - badge_len
+        } else {
+            1
+        };
+
+        let row0 = Line::from(vec![
+            Span::styled(
+                "ACTOR",
+                Style::default()
+                    .fg(theme.text_primary)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" "),
+            Span::styled(id_label, Style::default().fg(theme.text_secondary)),
+            Span::raw(" ".repeat(pad)),
+            Span::styled(status_badge, Style::default().fg(theme.text_muted)),
+        ]);
+
+        // Row 1: provider
+        let row1 = Line::from(vec![Span::styled(
+            actor.provider.clone(),
+            Style::default().fg(theme.text_muted),
+        )]);
+
+        frame.render_widget(
+            Paragraph::new(vec![row0, row1])
+                .block(Block::default().borders(Borders::ALL).border_style(border)),
+            area,
+        );
+
+        // Left accent bar
+        Self::draw_accent_bar_left(frame.buffer_mut(), area, theme.entity_actor);
+
+        if let Some(sub_rect) = layout.sub_grid_rect {
+            let Some(sub_area) = Self::to_screen(inner, offset_x, offset_y, sub_rect) else {
+                return;
+            };
+            let entries: Vec<(&str, &str)> = actor
+                .sub_agents
+                .iter()
+                .map(|sub| (sub.title.as_str(), sub.status.as_str()))
+                .collect();
+            render_sub_agent_grid(frame, sub_area, &entries, actor.sub_agents.len(), theme);
         }
     }
 
@@ -297,415 +948,132 @@ impl UnifiedCatalogView {
         app.products()
             .iter()
             .enumerate()
-            .map(|(product_index, product)| {
-                let variants: Vec<&VariantRow> = app
+            .map(|(product_index, product)| ProductGroup {
+                product,
+                product_index,
+                variants: app
                     .variants()
                     .iter()
                     .filter(|v| v.product_id == product.id)
-                    .collect();
-                ProductGroup {
-                    product,
-                    product_index,
-                    variants,
-                }
+                    .collect(),
             })
             .collect()
     }
 
-    /// Total height of a product group including all variant, actor, and sub-agent rows.
-    fn group_height(group: &ProductGroup, app: &App) -> u16 {
-        let mut h = PRODUCT_CARD_HEIGHT;
-        for variant in &group.variants {
-            h += VARIANT_CARD_HEIGHT;
-            let actors = app.actors_for_variant(&variant.id);
-            for actor in &actors {
-                h += ACTOR_CARD_HEIGHT;
-                let sa_count = actor.sub_agents.len() as u16;
-                h += sa_count; // 1 row per sub-agent line
-            }
+    fn to_screen(inner: Rect, offset_x: i32, offset_y: i32, rect: WorldRect) -> Option<Rect> {
+        let sx = inner.x as i32 + rect.x + offset_x;
+        let sy = inner.y as i32 + rect.y + offset_y;
+
+        if sx < inner.x as i32
+            || sy < inner.y as i32
+            || sx + rect.width as i32 > (inner.x + inner.width) as i32
+            || sy + rect.height as i32 > (inner.y + inner.height) as i32
+        {
+            return None;
         }
-        h
+
+        Some(Rect {
+            x: sx as u16,
+            y: sy as u16,
+            width: rect.width,
+            height: rect.height,
+        })
     }
 
-    fn render_product_group(
-        frame: &mut Frame,
-        area: Rect,
-        group: &ProductGroup,
-        viz_sel: Option<&VizSelection>,
-        app: &App,
-        theme: &Theme,
+    fn draw_world_char(
+        buf: &mut Buffer,
+        inner: Rect,
+        offset_x: i32,
+        offset_y: i32,
+        world_x: i32,
+        world_y: i32,
+        ch: &str,
+        style: Style,
     ) {
-        // Determine selection state from VizSelection.
-        let is_product_selected = matches!(
-            viz_sel,
-            Some(VizSelection::Product { product_index }) if *product_index == group.product_index
-        );
-        let is_product_tree_active = matches!(
-            viz_sel,
-            Some(VizSelection::Product { product_index }
-                | VizSelection::Variant { product_index, .. }
-                | VizSelection::Actor { product_index, .. })
-            if *product_index == group.product_index
-        );
+        let sx = inner.x as i32 + world_x + offset_x;
+        let sy = inner.y as i32 + world_y + offset_y;
 
-        // --- Product card (fixed width, left margin) ---
-        let card_w = PRODUCT_CARD_WIDTH.min(area.width.saturating_sub(PRODUCT_LEFT_MARGIN));
-        let card_x = area.x + PRODUCT_LEFT_MARGIN;
-        let card_h = PRODUCT_CARD_HEIGHT.min(area.height);
-
-        let product_area = Rect {
-            x: card_x,
-            y: area.y,
-            width: card_w,
-            height: card_h,
-        };
-
-        let product = group.product;
-
-        let product_color = if product.is_git_repo {
-            theme.entity_variant
-        } else {
-            theme.entity_product
-        };
-
-        let product_border = if is_product_selected {
-            Style::default()
-                .fg(product_color)
-                .add_modifier(Modifier::BOLD)
-        } else if is_product_tree_active {
-            Style::default().fg(product_color)
-        } else {
-            Style::default().fg(theme.pane_unfocused_border)
-        };
-
-        let title = if is_product_selected {
-            format!("\u{25c6} {}", product.display_name)
-        } else {
-            format!("Product: {}", product.display_name)
-        };
-
-        // Row 1: status pill + branch pill + variant counts
-        let status_pill = match product.status.as_str() {
-            "active" | "clean" => StatusPill::ok(&product.status, theme),
-            "dirty" => StatusPill::warn("dirty", theme),
-            "error" | "failed" => StatusPill::error(&product.status, theme),
-            _ => StatusPill::muted(&product.status, theme),
-        };
-        let branch_pill = StatusPill::info(&product.branches, theme);
-        let variant_summary = if product.variant_dirty > 0 || product.variant_drift > 0 {
-            StatusPill::warn(
-                format!(
-                    "{}v {}d {}dr",
-                    product.variant_total, product.variant_dirty, product.variant_drift
-                ),
-                theme,
-            )
-        } else {
-            StatusPill::muted(format!("{}v", product.variant_total), theme)
-        };
-
-        let pill_line = Line::from(vec![
-            status_pill.span(),
-            Span::raw(" "),
-            branch_pill.span(),
-            Span::raw(" "),
-            variant_summary.span(),
-        ]);
-
-        // Row 2: compact locator + id
-        let loc_line = Line::from(vec![
-            Span::styled(
-                compact_locator(&product.locator, 30),
-                Style::default().fg(theme.text_muted),
-            ),
-            Span::raw("  "),
-            Span::styled(
-                compact_id(&product.id),
-                Style::default().fg(theme.text_muted),
-            ),
-        ]);
-
-        let content = vec![pill_line, loc_line];
-
-        let card = Paragraph::new(content)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(product_border)
-                    .title(title),
-            )
-            .wrap(Wrap { trim: true });
-
-        frame.render_widget(card, product_area);
-
-        // --- Connector + variant sub-tiles + actor sub-tiles ---
-        if group.variants.is_empty() || area.height <= PRODUCT_CARD_HEIGHT {
+        if sx < inner.x as i32
+            || sy < inner.y as i32
+            || sx >= (inner.x + inner.width) as i32
+            || sy >= (inner.y + inner.height) as i32
+        {
             return;
         }
 
-        let connector_x = card_x + 3; // anchor connector under product card
-        let variant_x = connector_x + CONNECTOR_WIDTH;
-        let variant_w = VARIANT_CARD_WIDTH.min(area.width.saturating_sub(variant_x - area.x));
-        let remaining_h = area.height.saturating_sub(PRODUCT_CARD_HEIGHT);
+        buf.set_string(sx as u16, sy as u16, ch, style);
+    }
 
-        // Build a layout schedule: for each variant, compute its Y position and
-        // the Y positions of its actor children (including sub-agent rows).
-        struct SlotInfo {
-            variant_y: u16,
-            /// (actor_y, sub_agent_count) for each actor under this variant.
-            actor_slots: Vec<(u16, u16)>,
+    fn draw_world_hline(
+        buf: &mut Buffer,
+        inner: Rect,
+        offset_x: i32,
+        offset_y: i32,
+        y: i32,
+        x1: i32,
+        x2: i32,
+        style: Style,
+        ch: &str,
+    ) {
+        let (start, end) = (x1.min(x2), x1.max(x2));
+        for x in start..=end {
+            Self::draw_world_char(buf, inner, offset_x, offset_y, x, y, ch, style);
+        }
+    }
+
+    fn draw_world_vline(
+        buf: &mut Buffer,
+        inner: Rect,
+        offset_x: i32,
+        offset_y: i32,
+        x: i32,
+        y1: i32,
+        y2: i32,
+        style: Style,
+        ch: &str,
+    ) {
+        let (start, end) = (y1.min(y2), y1.max(y2));
+        for y in start..=end {
+            Self::draw_world_char(buf, inner, offset_x, offset_y, x, y, ch, style);
+        }
+    }
+
+    fn draw_dashed_hline(
+        buf: &mut Buffer,
+        inner: Rect,
+        offset_x: i32,
+        offset_y: i32,
+        y: i32,
+        x1: i32,
+        x2: i32,
+        style: Style,
+    ) {
+        let (start, end) = (x1.min(x2), x1.max(x2));
+        for x in start..=end {
+            let ch = if (x - start) % 2 == 0 {
+                "\u{2500}"
+            } else {
+                " "
+            };
+            Self::draw_world_char(buf, inner, offset_x, offset_y, x, y, ch, style);
+        }
+    }
+
+    /// Draw a left accent bar (▌ glyph) on the left edge of a screen-space Rect.
+    fn draw_accent_bar_left(buf: &mut Buffer, area: Rect, color: Color) {
+        let style = Style::default().fg(color);
+        if area.height < 3 {
+            return;
         }
 
-        let mut slots: Vec<SlotInfo> = Vec::with_capacity(group.variants.len());
-        let mut cursor_y = area.y + PRODUCT_CARD_HEIGHT;
-        for variant in &group.variants {
-            let vy = cursor_y;
-            cursor_y += VARIANT_CARD_HEIGHT;
-            let actors = app.actors_for_variant(&variant.id);
-            let mut actor_slots = Vec::with_capacity(actors.len());
-            for actor in &actors {
-                actor_slots.push((cursor_y, actor.sub_agents.len() as u16));
-                cursor_y += ACTOR_CARD_HEIGHT;
-                cursor_y += actor.sub_agents.len() as u16; // sub-agent lines
-            }
-            slots.push(SlotInfo {
-                variant_y: vy,
-                actor_slots,
-            });
-        }
-
-        let variant_count = group.variants.len();
-        let buf = frame.buffer_mut();
-        let connector_style = Style::default().fg(theme.catalog_connector);
-
-        // --- Draw variant connectors (product → variant trunk) ---
-        for (vi, slot) in slots.iter().enumerate() {
-            let vy = slot.variant_y;
-            if vy + VARIANT_CARD_HEIGHT > area.y + PRODUCT_CARD_HEIGHT + remaining_h {
-                break;
-            }
-
-            let is_last_variant = vi == variant_count - 1 && slot.actor_slots.is_empty();
-            // "last child" means no more items in the product trunk below this.
-            let is_last_in_trunk = vi == variant_count - 1;
-
-            // Vertical trunk from previous node to this branch point.
-            let branch_y = vy + 1; // midpoint of the variant card
-            let trunk_start = if vi == 0 {
-                area.y + PRODUCT_CARD_HEIGHT
-            } else {
-                // After previous variant (and its actors + sub-agents), the trunk continues.
-                let prev = &slots[vi - 1];
-                let prev_end = if prev.actor_slots.is_empty() {
-                    prev.variant_y + VARIANT_CARD_HEIGHT
-                } else {
-                    let (last_ay, last_sa) = prev.actor_slots.last().unwrap();
-                    last_ay + ACTOR_CARD_HEIGHT + last_sa
-                };
-                prev_end
-            };
-
-            draw_trunk(buf, connector_x, trunk_start, branch_y, &connector_style);
-
-            // Branch junction.
-            let junction = if is_last_in_trunk {
-                "\u{251c}"
-            } else {
-                "\u{251c}"
-            };
-            // Use └ only when truly the last entry under this product (no actors after last variant).
-            let junction = if is_last_variant {
-                "\u{2514}"
-            } else {
-                junction
-            };
-            draw_junction(
-                buf,
-                connector_x,
-                branch_y,
-                variant_x,
-                junction,
-                &connector_style,
-            );
-
-            // Continue trunk below this variant for subsequent variants.
-            if !is_last_in_trunk {
-                let next_start = branch_y + 1;
-                let next_slot = &slots[vi + 1];
-                let next_branch = next_slot.variant_y + 1;
-                // If this variant has actors, the trunk continues through them.
-                if !slot.actor_slots.is_empty() {
-                    let (last_ay, last_sa) = slot.actor_slots.last().unwrap();
-                    let actors_end = last_ay + ACTOR_CARD_HEIGHT + last_sa;
-                    draw_trunk(buf, connector_x, next_start, actors_end, &connector_style);
-                    draw_trunk(buf, connector_x, actors_end, next_branch, &connector_style);
-                } else {
-                    draw_trunk(buf, connector_x, next_start, next_branch, &connector_style);
-                }
-            } else if !slot.actor_slots.is_empty() {
-                // Last variant but has actors — continue trunk for actor branches.
-                let next_start = branch_y + 1;
-                let actors_end = slot.actor_slots.last().unwrap().0 + 1; // branch_y of last actor
-                draw_trunk(buf, connector_x, next_start, actors_end, &connector_style);
-            }
-        }
-
-        // --- Draw actor connectors (variant → actor sub-branches) ---
-        let actor_connector_x = variant_x + 3;
-        let actor_x = actor_connector_x + ACTOR_CONNECTOR_WIDTH;
-        let actor_w =
-            ACTOR_CARD_WIDTH.min(area.width.saturating_sub(actor_x.saturating_sub(area.x)));
-
-        for (vi, (variant, slot)) in group.variants.iter().zip(slots.iter()).enumerate() {
-            let actors = app.actors_for_variant(&variant.id);
-            if actors.is_empty() {
+        for row in (area.y + 1)..(area.y + area.height - 1) {
+            if row < buf.area.y || row >= buf.area.y + buf.area.height {
                 continue;
             }
-
-            let is_last_variant = vi == variant_count - 1;
-
-            for (ai, (actor_y, _sa_count)) in slot.actor_slots.iter().enumerate() {
-                let ay = *actor_y;
-                if ay + ACTOR_CARD_HEIGHT > area.y + area.height {
-                    break;
-                }
-
-                let is_last_actor = ai == actors.len() - 1;
-
-                // Vertical trunk from variant card bottom / previous actor (+ its sub-agents).
-                let branch_y = ay + 1; // midpoint of actor card
-                let trunk_start = if ai == 0 {
-                    slot.variant_y + VARIANT_CARD_HEIGHT
-                } else {
-                    let (prev_ay, prev_sa) = slot.actor_slots[ai - 1];
-                    prev_ay + ACTOR_CARD_HEIGHT + prev_sa
-                };
-
-                draw_trunk(
-                    buf,
-                    actor_connector_x,
-                    trunk_start,
-                    branch_y,
-                    &connector_style,
-                );
-
-                // Also continue the main product trunk through actor rows
-                // (only if this is NOT the last variant).
-                if !is_last_variant {
-                    draw_trunk(
-                        buf,
-                        connector_x,
-                        trunk_start,
-                        branch_y + 1,
-                        &connector_style,
-                    );
-                }
-
-                let junction = if is_last_actor {
-                    "\u{2514}"
-                } else {
-                    "\u{251c}"
-                };
-                draw_junction(
-                    buf,
-                    actor_connector_x,
-                    branch_y,
-                    actor_x,
-                    junction,
-                    &connector_style,
-                );
-
-                // Continue vertical trunk for non-last actors.
-                if !is_last_actor {
-                    draw_trunk(
-                        buf,
-                        actor_connector_x,
-                        branch_y + 1,
-                        slot.actor_slots[ai + 1].0 + 1,
-                        &connector_style,
-                    );
-                }
+            if area.x < buf.area.x || area.x >= buf.area.x + buf.area.width {
+                continue;
             }
-        }
-
-        // --- Render variant cards (after connectors so cards paint on top) ---
-        for (_vi, (variant, slot)) in group.variants.iter().zip(slots.iter()).enumerate() {
-            let vy = slot.variant_y;
-            if vy + VARIANT_CARD_HEIGHT > area.y + PRODUCT_CARD_HEIGHT + remaining_h {
-                break;
-            }
-
-            let tile_area = Rect {
-                x: variant_x,
-                y: vy,
-                width: variant_w,
-                height: VARIANT_CARD_HEIGHT,
-            };
-
-            let is_variant_selected = matches!(
-                viz_sel,
-                Some(VizSelection::Variant { product_index, variant_id })
-                if *product_index == group.product_index && *variant_id == variant.id
-            );
-            // Variant is "active" if it or one of its actors is selected.
-            let is_variant_active = is_variant_selected
-                || matches!(
-                    viz_sel,
-                    Some(VizSelection::Actor { product_index, variant_id, .. })
-                    if *product_index == group.product_index && *variant_id == variant.id
-                );
-
-            render_variant_card(
-                frame,
-                tile_area,
-                variant,
-                is_variant_selected,
-                is_variant_active,
-                theme,
-            );
-
-            // --- Render actor cards + sub-agent lines for this variant ---
-            let actors = app.actors_for_variant(&variant.id);
-            for (ai, actor) in actors.iter().enumerate() {
-                let (ay, _sa_count) = slot.actor_slots[ai];
-                if ay + ACTOR_CARD_HEIGHT > area.y + area.height {
-                    break;
-                }
-
-                let actor_area = Rect {
-                    x: actor_x,
-                    y: ay,
-                    width: actor_w,
-                    height: ACTOR_CARD_HEIGHT,
-                };
-
-                let is_actor_selected = matches!(
-                    viz_sel,
-                    Some(VizSelection::Actor { actor_id, .. })
-                    if *actor_id == actor.id
-                );
-
-                render_actor_card(frame, actor_area, actor, is_actor_selected, theme);
-
-                // Render sub-agent decorative lines below the actor card.
-                let sa_base_y = ay + ACTOR_CARD_HEIGHT;
-                for (si, sa) in actor.sub_agents.iter().enumerate() {
-                    let sa_y = sa_base_y + si as u16;
-                    if sa_y >= area.y + area.height {
-                        break;
-                    }
-                    let is_last_sa = si == actor.sub_agents.len() - 1;
-                    let line = sub_agent_tree_line(sa, "  ", is_last_sa, theme);
-                    let sa_area = Rect {
-                        x: actor_x,
-                        y: sa_y,
-                        width: actor_w,
-                        height: 1,
-                    };
-                    let para = Paragraph::new(line).wrap(Wrap { trim: true });
-                    frame.render_widget(para, sa_area);
-                }
-            }
+            buf.set_string(area.x, row, "\u{258c}", style);
         }
     }
 }

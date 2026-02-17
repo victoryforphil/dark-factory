@@ -1,13 +1,13 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::Frame;
 
-use dark_tui_components::{StatusPill, compact_text_normalized};
+use dark_tui_components::{compact_text_normalized, StatusPill};
 
 use crate::models::{
-    ActorRow, ProductRow, VariantRow, compact_id, compact_locator, compact_timestamp,
+    compact_id, compact_locator, compact_timestamp, ActorRow, ProductRow, VariantRow,
 };
 use crate::theme::Theme;
 use crate::ui::render::components::sub_agent_badge;

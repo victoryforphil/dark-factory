@@ -22,7 +22,6 @@ pub enum FocusPane {
 pub enum ResultsViewMode {
     Table,
     Viz,
-    Graph,
 }
 
 /// Identifies which node is selected in the viz catalog view.
@@ -131,8 +130,7 @@ impl ResultsViewMode {
     pub fn toggle(self) -> Self {
         match self {
             Self::Table => Self::Viz,
-            Self::Viz => Self::Graph,
-            Self::Graph => Self::Table,
+            Self::Viz => Self::Table,
         }
     }
 
@@ -140,7 +138,6 @@ impl ResultsViewMode {
         match self {
             Self::Table => "table",
             Self::Viz => "graphical-tree",
-            Self::Graph => "graphical-node",
         }
     }
 
@@ -148,12 +145,11 @@ impl ResultsViewMode {
         match self {
             Self::Table => "table",
             Self::Viz => "graphical tree",
-            Self::Graph => "graphical node",
         }
     }
 
     pub fn is_spatial(self) -> bool {
-        matches!(self, Self::Viz | Self::Graph)
+        matches!(self, Self::Viz)
     }
 }
 
@@ -1471,7 +1467,12 @@ impl App {
 
     pub fn toggle_results_view_mode(&mut self) {
         self.results_view_mode = self.results_view_mode.toggle();
-        // Initialize spatial selection when entering viz/graph modes.
+        if self.results_view_mode.is_spatial() {
+            // Keep spatial views anchored when switching modes so the
+            // baseline layout stays comparable across spatial renders.
+            self.reset_viz_offset();
+        }
+        // Initialize spatial selection when entering spatial modes.
         if self.results_view_mode.is_spatial() && self.viz_selection.is_none() {
             self.sync_viz_selection_from_table();
         }

@@ -556,6 +556,7 @@ dependencies = [
  "dark_chat",
  "dark_rust",
  "dark_tui_components",
+ "insta",
  "pretty_env_logger",
  "ratatui",
  "serde",

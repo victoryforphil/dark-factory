@@ -2,12 +2,12 @@ mod components;
 mod panels;
 mod views;
 
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
+use ratatui::Frame;
 
 use crate::app::{App, ResizeTarget, ResultsViewMode};
 use crate::ui::command_palette::ContextMenuState;
@@ -16,7 +16,7 @@ use panels::{
     ChatPanel, CloneFormPanel, ContextMenuPanel, DeleteVariantFormPanel, DetailsPanel, FooterPanel,
     HeaderPanel, KeyBarPanel, MoveActorFormPanel, SpawnFormPanel,
 };
-use views::{CatalogTreeView, GraphCatalogView, UnifiedCatalogView};
+use views::{CatalogTreeView, UnifiedCatalogView};
 
 pub(crate) use panels::ChatPanelHit;
 pub(crate) use panels::ContextMenuHit;
@@ -93,7 +93,6 @@ fn render_body(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
     match app.results_view_mode() {
         ResultsViewMode::Table => render_body_table(frame, area, app),
         ResultsViewMode::Viz => render_body_viz(frame, area, app),
-        ResultsViewMode::Graph => render_body_graph(frame, area, app),
     }
 }
 
@@ -148,24 +147,6 @@ fn render_body_viz(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
     }
 }
 
-/// Graph mode: hub-and-spoke spatial map with the same sidebar behavior.
-fn render_body_graph(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
-    let columns = resolve_columns(area, app);
-    if app.is_inspector_visible() && app.is_chat_visible() && columns.len() >= 3 {
-        GraphCatalogView::render(frame, columns[0], app);
-        ChatPanel::render(frame, columns[1], app);
-        DetailsPanel::render(frame, columns[2], app);
-    } else if app.is_inspector_visible() && columns.len() >= 2 {
-        GraphCatalogView::render(frame, columns[0], app);
-        DetailsPanel::render(frame, columns[1], app);
-    } else if app.is_chat_visible() && columns.len() >= 2 {
-        GraphCatalogView::render(frame, columns[0], app);
-        ChatPanel::render(frame, columns[1], app);
-    } else if let Some(main) = columns.first() {
-        GraphCatalogView::render(frame, *main, app);
-    }
-}
-
 pub(crate) fn try_select_viz_node(root: Rect, app: &mut App, col: u16, row: u16) -> bool {
     if !app.results_view_mode().is_spatial() {
         return false;
@@ -179,7 +160,6 @@ pub(crate) fn try_select_viz_node(root: Rect, app: &mut App, col: u16, row: u16)
 
     match app.results_view_mode() {
         ResultsViewMode::Viz => UnifiedCatalogView::click_select(main_area, app, col, row),
-        ResultsViewMode::Graph => GraphCatalogView::click_select(main_area, app, col, row),
         ResultsViewMode::Table => false,
     }
 }
@@ -213,7 +193,6 @@ pub(crate) fn viz_hit_test(
 
     match app.results_view_mode() {
         ResultsViewMode::Viz => UnifiedCatalogView::hit_test(main_area, app, col, row),
-        ResultsViewMode::Graph => GraphCatalogView::hit_test(main_area, app, col, row),
         ResultsViewMode::Table => None,
     }
 }
