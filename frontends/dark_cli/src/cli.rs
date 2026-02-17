@@ -229,6 +229,8 @@ pub enum ActorsAction {
         #[arg(long)]
         id: String,
         #[arg(long)]
+        variant_id: Option<String>,
+        #[arg(long)]
         title: Option<String>,
         #[arg(long)]
         description: Option<String>,

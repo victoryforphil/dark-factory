@@ -28,12 +28,25 @@ export interface ProviderMessage {
   raw?: Record<string, unknown>;
 }
 
+export interface ProviderSubAgentSnapshot {
+  id: string;
+  parentId?: string;
+  title?: string;
+  status?: string;
+  updatedAt?: string;
+  depth?: number;
+  summary?: string;
+  children?: ProviderSubAgentSnapshot[];
+  raw?: Record<string, unknown>;
+}
+
 export interface ProviderSessionSnapshot {
   actorLocator: string;
   providerSessionId: string;
   status: ActorStatusLabel;
   title?: string;
   description?: string;
+  subAgents?: ProviderSubAgentSnapshot[];
   connectionInfo?: ActorConnectionInfo;
   attachCommand?: string;
 }
@@ -52,6 +65,7 @@ export interface ActorProviderAdapter {
     status: ActorStatusLabel;
     title?: string;
     description?: string;
+    subAgents?: ProviderSubAgentSnapshot[];
     connectionInfo?: ActorConnectionInfo;
     attachCommand?: string;
   }>;
@@ -61,6 +75,7 @@ export interface ActorProviderAdapter {
     workingLocator: string;
   }): Promise<{
     status: ActorStatusLabel;
+    subAgents?: ProviderSubAgentSnapshot[];
     connectionInfo?: ActorConnectionInfo;
     attachCommand?: string;
   }>;

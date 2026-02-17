@@ -67,6 +67,25 @@ describe('actors module integration', () => {
 
     const actorId = createdActorPayload.data.id;
 
+    const createVariantResponse = await app.handle(
+      new Request(`http://localhost/products/${createdProduct.data.id}/variants`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          locator: '@local:///tmp/actors-int-product-move',
+          name: 'move-target',
+        }),
+      }),
+    );
+    expect(createVariantResponse.status).toBe(201);
+
+    const createVariantPayload = (await createVariantResponse.json()) as {
+      ok: true;
+      data: { id: string; locator: string };
+    };
+
     const pollResponse = await app.handle(
       new Request(`http://localhost/actors/${actorId}/poll`, {
         method: 'POST',
@@ -122,8 +141,28 @@ describe('actors module integration', () => {
     );
     expect(listActorsResponse.status).toBe(200);
 
+    const moveActorResponse = await app.handle(
+      new Request(`http://localhost/actors/${actorId}`, {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          variantId: createVariantPayload.data.id,
+        }),
+      }),
+    );
+    expect(moveActorResponse.status).toBe(200);
+
+    const movedActorPayload = (await moveActorResponse.json()) as {
+      ok: true;
+      data: { variantId: string; workingLocator: string };
+    };
+    expect(movedActorPayload.data.variantId).toBe(createVariantPayload.data.id);
+    expect(movedActorPayload.data.workingLocator).toBe(createVariantPayload.data.locator);
+
     const deleteActorResponse = await app.handle(
-      new Request(`http://localhost/actors/${actorId}?terminate=true`, {
+      new Request(`http://localhost/actors/${actorId}`, {
         method: 'DELETE',
       }),
     );

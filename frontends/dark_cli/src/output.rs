@@ -3,7 +3,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use prettytable::{Cell, Row, Table};
 use serde_json::Value;
 
-use crate::cli::{Command, OutputFormat};
+use crate::cli::{ActorsAction, Command, OutputFormat};
 
 pub fn render(
     format: OutputFormat,
@@ -20,8 +20,168 @@ pub fn render(
 fn render_pretty(command: &Command, body: &Value) -> Result<String, anyhow::Error> {
     match command {
         Command::Info { .. } => render_info_summary(body),
+        Command::Actors(command) => render_actors_summary(command, body),
         _ => render_pretty_value(body),
     }
+}
+
+fn render_actors_summary(
+    command: &crate::cli::ActorsCommand,
+    body: &Value,
+) -> Result<String, anyhow::Error> {
+    match &command.action {
+        ActorsAction::List { .. } => {
+            let Some(rows) = body.get("data").and_then(Value::as_array) else {
+                return render_pretty_value(body);
+            };
+
+            Ok(render_actor_rows_table(rows))
+        }
+        ActorsAction::Get { .. } => {
+            let Some(actor) = body.get("data") else {
+                return render_pretty_value(body);
+            };
+
+            let mut sections = vec![render_key_value_table(&flatten_value_map(actor))];
+            let sub_agents = collect_sub_agent_rows(actor.get("subAgents"), None, 0);
+            if !sub_agents.is_empty() {
+                sections.push(render_sub_agent_rows_table(&sub_agents));
+            }
+
+            Ok(sections.join("\n\n"))
+        }
+        _ => render_pretty_value(body),
+    }
+}
+
+fn render_actor_rows_table(rows: &[Value]) -> String {
+    if rows.is_empty() {
+        return "No actors.".to_string();
+    }
+
+    let mut table = Table::new();
+    table.add_row(Row::new(vec![
+        Cell::new("Actor ID"),
+        Cell::new("Variant ID"),
+        Cell::new("Provider"),
+        Cell::new("Status"),
+        Cell::new("Title"),
+        Cell::new("SubAgents"),
+        Cell::new("Updated"),
+    ]));
+
+    for row in rows {
+        table.add_row(Row::new(vec![
+            Cell::new(&id_field(row, "id")),
+            Cell::new(&id_field(row, "variantId")),
+            Cell::new(&field(row, "provider")),
+            Cell::new(&field(row, "status")),
+            Cell::new(&field(row, "title")),
+            Cell::new(&sub_agent_count_cell(row)),
+            Cell::new(&field(row, "updatedAt")),
+        ]));
+    }
+
+    table.to_string()
+}
+
+#[derive(Debug)]
+struct SubAgentRow {
+    id: String,
+    parent_id: String,
+    depth: usize,
+    status: String,
+    title: String,
+    updated_at: String,
+}
+
+fn collect_sub_agent_rows(
+    sub_agents: Option<&Value>,
+    inherited_parent_id: Option<&str>,
+    inherited_depth: usize,
+) -> Vec<SubAgentRow> {
+    let mut rows = Vec::new();
+    let Some(items) = sub_agents.and_then(Value::as_array) else {
+        return rows;
+    };
+
+    for item in items {
+        let id = item
+            .get("id")
+            .and_then(Value::as_str)
+            .map(ToString::to_string)
+            .unwrap_or_else(|| "-".to_string());
+        let parent_id = item
+            .get("parentId")
+            .and_then(Value::as_str)
+            .map(ToString::to_string)
+            .or_else(|| inherited_parent_id.map(ToString::to_string))
+            .unwrap_or_else(|| "-".to_string());
+        let depth = item
+            .get("depth")
+            .and_then(Value::as_u64)
+            .map(|value| value as usize)
+            .unwrap_or(inherited_depth);
+
+        rows.push(SubAgentRow {
+            id,
+            parent_id,
+            depth,
+            status: item
+                .get("status")
+                .and_then(Value::as_str)
+                .map(ToString::to_string)
+                .unwrap_or_else(|| "-".to_string()),
+            title: item
+                .get("title")
+                .and_then(Value::as_str)
+                .map(ToString::to_string)
+                .unwrap_or_else(|| "-".to_string()),
+            updated_at: item
+                .get("updatedAt")
+                .and_then(Value::as_str)
+                .map(ToString::to_string)
+                .unwrap_or_else(|| "-".to_string()),
+        });
+
+        rows.extend(collect_sub_agent_rows(
+            item.get("children"),
+            item.get("id").and_then(Value::as_str),
+            depth + 1,
+        ));
+    }
+
+    rows
+}
+
+fn render_sub_agent_rows_table(rows: &[SubAgentRow]) -> String {
+    let mut table = Table::new();
+    table.add_row(Row::new(vec![
+        Cell::new("SubAgent ID"),
+        Cell::new("Parent"),
+        Cell::new("Depth"),
+        Cell::new("Status"),
+        Cell::new("Title"),
+        Cell::new("Updated"),
+    ]));
+
+    for row in rows {
+        table.add_row(Row::new(vec![
+            Cell::new(&row.id),
+            Cell::new(&row.parent_id),
+            Cell::new(&row.depth.to_string()),
+            Cell::new(&row.status),
+            Cell::new(&row.title),
+            Cell::new(&row.updated_at),
+        ]));
+    }
+
+    table.to_string()
+}
+
+fn sub_agent_count_cell(row: &Value) -> String {
+    let total = collect_sub_agent_rows(row.get("subAgents"), None, 0).len();
+    total.to_string()
 }
 
 fn render_info_summary(body: &Value) -> Result<String, anyhow::Error> {

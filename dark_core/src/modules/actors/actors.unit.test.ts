@@ -24,6 +24,7 @@ const createDependencies = (): ActorsRoutesDependencies => {
       description: input.description ?? null,
       connectionInfo: null,
       attachCommand: null,
+      subAgents: null,
       metadata: input.metadata ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -65,6 +66,59 @@ describe('actors routes unit', () => {
     });
   });
 
+  it('passes subAgents through actor create payload', async () => {
+    let receivedSubAgents: unknown;
+    const dependencies = createDependencies();
+    dependencies.createActor = async (input) => {
+      receivedSubAgents = input.subAgents;
+      return {
+        id: 'act_1',
+        variantId: input.variantId,
+        provider: input.provider,
+        actorLocator: 'mock:///tmp/project#mock_session_0001',
+        workingLocator: '@local:///tmp/project',
+        providerSessionId: 'mock_session_0001',
+        status: 'ready',
+        title: input.title ?? null,
+        description: input.description ?? null,
+        connectionInfo: null,
+        attachCommand: null,
+        subAgents: input.subAgents ?? null,
+        metadata: input.metadata ?? null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    };
+
+    const app = new Elysia().use(createActorsRoutes(dependencies));
+    const response = await app.handle(
+      new Request('http://localhost/actors/', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          variantId: 'var_1',
+          provider: 'mock',
+          subAgents: [
+            {
+              id: 'sub_1',
+              status: 'running',
+              children: [{ id: 'sub_1_1', status: 'ready' }],
+            },
+          ],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(201);
+    expect(receivedSubAgents).toEqual([
+      {
+        id: 'sub_1',
+        status: 'running',
+        children: [{ id: 'sub_1_1', status: 'ready' }],
+      },
+    ]);
+  });
+
   it('passes nLastMessages to dependencies', async () => {
     let received: { id: string; nLastMessages?: number } | undefined;
     const dependencies = createDependencies();
@@ -102,6 +156,33 @@ describe('actors routes unit', () => {
     expect(received).toEqual({
       id: 'act_1',
       nLastMessages: undefined,
+    });
+  });
+
+  it('passes variantId through actor update payload', async () => {
+    let receivedInput: unknown;
+    const dependencies = createDependencies();
+    dependencies.updateActorById = async (id, input) => {
+      receivedInput = input;
+      return {
+        id,
+      } as never;
+    };
+
+    const app = new Elysia().use(createActorsRoutes(dependencies));
+    const response = await app.handle(
+      new Request('http://localhost/actors/act_1', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          variantId: 'var_2',
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(receivedInput).toEqual({
+      variantId: 'var_2',
     });
   });
 });

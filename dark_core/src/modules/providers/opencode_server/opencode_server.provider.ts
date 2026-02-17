@@ -1,8 +1,10 @@
 import { locatorIdToHostPath } from '../../../utils/locator';
 import { logInfoDuration, startLogTimer } from '../../../utils/logging';
+import { getConfig } from '../../../config';
 import type {
   ActorProviderAdapter,
   ActorStatusLabel,
+  ProviderSubAgentSnapshot,
   ProviderSessionSnapshot,
 } from '../providers.common';
 import { buildActorLocator } from '../providers.common';
@@ -41,6 +43,146 @@ const resolveOpencodeModel = (model?: string): string => {
   return DEFAULT_OPENCODE_MODEL;
 };
 
+type OpenCodeSessionLike = {
+  id: string;
+  title?: string;
+} & Record<string, unknown>;
+
+const toIsoString = (value: unknown): string | undefined => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const normalized = value < 1_000_000_000_000 ? value * 1000 : value;
+    return new Date(normalized).toISOString();
+  }
+
+  return undefined;
+};
+
+const readSessionParentId = (session: OpenCodeSessionLike): string | undefined => {
+  const candidate =
+    session.parentId ??
+    session.parentID ??
+    session.parent_id ??
+    (typeof session.parent === 'object' && session.parent !== null
+      ? (session.parent as Record<string, unknown>).id
+      : undefined);
+
+  if (typeof candidate !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = candidate.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const readSessionUpdatedAt = (session: OpenCodeSessionLike): string | undefined => {
+  const explicit = toIsoString(session.updatedAt ?? session.updated_at ?? session.lastUpdatedAt);
+  if (explicit) {
+    return explicit;
+  }
+
+  const time = session.time as Record<string, unknown> | undefined;
+  return toIsoString(time?.updated ?? time?.updatedAt);
+};
+
+const toMillis = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value < 1_000_000_000_000 ? value * 1000 : value;
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    const parsed = Date.parse(value);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  }
+
+  return undefined;
+};
+
+const sessionUpdatedAtMs = (session: OpenCodeSessionLike): number | undefined => {
+  const explicit = toMillis(session.updatedAt ?? session.updated_at ?? session.lastUpdatedAt);
+  if (explicit !== undefined) {
+    return explicit;
+  }
+
+  const time = session.time as Record<string, unknown> | undefined;
+  return toMillis(time?.updated ?? time?.updatedAt ?? time?.created ?? time?.createdAt);
+};
+
+const selectSessionsForImport = (input: {
+  sessions: OpenCodeSessionLike[];
+  statuses: Record<string, OpenCodeStatusLike | undefined>;
+}): OpenCodeSessionLike[] => {
+  const activeSessionIds = new Set(Object.keys(input.statuses));
+  const activeSessions = input.sessions.filter((session) => activeSessionIds.has(session.id));
+  if (activeSessions.length > 0) {
+    return activeSessions;
+  }
+
+  const config = getConfig();
+  if (!config.opencode.includeRecentSessionsWhenStatusEmpty) {
+    return [];
+  }
+
+  const nowMs = Date.now();
+  const windowMs = config.opencode.recentSessionWindowHours * 60 * 60 * 1000;
+  const minUpdatedAtMs = nowMs - windowMs;
+
+  return input.sessions
+    .map((session) => ({
+      session,
+      updatedAtMs: sessionUpdatedAtMs(session),
+    }))
+    .filter((entry) => entry.updatedAtMs !== undefined && entry.updatedAtMs >= minUpdatedAtMs)
+    .sort((left, right) => (right.updatedAtMs ?? 0) - (left.updatedAtMs ?? 0))
+    .slice(0, config.opencode.recentSessionLimit)
+    .map((entry) => entry.session);
+};
+
+const buildSubAgentTree = (input: {
+  rootSessionId: string;
+  sessions: OpenCodeSessionLike[];
+  statuses: Record<string, OpenCodeStatusLike | undefined>;
+}): ProviderSubAgentSnapshot[] => {
+  const byId = new Map<string, OpenCodeSessionLike>();
+  const childMap = new Map<string, OpenCodeSessionLike[]>();
+
+  for (const session of input.sessions) {
+    byId.set(session.id, session);
+  }
+
+  for (const session of input.sessions) {
+    const parentId = readSessionParentId(session);
+    if (!parentId || !byId.has(parentId)) {
+      continue;
+    }
+
+    const list = childMap.get(parentId) ?? [];
+    list.push(session);
+    childMap.set(parentId, list);
+  }
+
+  const toNode = (session: OpenCodeSessionLike, depth: number): ProviderSubAgentSnapshot => {
+    const children = (childMap.get(session.id) ?? []).map((child) => toNode(child, depth + 1));
+
+    return {
+      id: session.id,
+      parentId: readSessionParentId(session),
+      title: session.title,
+      status: mapOpenCodeSessionStatus(input.statuses[session.id]),
+      updatedAt: readSessionUpdatedAt(session),
+      depth,
+      children,
+      raw: session,
+    };
+  };
+
+  return (childMap.get(input.rootSessionId) ?? []).map((child) => toNode(child, 0));
+};
+
 const toSessionDescription = (
   messages: ReturnType<typeof mapOpenCodeMessages>,
 ): string | undefined => {
@@ -72,6 +214,12 @@ export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
   async spawn(input) {
     const directory = locatorIdToHostPath(input.workingLocator);
     const session = await createOpencodeSession({ directory, title: input.title });
+    const [sessions, statuses] = await Promise.all([
+      listOpencodeSessions({ directory }),
+      getOpencodeSessionStatuses({ directory }),
+    ]);
+    const sessionById = new Map(sessions.map((entry) => [entry.id, entry as OpenCodeSessionLike]));
+    const root = sessionById.get(session.id);
     const attach = await buildOpencodeTuiAttachCommand({
       directory,
       sessionId: session.id,
@@ -88,6 +236,15 @@ export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
       status: 'ready',
       title: session.title,
       description: input.description,
+      ...(root
+        ? {
+            subAgents: buildSubAgentTree({
+              rootSessionId: session.id,
+              sessions: sessions as OpenCodeSessionLike[],
+              statuses,
+            }),
+          }
+        : {}),
       connectionInfo: {
         provider: OPENCODE_SERVER_PROVIDER_KEY,
         directory,
@@ -100,13 +257,22 @@ export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
   async poll(input) {
     const providerSessionId = requireSessionId(input.providerSessionId);
     const directory = locatorIdToHostPath(input.workingLocator);
-    const statuses = await getOpencodeSessionStatuses({ directory });
+    const [sessions, statuses] = await Promise.all([
+      listOpencodeSessions({ directory }),
+      getOpencodeSessionStatuses({ directory }),
+    ]);
     const sessionStatus = statuses[providerSessionId] as OpenCodeStatusLike | undefined;
     const status = mapOpenCodeSessionStatus(sessionStatus);
+    const subAgents = buildSubAgentTree({
+      rootSessionId: providerSessionId,
+      sessions: sessions as OpenCodeSessionLike[],
+      statuses,
+    });
 
     if (status === 'stopped') {
       return {
         status,
+        subAgents,
         connectionInfo: {
           provider: OPENCODE_SERVER_PROVIDER_KEY,
           directory,
@@ -123,6 +289,7 @@ export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
 
     return {
       status,
+      subAgents,
       connectionInfo: {
         provider: OPENCODE_SERVER_PROVIDER_KEY,
         directory,
@@ -199,11 +366,19 @@ export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
       listOpencodeSessions({ directory }),
       getOpencodeSessionStatuses({ directory }),
     ]);
-    const activeSessionIds = new Set(Object.keys(statuses));
+    const sessionsForImport = selectSessionsForImport({
+      sessions: sessions as OpenCodeSessionLike[],
+      statuses,
+    });
+    const sessionById = new Map(sessionsForImport.map((session) => [session.id, session]));
+    const isRootSession = (session: OpenCodeSessionLike): boolean => {
+      const parentId = readSessionParentId(session);
+      return !parentId || !sessionById.has(parentId);
+    };
 
     const importedSessions = await Promise.all(
-      sessions
-        .filter((session) => activeSessionIds.has(session.id))
+      sessionsForImport
+        .filter((session) => isRootSession(session as OpenCodeSessionLike))
         .map(async (session): Promise<ProviderSessionSnapshot> => {
           const rawMessages = await listOpencodeSessionMessages({
             directory,
@@ -223,6 +398,11 @@ export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
             status: mapOpenCodeSessionStatus(statuses[session.id] as OpenCodeStatusLike | undefined),
             title: session.title,
             description,
+            subAgents: buildSubAgentTree({
+              rootSessionId: session.id,
+              sessions: sessionsForImport as OpenCodeSessionLike[],
+              statuses,
+            }),
             connectionInfo: {
               provider: OPENCODE_SERVER_PROVIDER_KEY,
               directory,
@@ -236,7 +416,8 @@ export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
       activeCount: importedSessions.length,
       directory,
       sessionCount: sessions.length,
-      statusCount: activeSessionIds.size,
+      statusCount: Object.keys(statuses).length,
+      importPoolCount: sessionsForImport.length,
     });
 
     return importedSessions;
@@ -254,4 +435,12 @@ export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
 
 export const mapOpenCodeStatusToActorStatus = (status: OpenCodeStatusLike | undefined): ActorStatusLabel => {
   return mapOpenCodeSessionStatus(status);
+};
+
+export const __opencodeProviderInternals = {
+  buildSubAgentTree,
+  readSessionParentId,
+  readSessionUpdatedAt,
+  selectSessionsForImport,
+  sessionUpdatedAtMs,
 };

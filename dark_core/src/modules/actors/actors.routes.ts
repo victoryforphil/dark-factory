@@ -84,6 +84,17 @@ const parseOptionalPositiveInt = (value?: string): number | undefined => {
   return normalized;
 };
 
+const subAgentSchema: ReturnType<typeof t.Object> = t.Object({
+  id: t.String(),
+  parentId: t.Optional(t.Union([t.String(), t.Null()])),
+  title: t.Optional(t.Union([t.String(), t.Null()])),
+  status: t.Optional(t.Union([t.String(), t.Null()])),
+  updatedAt: t.Optional(t.Union([t.String(), t.Null()])),
+  depth: t.Optional(t.Union([t.Number(), t.Null()])),
+  summary: t.Optional(t.Union([t.String(), t.Null()])),
+  children: t.Optional(t.Array(t.Any())),
+});
+
 const logActorRouteError = (event: string, metadata: Record<string, string | number | boolean>) => {
   Log.error(`Core // Actors Route // ${event} ${formatLogMetadata(metadata)}`);
 };
@@ -156,6 +167,7 @@ export const createActorsRoutes = (
             provider: body.provider,
             title: body.title,
             description: body.description,
+            subAgents: body.subAgents,
             metadata: body.metadata,
           });
           set.status = 201;
@@ -208,6 +220,7 @@ export const createActorsRoutes = (
           provider: t.Optional(t.String()),
           title: t.Optional(t.String()),
           description: t.Optional(t.String()),
+          subAgents: t.Optional(t.Array(subAgentSchema)),
           metadata: t.Optional(t.Record(t.String(), t.Any())),
         }),
         response: {
@@ -276,8 +289,10 @@ export const createActorsRoutes = (
       {
         params: t.Object({ id: t.String() }),
         body: t.Object({
+          variantId: t.Optional(t.String()),
           title: t.Optional(t.Union([t.String(), t.Null()])),
           description: t.Optional(t.Union([t.String(), t.Null()])),
+          subAgents: t.Optional(t.Union([t.Array(subAgentSchema), t.Null()])),
           metadata: t.Optional(t.Union([t.Record(t.String(), t.Any()), t.Null()])),
         }),
         response: {

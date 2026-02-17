@@ -15,13 +15,27 @@ export interface CreateActorInput {
   provider?: string;
   title?: string;
   description?: string;
+  subAgents?: ActorSubAgent[];
   metadata?: Record<string, unknown>;
 }
 
 export interface UpdateActorInput {
+  variantId?: string;
   title?: string | null;
   description?: string | null;
+  subAgents?: ActorSubAgent[] | null;
   metadata?: Record<string, unknown> | null;
+}
+
+export interface ActorSubAgent {
+  id: string;
+  parentId?: string | null;
+  title?: string | null;
+  status?: string | null;
+  updatedAt?: string | null;
+  depth?: number | null;
+  summary?: string | null;
+  children?: ActorSubAgent[];
 }
 
 export interface ListActorsQuery extends CursorListQuery {
@@ -81,6 +95,16 @@ const toJsonObject = (
   return value as Prisma.InputJsonObject;
 };
 
+const toJsonArray = (
+  value: ActorSubAgent[] | undefined,
+): Prisma.InputJsonArray | undefined => {
+  if (!value) {
+    return undefined;
+  }
+
+  return value as unknown as Prisma.InputJsonArray;
+};
+
 const getActorOrThrow = async (id: string): Promise<Actor> => {
   const prisma = getPrismaClient();
   const actor = await prisma.actor.findUnique({ where: { id } });
@@ -138,6 +162,11 @@ export const createActor = async (input: CreateActorInput): Promise<Actor> => {
         ? (spawned.connectionInfo as Prisma.InputJsonObject)
         : Prisma.DbNull,
       attachCommand: spawned.attachCommand,
+      subAgents: spawned.subAgents
+        ? (spawned.subAgents as unknown as Prisma.InputJsonArray)
+        : input.subAgents
+          ? toJsonArray(input.subAgents)
+          : Prisma.DbNull,
       metadata: input.metadata ? (input.metadata as Prisma.InputJsonObject) : Prisma.DbNull,
     },
   });
@@ -236,6 +265,13 @@ export const importVariantActors = async (
                   : Prisma.DbNull,
               }
             : {}),
+          ...(session.subAgents !== undefined
+            ? {
+                subAgents: session.subAgents
+                  ? (session.subAgents as unknown as Prisma.InputJsonArray)
+                  : Prisma.DbNull,
+              }
+            : {}),
           ...(session.attachCommand !== undefined ? { attachCommand: session.attachCommand } : {}),
         },
       });
@@ -260,6 +296,9 @@ export const importVariantActors = async (
           ? (session.connectionInfo as Prisma.InputJsonObject)
           : Prisma.DbNull,
         attachCommand: session.attachCommand,
+        subAgents: session.subAgents
+          ? (session.subAgents as unknown as Prisma.InputJsonArray)
+          : Prisma.DbNull,
       },
     });
 
@@ -312,13 +351,28 @@ export const getActorById = async (id: string): Promise<Actor> => {
 
 export const updateActorById = async (id: string, input: UpdateActorInput): Promise<Actor> => {
   const prisma = getPrismaClient();
-  await getActorOrThrow(id);
+  const actor = await getActorOrThrow(id);
+  const destinationVariant =
+    input.variantId !== undefined && input.variantId !== actor.variantId
+      ? await getVariantOrThrow(input.variantId)
+      : null;
 
   return prisma.actor.update({
     where: { id },
     data: {
+      ...(destinationVariant
+        ? {
+            variantId: destinationVariant.id,
+            workingLocator: destinationVariant.locator,
+          }
+        : {}),
       ...(input.title !== undefined ? { title: input.title } : {}),
       ...(input.description !== undefined ? { description: input.description } : {}),
+      ...(input.subAgents !== undefined
+        ? {
+            subAgents: input.subAgents === null ? Prisma.DbNull : toJsonArray(input.subAgents),
+          }
+        : {}),
       ...(input.metadata !== undefined
         ? { metadata: input.metadata === null ? Prisma.DbNull : toJsonObject(input.metadata) }
         : {}),
@@ -363,6 +417,13 @@ export const pollActorById = async (id: string): Promise<Actor> => {
       connectionInfo: polled.connectionInfo
         ? (polled.connectionInfo as Prisma.InputJsonObject)
         : Prisma.DbNull,
+      ...(polled.subAgents !== undefined
+        ? {
+            subAgents: polled.subAgents
+              ? (polled.subAgents as unknown as Prisma.InputJsonArray)
+              : Prisma.DbNull,
+          }
+        : {}),
       ...(polled.attachCommand !== undefined ? { attachCommand: polled.attachCommand } : {}),
     },
   });

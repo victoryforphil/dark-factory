@@ -60,6 +60,7 @@ model Actor {
   description       String?
   connectionInfo    Json?    @map("connection_info")
   attachCommand     String?  @map("attach_command")
+  subAgents         Json?    @map("sub_agents")
   metadata          Json?
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")

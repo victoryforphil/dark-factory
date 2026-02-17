@@ -13,6 +13,9 @@ export const opencodeServerConfigSection = {
     autoStartServer: z.boolean().default(true),
     logLevel: opencodeLogLevelSchema.default('INFO'),
     tuiCommand: z.string().min(1).default('opencode'),
+    includeRecentSessionsWhenStatusEmpty: z.boolean().default(true),
+    recentSessionWindowHours: z.number().int().min(1).max(24 * 30).default(72),
+    recentSessionLimit: z.number().int().min(1).max(500).default(50),
   },
   env: [
     { path: 'opencode.hostname', env: 'DARKFACTORY_OPENCODE_HOST' },
@@ -21,5 +24,11 @@ export const opencodeServerConfigSection = {
     { path: 'opencode.autoStartServer', env: 'DARKFACTORY_OPENCODE_AUTO_START_SERVER' },
     { path: 'opencode.logLevel', env: 'DARKFACTORY_OPENCODE_LOG_LEVEL' },
     { path: 'opencode.tuiCommand', env: 'DARKFACTORY_OPENCODE_TUI_COMMAND' },
+    {
+      path: 'opencode.includeRecentSessionsWhenStatusEmpty',
+      env: 'DARKFACTORY_OPENCODE_INCLUDE_RECENT_WHEN_STATUS_EMPTY',
+    },
+    { path: 'opencode.recentSessionWindowHours', env: 'DARKFACTORY_OPENCODE_RECENT_SESSION_HOURS' },
+    { path: 'opencode.recentSessionLimit', env: 'DARKFACTORY_OPENCODE_RECENT_SESSION_LIMIT' },
   ],
 } satisfies ConfigSubsystemDefinition;

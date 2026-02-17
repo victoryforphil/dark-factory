@@ -5,7 +5,7 @@ pub mod variants;
 
 pub use actors::{
     ActorAttachQuery, ActorCommandInput, ActorCreateInput, ActorDeleteQuery, ActorListQuery,
-    ActorMessage, ActorMessageInput, ActorMessagesQuery, ActorUpdateInput,
+    ActorMessage, ActorMessageInput, ActorMessagesQuery, ActorSubAgent, ActorUpdateInput,
 };
 pub use products::{
     ProductCreateInput, ProductGitInfo, ProductIncludeQuery, ProductListQuery, ProductUpdateInput,

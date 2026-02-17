@@ -254,6 +254,7 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
                     provider: resolved_provider,
                     title: title.clone(),
                     description: description.clone(),
+                    sub_agents: None,
                     metadata: None,
                 })
                 .await
@@ -262,14 +263,17 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
             ActorsAction::Get { id } => api.actors_get(id).await.map_err(Into::into),
             ActorsAction::Update {
                 id,
+                variant_id,
                 title,
                 description,
             } => api
                 .actors_update(
                     id,
                     &ActorUpdateInput {
+                        variant_id: variant_id.clone(),
                         title: title.clone(),
                         description: description.clone(),
+                        sub_agents: None,
                         metadata: None,
                     },
                 )

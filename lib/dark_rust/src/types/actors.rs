@@ -1,6 +1,26 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActorSubAgent {
+    pub id: String,
+    #[serde(default)]
+    pub parent_id: Option<String>,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
+    #[serde(default)]
+    pub depth: Option<f64>,
+    #[serde(default)]
+    pub summary: Option<String>,
+    #[serde(default)]
+    pub children: Option<Vec<ActorSubAgent>>,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct ActorListQuery {
     pub cursor: Option<String>,
@@ -21,6 +41,8 @@ pub struct ActorCreateInput {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub sub_agents: Option<Vec<ActorSubAgent>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Value>,
 }
 
@@ -28,9 +50,13 @@ pub struct ActorCreateInput {
 #[serde(rename_all = "camelCase")]
 pub struct ActorUpdateInput {
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub variant_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sub_agents: Option<Vec<ActorSubAgent>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Value>,
 }
