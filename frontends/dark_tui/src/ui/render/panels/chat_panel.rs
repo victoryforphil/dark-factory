@@ -1,14 +1,14 @@
 use dark_chat::framework::{
-    ConversationComposer, ConversationHeader, ConversationMessage, ConversationPalette,
-    ConversationPanelProps, ConversationStatusTone, render_conversation_panel,
-    status_tone_for_status,
+    render_conversation_panel, status_tone_for_status, ConversationComposer, ConversationHeader,
+    ConversationMessage, ConversationPalette, ConversationPanelProps, ConversationStatusTone,
 };
-use dark_tui_components::{LoadingSpinner, PaneBlockComponent, StatusPill};
-use ratatui::Frame;
+use dark_tui_components::{
+    compact_session_id, compact_text, inner_rect, rect_contains, LoadingSpinner, PopupAnchor,
+    PopupHit, PopupItem, PopupOverlay, PopupOverlayProps,
+};
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
-use ratatui::style::{Color, Style};
-use ratatui::text::{Line, Span};
-use ratatui::widgets::{Clear, Paragraph, Wrap};
+use ratatui::style::Color;
+use ratatui::Frame;
 use std::borrow::Cow;
 
 use crate::app::{App, ChatPickerKind};
@@ -74,74 +74,27 @@ impl ChatPanel {
     }
 
     pub(crate) fn hit_test(area: Rect, app: &App, col: u16, row: u16) -> ChatPanelHit {
-        if let Some(popup) = picker_popup_area(area, app) {
-            if contains(popup, col, row) {
-                let inner = inner_rect(popup);
-                if inner.height < 3 {
-                    return ChatPanelHit::PickerPopup;
-                }
-                let rows = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints([
-                        Constraint::Min(1),
-                        Constraint::Length(1),
-                        Constraint::Length(1),
-                    ])
-                    .split(inner);
-                if contains(rows[0], col, row) {
-                    let local = row.saturating_sub(rows[0].y) as usize;
-                    let items = app.chat_picker_items();
-                    let visible = rows[0].height.max(1) as usize;
-                    let selected = app
-                        .chat_picker_selected()
-                        .min(items.len().saturating_sub(1));
-                    let start = selected
-                        .saturating_sub(visible / 2)
-                        .min(items.len().saturating_sub(visible));
-                    let index = start + local;
-                    if index < items.len() {
-                        return ChatPanelHit::PickerItem(index);
-                    }
-                }
-                return ChatPanelHit::PickerPopup;
+        if let Some(props) = picker_popup_props(area, app) {
+            match PopupOverlay::hit_test(area, &props, col, row) {
+                PopupHit::Outside => {}
+                PopupHit::ListItem(index) => return ChatPanelHit::PickerItem(index),
+                PopupHit::Popup | PopupHit::Query => return ChatPanelHit::PickerPopup,
             }
         }
 
-        if let Some(popup) = autocomplete_popup_area(area, app) {
-            if contains(popup, col, row) {
-                let inner = inner_rect(popup);
-                if inner.height < 2 {
-                    return ChatPanelHit::AutocompletePopup;
-                }
-                let rows = Layout::default()
-                    .direction(Direction::Vertical)
-                    .constraints([Constraint::Min(1), Constraint::Length(1)])
-                    .split(inner);
-                if contains(rows[0], col, row) {
-                    let local = row.saturating_sub(rows[0].y) as usize;
-                    let items = app.chat_autocomplete_items();
-                    let visible = rows[0].height.max(1) as usize;
-                    let selected = app
-                        .chat_autocomplete_selected()
-                        .min(items.len().saturating_sub(1));
-                    let start = selected
-                        .saturating_sub(visible / 2)
-                        .min(items.len().saturating_sub(visible));
-                    let index = start + local;
-                    if index < items.len() {
-                        return ChatPanelHit::AutocompleteItem(index);
-                    }
-                }
-
-                return ChatPanelHit::AutocompletePopup;
+        if let Some(props) = autocomplete_popup_props(area, app) {
+            match PopupOverlay::hit_test(area, &props, col, row) {
+                PopupHit::Outside => {}
+                PopupHit::ListItem(index) => return ChatPanelHit::AutocompleteItem(index),
+                PopupHit::Popup | PopupHit::Query => return ChatPanelHit::AutocompletePopup,
             }
         }
 
         if let Some((model_rect, agent_rect)) = composer_label_areas(area, app) {
-            if contains(model_rect, col, row) {
+            if rect_contains(model_rect, col, row) {
                 return ChatPanelHit::ModelLabel;
             }
-            if contains(agent_rect, col, row) {
+            if rect_contains(agent_rect, col, row) {
                 return ChatPanelHit::AgentLabel;
             }
         }
@@ -223,165 +176,25 @@ impl ChatPanel {
 }
 
 fn render_picker_popup(frame: &mut Frame, area: Rect, app: &App) {
-    let Some(kind) = app.chat_picker_open() else {
+    let Some(_kind) = app.chat_picker_open() else {
         return;
     };
 
-    let Some(popup) = picker_popup_area(area, app) else {
+    let Some(props) = picker_popup_props(area, app) else {
         return;
     };
 
     let theme = app.theme();
-    frame.render_widget(Clear, popup);
-    let title = match kind {
-        ChatPickerKind::Model => "Select Model",
-        ChatPickerKind::Agent => "Select Agent",
-    };
-    let block = PaneBlockComponent::build(title, true, theme);
-    let inner = block.inner(popup);
-    frame.render_widget(block, popup);
-
-    if inner.width < 4 || inner.height < 3 {
-        return;
-    }
-
-    let rows = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(1),
-            Constraint::Length(1),
-            Constraint::Length(1),
-        ])
-        .split(inner);
-
-    let items = app.chat_picker_items();
-    if items.is_empty() {
-        frame.render_widget(
-            Paragraph::new(Line::from(Span::styled(
-                "No matching options.",
-                Style::default().fg(theme.text_muted),
-            ))),
-            rows[0],
-        );
-    } else {
-        let visible = rows[0].height.max(1) as usize;
-        let selected = app
-            .chat_picker_selected()
-            .min(items.len().saturating_sub(1));
-        let start = selected
-            .saturating_sub(visible / 2)
-            .min(items.len().saturating_sub(visible));
-
-        let mut lines = Vec::new();
-        for (offset, item) in items.iter().skip(start).take(visible).enumerate() {
-            let index = start + offset;
-            lines.push(Line::from(vec![
-                Span::styled(
-                    if index == selected { "▸ " } else { "  " },
-                    if index == selected {
-                        Style::default().fg(theme.pane_focused_border)
-                    } else {
-                        Style::default().fg(theme.text_muted)
-                    },
-                ),
-                Span::styled(item.clone(), Style::default().fg(theme.text_primary)),
-            ]));
-        }
-        frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: true }), rows[0]);
-    }
-
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            StatusPill::accent("FILTER", theme).span_compact(),
-            Span::raw(" "),
-            Span::styled(
-                with_cursor_tail(app.chat_picker_query()),
-                Style::default().fg(theme.text_secondary),
-            ),
-        ])),
-        rows[1],
-    );
-
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            Span::styled("enter", Style::default().fg(theme.pane_focused_border)),
-            Span::styled(" select  ", Style::default().fg(theme.text_muted)),
-            Span::styled("bksp", Style::default().fg(theme.pane_focused_border)),
-            Span::styled(" delete  ", Style::default().fg(theme.text_muted)),
-            Span::styled("esc", Style::default().fg(theme.pane_focused_border)),
-            Span::styled(" close", Style::default().fg(theme.text_muted)),
-        ])),
-        rows[2],
-    );
+    PopupOverlay::render(frame, area, &props, theme);
 }
 
 fn render_autocomplete_popup(frame: &mut Frame, area: Rect, app: &App) {
-    if !app.chat_autocomplete_open() || app.chat_picker_open().is_some() {
-        return;
-    }
-
-    let Some(popup) = autocomplete_popup_area(area, app) else {
+    let Some(props) = autocomplete_popup_props(area, app) else {
         return;
     };
 
     let theme = app.theme();
-    frame.render_widget(Clear, popup);
-    let title = if app.chat_autocomplete_mode() == Some('@') {
-        "Context"
-    } else {
-        "Commands"
-    };
-    let block = PaneBlockComponent::build(title, true, theme);
-    let inner = block.inner(popup);
-    frame.render_widget(block, popup);
-
-    if inner.width < 4 || inner.height < 2 {
-        return;
-    }
-
-    let rows = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(1), Constraint::Length(1)])
-        .split(inner);
-
-    let items = app.chat_autocomplete_items();
-    let visible = rows[0].height.max(1) as usize;
-    let selected = app
-        .chat_autocomplete_selected()
-        .min(items.len().saturating_sub(1));
-    let start = selected
-        .saturating_sub(visible / 2)
-        .min(items.len().saturating_sub(visible));
-
-    let mut lines = Vec::new();
-    for (offset, item) in items.iter().skip(start).take(visible).enumerate() {
-        let index = start + offset;
-        lines.push(Line::from(vec![
-            Span::styled(
-                if index == selected { "▸ " } else { "  " },
-                if index == selected {
-                    Style::default().fg(theme.pane_focused_border)
-                } else {
-                    Style::default().fg(theme.text_muted)
-                },
-            ),
-            Span::styled(item.clone(), Style::default().fg(theme.text_primary)),
-        ]));
-    }
-    frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: true }), rows[0]);
-
-    let trigger = app.chat_autocomplete_mode().unwrap_or('/');
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![
-            StatusPill::accent(trigger.to_string(), theme).span_compact(),
-            Span::raw(" "),
-            Span::styled(
-                with_cursor_tail(app.chat_autocomplete_query()),
-                Style::default().fg(theme.text_secondary),
-            ),
-        ])),
-        rows[1],
-    );
+    PopupOverlay::render(frame, area, &props, theme);
 }
 
 fn picker_items(app: &App) -> &[String] {
@@ -392,7 +205,7 @@ fn picker_items(app: &App) -> &[String] {
     }
 }
 
-fn picker_popup_area(area: Rect, app: &App) -> Option<Rect> {
+fn picker_popup_props(area: Rect, app: &App) -> Option<PopupOverlayProps> {
     let items = picker_items(app);
     if items.is_empty() {
         return None;
@@ -403,8 +216,6 @@ fn picker_popup_area(area: Rect, app: &App) -> Option<Rect> {
         return None;
     }
 
-    let width = inner.width.min(42);
-    let height = (items.len().min(8) as u16 + 3).min(inner.height.saturating_sub(1));
     let (model_rect, agent_rect) = composer_label_areas(area, app)?;
     let anchor = match app.chat_picker_open() {
         Some(ChatPickerKind::Model) => model_rect,
@@ -412,25 +223,41 @@ fn picker_popup_area(area: Rect, app: &App) -> Option<Rect> {
         None => model_rect,
     };
 
-    let min_x = inner.x.saturating_add(1);
-    let max_x = inner
-        .x
-        .saturating_add(inner.width.saturating_sub(width).saturating_sub(1));
-    let x = anchor.x.clamp(min_x, max_x);
-    let y = anchor
-        .y
-        .saturating_sub(height.saturating_add(1))
-        .max(inner.y.saturating_add(1));
+    let title = match app.chat_picker_open() {
+        Some(ChatPickerKind::Model) => "Select Model",
+        Some(ChatPickerKind::Agent) => "Select Agent",
+        None => "Select",
+    };
 
-    Some(Rect {
-        x,
-        y,
-        width,
-        height,
+    Some(PopupOverlayProps {
+        title: title.to_string(),
+        items: items
+            .iter()
+            .map(|item| PopupItem {
+                label: item.clone(),
+                tag: None,
+                active: false,
+            })
+            .collect(),
+        selected: app.chat_picker_selected(),
+        query: Some(app.chat_picker_query().to_string()),
+        query_label: Some("FILTER".to_string()),
+        hint: Some("enter select  bksp delete  esc close".to_string()),
+        anchor: PopupAnchor::At {
+            x: anchor.x,
+            y: anchor.y,
+        },
+        max_visible: 8,
+        min_width: 24,
+        max_width: inner.width.min(42),
     })
 }
 
-fn autocomplete_popup_area(area: Rect, app: &App) -> Option<Rect> {
+fn autocomplete_popup_props(area: Rect, app: &App) -> Option<PopupOverlayProps> {
+    if !app.chat_autocomplete_open() || app.chat_picker_open().is_some() {
+        return None;
+    }
+
     let items = app.chat_autocomplete_items();
     if items.is_empty() {
         return None;
@@ -441,17 +268,39 @@ fn autocomplete_popup_area(area: Rect, app: &App) -> Option<Rect> {
         return None;
     }
 
-    let width = inner.width.min(44);
-    let height = (items.len().min(6) as u16 + 3).min(inner.height.saturating_sub(1));
-    Some(Rect {
-        x: inner
-            .x
-            .saturating_add(inner.width.saturating_sub(width).saturating_sub(1)),
-        y: inner
-            .y
-            .saturating_add(inner.height.saturating_sub(height).saturating_sub(6)),
-        width,
-        height,
+    let title = if app.chat_autocomplete_mode() == Some('@') {
+        "Context"
+    } else {
+        "Commands"
+    };
+    let trigger = app.chat_autocomplete_mode().unwrap_or('/');
+
+    Some(PopupOverlayProps {
+        title: title.to_string(),
+        items: items
+            .iter()
+            .map(|item| PopupItem {
+                label: item.clone(),
+                tag: None,
+                active: false,
+            })
+            .collect(),
+        selected: app.chat_autocomplete_selected(),
+        query: Some(app.chat_autocomplete_query().to_string()),
+        query_label: Some(trigger.to_string()),
+        hint: None,
+        anchor: PopupAnchor::At {
+            x: inner.x.saturating_add(
+                inner
+                    .width
+                    .saturating_sub(inner.width.min(44))
+                    .saturating_sub(1),
+            ),
+            y: inner.y.saturating_add(inner.height.saturating_sub(6)),
+        },
+        max_visible: 6,
+        min_width: 24,
+        max_width: inner.width.min(44),
     })
 }
 
@@ -496,48 +345,4 @@ fn composer_label_areas(area: Rect, app: &App) -> Option<(Rect, Rect)> {
     };
 
     Some((model_rect, agent_rect))
-}
-
-fn contains(area: Rect, col: u16, row: u16) -> bool {
-    col >= area.x
-        && col < area.x.saturating_add(area.width)
-        && row >= area.y
-        && row < area.y.saturating_add(area.height)
-}
-
-fn inner_rect(area: Rect) -> Rect {
-    Rect {
-        x: area.x.saturating_add(1),
-        y: area.y.saturating_add(1),
-        width: area.width.saturating_sub(2),
-        height: area.height.saturating_sub(2),
-    }
-}
-
-fn with_cursor_tail(value: &str) -> String {
-    if value.is_empty() {
-        return "|".to_string();
-    }
-
-    format!("{value}|")
-}
-
-fn compact_text(value: &str, max_len: usize) -> String {
-    if value.chars().count() <= max_len {
-        return value.to_string();
-    }
-
-    let head = value
-        .chars()
-        .take(max_len.saturating_sub(3))
-        .collect::<String>();
-    format!("{head}...")
-}
-
-fn compact_session_id(value: &str) -> &str {
-    if value.len() <= 14 {
-        return value;
-    }
-
-    &value[..14]
 }

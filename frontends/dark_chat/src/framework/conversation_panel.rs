@@ -1,14 +1,14 @@
 use dark_tui_components::{
-    ChatComposerComponent, ChatComposerProps, ChatConversationHeaderComponent,
+    compact_text, ChatComposerComponent, ChatComposerProps, ChatConversationHeaderComponent,
     ChatConversationHeaderProps, ChatMessageEntry, ChatMessageListComponent, ChatMessageListProps,
     ChatMessageRole, ChatPalette, ChatStatusTone, ComponentThemeLike, PaneBlockComponent,
     StatusPill,
 };
-use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Color;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::Frame;
 use std::borrow::Cow;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -199,18 +199,6 @@ pub fn status_tone_for_status(status: &str) -> ConversationStatusTone {
         "stopped" | "offline" => ConversationStatusTone::Muted,
         _ => ConversationStatusTone::Accent,
     }
-}
-
-fn compact_text(value: &str, max_width: usize) -> String {
-    if value.chars().count() <= max_width {
-        return value.to_string();
-    }
-
-    let head = value
-        .chars()
-        .take(max_width.saturating_sub(3))
-        .collect::<String>();
-    format!("{head}...")
 }
 
 fn chat_status_tone(value: ConversationStatusTone) -> ChatStatusTone {

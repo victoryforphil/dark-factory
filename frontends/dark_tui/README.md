@@ -13,12 +13,25 @@ Ratatui-based TUI frontend for monitoring and operating `dark_core`.
 - Action keys support refresh, variant poll, product init, spawn, and attach command generation.
 - Dashboard prefers shared websocket RPC transport from `lib/dark_rust` and falls back to REST when websocket is unavailable.
 - Realtime route mutation events from `dark_core` trigger immediate refreshes between interval ticks.
+- Service code is split into focused modules:
+  - `src/service.rs` (service API/orchestration)
+  - `src/service_wire.rs` (wire DTOs)
+  - `src/service_convert.rs` (row conversion and helper functions)
+- Unified catalog rendering is split across:
+  - `src/ui/render/views/unified_catalog_view.rs` (layout + interaction)
+  - `src/ui/render/views/catalog_cards.rs` (card + connector render helpers)
 
 ## Scope (Current)
 
 - Provide an at-a-glance terminal dashboard for product/variant state and actor runtime health.
 - Keep keyboard-first controls human-friendly and discoverable.
 - Keep implementation modular so adding panes/actions stays straightforward.
+
+## Shared Dependencies
+
+- `lib/dark_rust` for `dark_core` REST/WebSocket clients and API envelopes.
+- `lib/dark_tui_components` for reusable pane/chat/status widgets and utilities.
+- `dark_chat::framework` for shared conversation panel rendering and chat-focused UI types.
 
 ## Ratatui Docs
 
@@ -67,6 +80,13 @@ Spawn popup controls:
 Provider source of truth:
 
 - `dark_tui` queries `GET /system/providers` for enabled/default providers when opening the spawn popup.
+
+## Check/Test
+
+```bash
+cargo check -p dark_tui
+cargo test -p dark_tui
+```
 
 ## Run
 

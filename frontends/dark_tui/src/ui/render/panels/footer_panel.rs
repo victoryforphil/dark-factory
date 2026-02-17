@@ -1,12 +1,12 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
-use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::text::Span;
+use ratatui::widgets::{Block, Borders};
+use ratatui::Frame;
 
 use crate::app::App;
 
-use dark_tui_components::{LoadingSpinner, StatusPill};
+use dark_tui_components::{FooterBar, FooterBarProps, LoadingSpinner, StatusPill};
 
 pub(crate) struct FooterPanel;
 
@@ -75,33 +75,31 @@ impl FooterPanel {
             )
         };
 
-        let line = Line::from(vec![
-            focus_pill.span(),
-            Span::raw(" "),
-            filter_pill.span(),
-            Span::raw(" "),
-            chat_pill.span(),
-            Span::raw("  "),
-            products_pill.span(),
-            Span::raw(" "),
-            variants_pill.span(),
-            Span::raw(" "),
-            actors_pill.span(),
-            Span::raw(" "),
-            runtime_pill.span(),
-            Span::raw(" "),
-            activity_pill.span(),
-            Span::raw("  "),
-            status_span,
-        ]);
+        let footer_block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme.footer_border))
+            .title("Status");
+        let inner = footer_block.inner(area);
+        frame.render_widget(footer_block, area);
 
-        let footer = Paragraph::new(line).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.footer_border))
-                .title("Status"),
+        FooterBar::render(
+            frame,
+            inner,
+            FooterBarProps {
+                segments: vec![
+                    focus_pill.span(),
+                    filter_pill.span(),
+                    chat_pill.span(),
+                    products_pill.span(),
+                    variants_pill.span(),
+                    actors_pill.span(),
+                    runtime_pill.span(),
+                    activity_pill.span(),
+                    status_span,
+                ],
+                separator: "  ",
+            },
+            theme,
         );
-
-        frame.render_widget(footer, area);
     }
 }

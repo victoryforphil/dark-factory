@@ -2,6 +2,8 @@ mod app;
 mod cli;
 mod models;
 mod service;
+mod service_convert;
+mod service_wire;
 pub(crate) mod theme;
 mod ui;
 

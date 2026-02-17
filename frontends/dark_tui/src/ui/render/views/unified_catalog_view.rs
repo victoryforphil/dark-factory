@@ -1,16 +1,18 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
+use ratatui::Frame;
 
 use crate::app::{App, VizSelection};
-use crate::models::{
-    ActorRow, ProductRow, VariantRow, compact_id, compact_locator, compact_timestamp,
-};
+use crate::models::{compact_id, compact_locator, VariantRow};
 use crate::theme::Theme;
 
 use dark_tui_components::{PaneBlockComponent, StatusPill};
+
+use super::catalog_cards::{
+    draw_junction, draw_trunk, render_actor_card, render_variant_card, ClickHit, ProductGroup,
+};
 
 /// Max width for product card tiles.
 const PRODUCT_CARD_WIDTH: u16 = 48;
@@ -32,15 +34,6 @@ const CONNECTOR_WIDTH: u16 = 4;
 const ACTOR_CONNECTOR_WIDTH: u16 = 3;
 
 pub(crate) struct UnifiedCatalogView;
-
-fn compact_text(value: &str, max_len: usize) -> String {
-    let normalized = value.trim().replace('\n', " ");
-    if normalized.len() <= max_len {
-        return normalized;
-    }
-
-    format!("{}...", &normalized[..max_len.saturating_sub(3)])
-}
 
 impl UnifiedCatalogView {
     pub(crate) fn render(frame: &mut Frame, area: Rect, app: &App) {
@@ -337,17 +330,23 @@ impl UnifiedCatalogView {
             height: card_h,
         };
 
+        let product = group.product;
+
+        let product_color = if product.is_git_repo {
+            theme.entity_variant
+        } else {
+            theme.entity_product
+        };
+
         let product_border = if is_product_selected {
             Style::default()
-                .fg(theme.entity_product)
+                .fg(product_color)
                 .add_modifier(Modifier::BOLD)
         } else if is_product_tree_active {
-            Style::default().fg(theme.entity_product)
+            Style::default().fg(product_color)
         } else {
             Style::default().fg(theme.pane_unfocused_border)
         };
-
-        let product = group.product;
 
         let title = if is_product_selected {
             format!("\u{25c6} {}", product.display_name)
@@ -362,7 +361,7 @@ impl UnifiedCatalogView {
             "error" | "failed" => StatusPill::error(&product.status, theme),
             _ => StatusPill::muted(&product.status, theme),
         };
-        let branch_pill = StatusPill::info(&product.branch, theme);
+        let branch_pill = StatusPill::info(&product.branches, theme);
         let variant_summary = if product.variant_dirty > 0 || product.variant_drift > 0 {
             StatusPill::warn(
                 format!(
@@ -473,7 +472,7 @@ impl UnifiedCatalogView {
                 prev_end
             };
 
-            Self::draw_trunk(buf, connector_x, trunk_start, branch_y, &connector_style);
+            draw_trunk(buf, connector_x, trunk_start, branch_y, &connector_style);
 
             // Branch junction.
             let junction = if is_last_in_trunk {
@@ -487,7 +486,7 @@ impl UnifiedCatalogView {
             } else {
                 junction
             };
-            Self::draw_junction(
+            draw_junction(
                 buf,
                 connector_x,
                 branch_y,
@@ -504,16 +503,16 @@ impl UnifiedCatalogView {
                 // If this variant has actors, the trunk continues through them.
                 if !slot.actor_ys.is_empty() {
                     let actors_end = *slot.actor_ys.last().unwrap() + ACTOR_CARD_HEIGHT;
-                    Self::draw_trunk(buf, connector_x, next_start, actors_end, &connector_style);
-                    Self::draw_trunk(buf, connector_x, actors_end, next_branch, &connector_style);
+                    draw_trunk(buf, connector_x, next_start, actors_end, &connector_style);
+                    draw_trunk(buf, connector_x, actors_end, next_branch, &connector_style);
                 } else {
-                    Self::draw_trunk(buf, connector_x, next_start, next_branch, &connector_style);
+                    draw_trunk(buf, connector_x, next_start, next_branch, &connector_style);
                 }
             } else if !slot.actor_ys.is_empty() {
                 // Last variant but has actors — continue trunk for actor branches.
                 let next_start = branch_y + 1;
                 let actors_end = *slot.actor_ys.last().unwrap() + 1; // branch_y of last actor
-                Self::draw_trunk(buf, connector_x, next_start, actors_end, &connector_style);
+                draw_trunk(buf, connector_x, next_start, actors_end, &connector_style);
             }
         }
 
@@ -547,7 +546,7 @@ impl UnifiedCatalogView {
                     slot.actor_ys[ai - 1] + ACTOR_CARD_HEIGHT
                 };
 
-                Self::draw_trunk(
+                draw_trunk(
                     buf,
                     actor_connector_x,
                     trunk_start,
@@ -558,7 +557,7 @@ impl UnifiedCatalogView {
                 // Also continue the main product trunk through actor rows
                 // (only if this is NOT the last variant).
                 if !is_last_variant {
-                    Self::draw_trunk(
+                    draw_trunk(
                         buf,
                         connector_x,
                         trunk_start,
@@ -572,7 +571,7 @@ impl UnifiedCatalogView {
                 } else {
                     "\u{251c}"
                 };
-                Self::draw_junction(
+                draw_junction(
                     buf,
                     actor_connector_x,
                     branch_y,
@@ -583,7 +582,7 @@ impl UnifiedCatalogView {
 
                 // Continue vertical trunk for non-last actors.
                 if !is_last_actor {
-                    Self::draw_trunk(
+                    draw_trunk(
                         buf,
                         actor_connector_x,
                         branch_y + 1,
@@ -621,7 +620,7 @@ impl UnifiedCatalogView {
                     if *product_index == group.product_index && *variant_id == variant.id
                 );
 
-            Self::render_variant_card(
+            render_variant_card(
                 frame,
                 tile_area,
                 variant,
@@ -651,230 +650,8 @@ impl UnifiedCatalogView {
                     if *actor_id == actor.id
                 );
 
-                Self::render_actor_card(frame, actor_area, actor, is_actor_selected, theme);
+                render_actor_card(frame, actor_area, actor, is_actor_selected, theme);
             }
         }
     }
-
-    // --- Drawing helpers ---
-
-    /// Draw vertical trunk line from y_start to y_end (exclusive).
-    fn draw_trunk(
-        buf: &mut ratatui::buffer::Buffer,
-        x: u16,
-        y_start: u16,
-        y_end: u16,
-        style: &Style,
-    ) {
-        if x < buf.area.x || x >= buf.area.x + buf.area.width {
-            return;
-        }
-        for cy in y_start..y_end {
-            if cy < buf.area.y || cy >= buf.area.y + buf.area.height {
-                continue;
-            }
-            buf.set_string(x, cy, "\u{2502}", *style);
-        }
-    }
-
-    /// Draw a junction + horizontal arm at branch_y from connector_x to target_x.
-    fn draw_junction(
-        buf: &mut ratatui::buffer::Buffer,
-        connector_x: u16,
-        branch_y: u16,
-        target_x: u16,
-        junction_char: &str,
-        style: &Style,
-    ) {
-        if branch_y < buf.area.y || branch_y >= buf.area.y + buf.area.height {
-            return;
-        }
-        if connector_x >= buf.area.x && connector_x < buf.area.x + buf.area.width {
-            buf.set_string(connector_x, branch_y, junction_char, *style);
-        }
-        let arm_end = target_x.min(buf.area.x + buf.area.width);
-        for cx in (connector_x + 1)..arm_end {
-            if cx < buf.area.x {
-                continue;
-            }
-            buf.set_string(cx, branch_y, "\u{2500}", *style);
-        }
-    }
-
-    // --- Card renderers ---
-
-    fn render_variant_card(
-        frame: &mut Frame,
-        area: Rect,
-        variant: &VariantRow,
-        is_selected: bool,
-        is_active: bool,
-        theme: &Theme,
-    ) {
-        let border_style = if is_selected {
-            Style::default()
-                .fg(theme.entity_variant)
-                .add_modifier(Modifier::BOLD)
-        } else if is_active {
-            Style::default().fg(theme.entity_variant)
-        } else {
-            Style::default().fg(theme.pane_unfocused_border)
-        };
-
-        let title = if is_selected {
-            format!("\u{25c6} {}", variant.name)
-        } else {
-            format!("Variant: {}", variant.name)
-        };
-
-        // Row 1: git state pill + branch pill + ahead/behind
-        let state_pill = match variant.git_state.as_str() {
-            "clean" => StatusPill::ok("clean", theme),
-            "dirty" => StatusPill::warn("dirty", theme),
-            "no-git" => StatusPill::muted("no-git", theme),
-            _ => StatusPill::muted(&variant.git_state, theme),
-        };
-        let branch_pill = StatusPill::info(&variant.branch, theme);
-
-        let mut pill_spans = vec![state_pill.span(), Span::raw(" "), branch_pill.span()];
-
-        if variant.ahead > 0 || variant.behind > 0 {
-            let ab_pill = if variant.behind > 0 {
-                StatusPill::warn(
-                    format!("+{}/\u{2212}{}", variant.ahead, variant.behind),
-                    theme,
-                )
-            } else {
-                StatusPill::ok(format!("+{}", variant.ahead), theme)
-            };
-            pill_spans.push(Span::raw(" "));
-            pill_spans.push(ab_pill.span());
-        }
-
-        let pill_line = Line::from(pill_spans);
-
-        // Row 2: polled timestamp + id
-        let detail_line = Line::from(vec![
-            Span::styled(
-                format!("polled {}", compact_timestamp(&variant.last_polled_at)),
-                Style::default().fg(theme.text_muted),
-            ),
-            Span::raw("  "),
-            Span::styled(
-                compact_id(&variant.id),
-                Style::default().fg(theme.text_muted),
-            ),
-        ]);
-
-        let content = vec![pill_line, detail_line];
-
-        let card = Paragraph::new(content)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(border_style)
-                    .title(title),
-            )
-            .wrap(Wrap { trim: true });
-
-        frame.render_widget(card, area);
-    }
-
-    fn render_actor_card(
-        frame: &mut Frame,
-        area: Rect,
-        actor: &ActorRow,
-        is_selected: bool,
-        theme: &Theme,
-    ) {
-        let border_style = if is_selected {
-            Style::default()
-                .fg(theme.entity_actor)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(theme.pane_unfocused_border)
-        };
-
-        let title = if is_selected {
-            format!("\u{25c6} {}", compact_id(&actor.id))
-        } else {
-            format!("Actor: {}", compact_id(&actor.id))
-        };
-
-        // Row 1: compact actor title
-        let title_text = if actor.title.trim().is_empty() {
-            compact_id(&actor.id)
-        } else if actor.title.len() > 40 {
-            format!("{}...", &actor.title[..37])
-        } else {
-            actor.title.clone()
-        };
-        let title_line = Line::from(vec![Span::styled(
-            title_text,
-            Style::default().fg(theme.text_primary),
-        )]);
-
-        // Row 2: latest description snapshot
-        let description_text =
-            if actor.description.trim().is_empty() || actor.description.trim() == "-" {
-                "No description".to_string()
-            } else {
-                compact_text(&actor.description, 44)
-            };
-        let description_line = Line::from(vec![Span::styled(
-            description_text,
-            Style::default().fg(theme.text_muted),
-        )]);
-
-        // Row 3: provider pill + status pill
-        let provider_pill = StatusPill::info(&actor.provider, theme);
-        let status_pill = match actor.status.as_str() {
-            "active" | "running" => StatusPill::ok(&actor.status, theme),
-            "error" | "failed" | "dead" => StatusPill::error(&actor.status, theme),
-            "idle" | "waiting" => StatusPill::warn(&actor.status, theme),
-            _ => StatusPill::muted(&actor.status, theme),
-        };
-
-        let badges_line = Line::from(vec![
-            provider_pill.span(),
-            Span::raw(" "),
-            status_pill.span(),
-        ]);
-
-        let content = vec![title_line, description_line, badges_line];
-
-        let card = Paragraph::new(content)
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(border_style)
-                    .title(title),
-            )
-            .wrap(Wrap { trim: true });
-
-        frame.render_widget(card, area);
-    }
-}
-
-struct ProductGroup<'a> {
-    product: &'a ProductRow,
-    product_index: usize,
-    variants: Vec<&'a VariantRow>,
-}
-
-/// Owned representation of a click-select hit target, used to break the
-/// immutable borrow on `App` before applying the mutable selection call.
-enum ClickHit {
-    Product {
-        product_index: usize,
-    },
-    Variant {
-        product_index: usize,
-        variant_id: String,
-    },
-    Actor {
-        product_index: usize,
-        variant_id: String,
-        actor_id: String,
-    },
 }

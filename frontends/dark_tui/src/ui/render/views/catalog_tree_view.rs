@@ -1,25 +1,16 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem, ListState};
+use ratatui::Frame;
 
 use crate::app::{App, VizSelection};
 use crate::models::compact_id;
 use crate::theme::EntityKind;
 
-use dark_tui_components::{PaneBlockComponent, StatusPill};
+use dark_tui_components::{compact_text_normalized, PaneBlockComponent, StatusPill};
 
 pub(crate) struct CatalogTreeView;
-
-fn compact_text(value: &str, max_len: usize) -> String {
-    let normalized = value.trim().replace('\n', " ");
-    if normalized.len() <= max_len {
-        return normalized;
-    }
-
-    format!("{}...", &normalized[..max_len.saturating_sub(3)])
-}
 
 impl CatalogTreeView {
     pub(crate) fn render(frame: &mut Frame, area: Rect, app: &App) {
@@ -165,7 +156,7 @@ impl CatalogTreeView {
                         if actor.description.trim().is_empty() || actor.description.trim() == "-" {
                             String::new()
                         } else {
-                            format!(" -- {}", compact_text(&actor.description, 56))
+                            format!(" -- {}", compact_text_normalized(&actor.description, 56))
                         };
 
                     vec![

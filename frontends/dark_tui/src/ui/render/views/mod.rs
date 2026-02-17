@@ -1,3 +1,4 @@
+mod catalog_cards;
 mod catalog_tree_view;
 mod unified_catalog_view;
 

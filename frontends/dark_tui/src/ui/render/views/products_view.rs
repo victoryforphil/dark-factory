@@ -23,8 +23,9 @@ impl ProductsView {
         let header = Row::new(vec![
             Cell::from("ID"),
             Cell::from("Name"),
+            Cell::from("Type"),
             Cell::from("Status"),
-            Cell::from("Branch"),
+            Cell::from("Branches"),
             Cell::from("Locator"),
         ])
         .style(
@@ -37,8 +38,9 @@ impl ProductsView {
             Row::new(vec![
                 Cell::from(compact_id(&product.id)),
                 Cell::from(product.display_name.clone()),
+                Cell::from(product.product_type.clone()),
                 Cell::from(product.status.clone()),
-                Cell::from(product.branch.clone()),
+                Cell::from(product.branches.clone()),
                 Cell::from(compact_locator(&product.locator, 38)),
             ])
         });
@@ -49,7 +51,8 @@ impl ProductsView {
                 Constraint::Length(14),
                 Constraint::Length(22),
                 Constraint::Length(8),
-                Constraint::Length(14),
+                Constraint::Length(8),
+                Constraint::Length(24),
                 Constraint::Min(20),
             ],
         )
@@ -81,11 +84,22 @@ impl ProductsView {
             .products()
             .iter()
             .map(|product| {
+                let label = if product.is_git_repo {
+                    "[git]"
+                } else {
+                    "[local]"
+                };
                 (
-                    format!("{}  {}", compact_id(&product.id), product.display_name),
+                    format!(
+                        "{}  {} {}",
+                        compact_id(&product.id),
+                        label,
+                        product.display_name
+                    ),
                     vec![
+                        format!("Type: {}", product.product_type),
                         format!("Status: {}", product.status),
-                        format!("Branch: {}", product.branch),
+                        format!("Branches: {}", product.branches),
                         format!(
                             "Variants: total={} dirty={} drift={}",
                             product.variant_total, product.variant_dirty, product.variant_drift
@@ -103,7 +117,15 @@ impl ProductsView {
             matches!(app.focus(), FocusPane::Products),
             app.selected_product_index(),
             &cards,
-            theme.entity_product,
+            app.selected_product()
+                .map(|product| {
+                    if product.is_git_repo {
+                        theme.entity_variant
+                    } else {
+                        theme.entity_product
+                    }
+                })
+                .unwrap_or(theme.entity_product),
             theme,
         );
     }

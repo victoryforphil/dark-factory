@@ -12,7 +12,10 @@ pub struct ProductRow {
     pub id: String,
     pub display_name: String,
     pub locator: String,
+    pub product_type: String,
+    pub is_git_repo: bool,
     pub branch: String,
+    pub branches: String,
     pub repo_name: String,
     pub updated_at: String,
     pub status: String,
@@ -60,39 +63,4 @@ pub struct ActorChatMessageRow {
     pub created_at: String,
 }
 
-pub fn compact_id(value: &str) -> String {
-    let trimmed = value.trim();
-    if trimmed.len() <= 12 {
-        return trimmed.to_string();
-    }
-
-    format!("{}...", &trimmed[..12])
-}
-
-pub fn compact_locator(value: &str, max_len: usize) -> String {
-    let trimmed = value.trim();
-    if trimmed.len() <= max_len {
-        return trimmed.to_string();
-    }
-
-    if max_len <= 3 {
-        return ".".repeat(max_len);
-    }
-
-    let suffix_len = max_len.saturating_sub(3);
-    format!("...{}", &trimmed[trimmed.len() - suffix_len..])
-}
-
-pub fn compact_timestamp(value: &str) -> String {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        return "-".to_string();
-    }
-
-    if let Some((date, rest)) = trimmed.split_once('T') {
-        let time = rest.trim_end_matches('Z').split('.').next().unwrap_or(rest);
-        return format!("{date} {time}");
-    }
-
-    trimmed.to_string()
-}
+pub use dark_tui_components::{compact_id, compact_locator, compact_timestamp};

@@ -1,10 +1,10 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
-use dark_tui_components::PaneBlockComponent;
+use dark_tui_components::{compact_label, PaneBlockComponent};
 
 use crate::tui::app::App;
 
@@ -38,20 +38,4 @@ impl HeaderPanel {
 
         frame.render_widget(Paragraph::new(lines), inner);
     }
-}
-
-fn compact_label(value: Option<&str>, max_len: usize) -> String {
-    let Some(value) = value else {
-        return "-".to_string();
-    };
-
-    if value.len() <= max_len {
-        return value.to_string();
-    }
-
-    if max_len <= 3 {
-        return ".".repeat(max_len);
-    }
-
-    format!("{}...", &value[..max_len - 3])
 }

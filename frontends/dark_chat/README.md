@@ -1,13 +1,24 @@
 # Dark Factory - `dark_chat`
 
-Ratatui-based OpenCode chat frontend with reusable provider/core layers.
+Ratatui-based OpenCode chat frontend that also exports a reusable chat framework library.
+
+`dark_chat` currently has two roles:
+
+1. a standalone TUI binary (`frontends/dark_chat/src/main.rs`)
+2. a library used by other frontends (notably `dark_tui`) for chat rendering and provider access
 
 ## Current Status
 
-- New frontend crate with a runnable TUI binary (`dark_chat`).
+- Runnable TUI binary (`dark_chat`) plus library exports in `src/lib.rs`.
 - Provider architecture supports multiple backends; `opencode/server` is implemented first.
-- Core backend module handles bootstrap, refresh, session creation, and prompt send.
-- TUI is split into views, panels, and components, and uses shared chat widgets from `lib/dark_tui_components`.
+- OpenCode provider internals are split into focused modules:
+  - `providers/opencode_server.rs` (provider surface)
+  - `providers/opencode_transport.rs` (HTTP fallback request helpers)
+  - `providers/opencode_realtime.rs` (SSE event streaming)
+  - `providers/opencode_extract.rs` (payload extraction helpers)
+  - `providers/opencode_wire.rs` (wire DTOs)
+- TUI is split into app/panels modules and consumes shared components from `lib/dark_tui_components`.
+- `framework/` exports reusable chat building blocks used by both `dark_chat` and `dark_tui`.
 - Session list, conversation history, and composer are all keyboard-driven.
 - Compose mode now uses `tui-textarea` for multiline editing with built-in cursor and undo behavior.
 - Runtime panel now uses `tui-scrollview` for focused scrolling of status/help content.
@@ -18,6 +29,15 @@ Ratatui-based OpenCode chat frontend with reusable provider/core layers.
 - Non-local slash commands are forwarded to OpenCode session command execution.
 - Prompt composer supports `@file/path` context injection from files inside the workspace directory.
 - Runtime panel surfaces `mcp`, `lsp`, and formatter status snapshots when available.
+
+## Library Exports (`dark_chat::framework`)
+
+- `conversation_panel` shared render API (`render_conversation_panel`, message/header/composer props)
+- `autocomplete` reusable slash/@ completion state (`ChatAutocomplete`)
+- `model_selector` reusable selector state (`ItemSelector`)
+- `session_tree` reusable parent/child session walker
+- `message_renderer` extraction helper (`extract_message_text`)
+- `message_types` rich message data types (`AgentMessage*`)
 
 ## Runtime Options
 
@@ -56,4 +76,11 @@ From repo root:
 
 ```bash
 cargo run --manifest-path frontends/dark_chat/Cargo.toml -- --help
+```
+
+## Check/Test
+
+```bash
+cargo check -p dark_chat
+cargo test -p dark_chat
 ```

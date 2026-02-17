@@ -1,23 +1,38 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
-use ratatui::Frame;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
-use dark_tui_components::{PaneBlockComponent, StatusPill};
+use dark_tui_components::{compact_text, PaneBlockComponent, StatusPill};
 
 use crate::core::ChatSession;
+use crate::framework::{tree_prefix, walk_session_tree, SessionLike, SessionTreeRow};
 use crate::tui::app::{App, FocusPane};
 
 pub struct SessionsPanel;
 
-struct SessionTreeRow {
-    session_index: usize,
-    depth: usize,
-    ancestors_have_next: Vec<bool>,
-    has_next_sibling: bool,
-    child_count: usize,
+impl SessionLike for ChatSession {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn parent_id(&self) -> Option<&str> {
+        self.parent_id.as_deref()
+    }
+
+    fn title(&self) -> &str {
+        &self.title
+    }
+
+    fn status(&self) -> &str {
+        &self.status
+    }
+
+    fn created_at(&self) -> Option<&str> {
+        self.updated_at.as_deref()
+    }
 }
 
 impl SessionsPanel {
@@ -42,11 +57,12 @@ impl SessionsPanel {
             return;
         }
 
-        let rows = session_tree_rows(app.sessions());
+        let rows = walk_session_tree(app.sessions(), app.active_session_id());
         if rows.is_empty() {
             return;
         }
 
+        let by_id = index_by_session_id(app.sessions());
         let show_hint = rows.len() > inner.height as usize;
         let body_height = if show_hint {
             inner.height.saturating_sub(1).max(1)
@@ -61,9 +77,11 @@ impl SessionsPanel {
 
         let mut lines = Vec::with_capacity(visible_count);
         for row in &rows[window_start..window_end] {
-            let session = &app.sessions()[row.session_index];
-            let selected = row.session_index == app.selected_session_index();
-            lines.push(session_tree_line(session, row, selected, theme));
+            let updated_unix = by_id
+                .get(row.session_id.as_str())
+                .and_then(|index| app.sessions().get(*index))
+                .and_then(|session| session.updated_unix);
+            lines.push(session_tree_line(row, updated_unix, theme));
         }
 
         while lines.len() < visible_count {
@@ -79,11 +97,10 @@ impl SessionsPanel {
         frame.render_widget(Paragraph::new(lines), body_area);
 
         if show_hint {
-            let visible_end = window_end;
             let hint = Paragraph::new(format!(
                 "showing {}-{} of {}",
                 window_start + 1,
-                visible_end,
+                window_end,
                 rows.len()
             ))
             .style(Style::default().fg(theme.text_muted));
@@ -107,7 +124,7 @@ impl SessionsPanel {
             return None;
         }
 
-        let rows = session_tree_rows(app.sessions());
+        let rows = walk_session_tree(app.sessions(), app.active_session_id());
         if rows.is_empty() {
             return None;
         }
@@ -130,140 +147,39 @@ impl SessionsPanel {
 
         let local_row = row.saturating_sub(inner.y) as usize;
         let row_index = window_start + local_row;
-        rows.get(row_index).map(|entry| entry.session_index)
+        let selected = rows.get(row_index)?;
+        index_by_session_id(app.sessions())
+            .get(selected.session_id.as_str())
+            .copied()
     }
 }
 
-fn session_tree_rows(sessions: &[ChatSession]) -> Vec<SessionTreeRow> {
-    if sessions.is_empty() {
-        return Vec::new();
-    }
-
-    let mut index_by_id = HashMap::new();
-    for (index, session) in sessions.iter().enumerate() {
-        index_by_id.insert(session.id.clone(), index);
-    }
-
-    let mut children_by_parent: HashMap<usize, Vec<usize>> = HashMap::new();
-    let mut roots = Vec::new();
-    for (index, session) in sessions.iter().enumerate() {
-        let parent_index = session
-            .parent_id
-            .as_deref()
-            .and_then(|id| index_by_id.get(id).copied())
-            .filter(|parent| *parent != index);
-
-        if let Some(parent) = parent_index {
-            children_by_parent.entry(parent).or_default().push(index);
-        } else {
-            roots.push(index);
-        }
-    }
-
-    let mut rows = Vec::with_capacity(sessions.len());
-    let mut visited = HashSet::new();
-
-    for (position, root) in roots.iter().copied().enumerate() {
-        let has_next_sibling = position + 1 < roots.len();
-        walk_session_tree(
-            root,
-            0,
-            &[],
-            has_next_sibling,
-            &children_by_parent,
-            &mut visited,
-            &mut rows,
-        );
-    }
-
-    for index in 0..sessions.len() {
-        if visited.contains(&index) {
-            continue;
-        }
-
-        walk_session_tree(
-            index,
-            0,
-            &[],
-            false,
-            &children_by_parent,
-            &mut visited,
-            &mut rows,
-        );
-    }
-
-    rows
-}
-
-fn walk_session_tree(
-    index: usize,
-    depth: usize,
-    ancestors_have_next: &[bool],
-    has_next_sibling: bool,
-    children_by_parent: &HashMap<usize, Vec<usize>>,
-    visited: &mut HashSet<usize>,
-    rows: &mut Vec<SessionTreeRow>,
-) {
-    if !visited.insert(index) {
-        return;
-    }
-
-    let child_count = children_by_parent.get(&index).map(Vec::len).unwrap_or(0);
-    rows.push(SessionTreeRow {
-        session_index: index,
-        depth,
-        ancestors_have_next: ancestors_have_next.to_vec(),
-        has_next_sibling,
-        child_count,
-    });
-
-    let Some(children) = children_by_parent.get(&index) else {
-        return;
-    };
-
-    for (position, child) in children.iter().copied().enumerate() {
-        let child_has_next_sibling = position + 1 < children.len();
-        let mut child_ancestors = ancestors_have_next.to_vec();
-        child_ancestors.push(has_next_sibling);
-        walk_session_tree(
-            child,
-            depth + 1,
-            &child_ancestors,
-            child_has_next_sibling,
-            children_by_parent,
-            visited,
-            rows,
-        );
-    }
-}
-
-fn session_tree_line<'a>(
-    session: &'a ChatSession,
+fn session_tree_line(
     row: &SessionTreeRow,
-    selected: bool,
+    updated_unix: Option<i64>,
     theme: &dark_tui_components::ComponentTheme,
-) -> Line<'a> {
+) -> Line<'static> {
     let mut spans = Vec::new();
     spans.push(Span::styled(
-        tree_prefix(row),
+        tree_prefix(row.depth, row.is_last, &row.ancestors_are_last),
         Style::default().fg(theme.text_muted),
     ));
 
     spans.push(Span::styled(
-        compact_text(&session.title, 24),
-        if selected {
+        compact_text(&row.title, 24),
+        if row.is_active {
             Style::default().add_modifier(Modifier::BOLD)
         } else {
             Style::default().fg(theme.text_secondary)
         },
     ));
 
-    if selected {
+    if row.is_active {
         spans.push(Span::raw(" "));
         spans.push(StatusPill::accent("active", theme).span_compact());
     }
 
-    if session.parent_id.is_some() {
+    if row.depth > 0 {
         spans.push(Span::raw(" "));
         spans.push(StatusPill::muted("subagent", theme).span_compact());
     }
@@ -274,38 +190,14 @@ fn session_tree_line<'a>(
     }
 
     spans.push(Span::raw(" "));
-    spans.push(session_status_pill(&session.status, theme).span_compact());
+    spans.push(session_status_pill(&row.status, theme).span_compact());
     spans.push(Span::raw(" "));
     spans.push(Span::styled(
-        relative_time_label(session.updated_unix),
+        relative_time_label(updated_unix),
         Style::default().fg(theme.text_muted),
     ));
 
     Line::from(spans)
-}
-
-fn tree_prefix(row: &SessionTreeRow) -> String {
-    let mut prefix = String::new();
-    for has_next in &row.ancestors_have_next {
-        if *has_next {
-            prefix.push_str("|  ");
-        } else {
-            prefix.push_str("   ");
-        }
-    }
-
-    if row.depth == 0 {
-        prefix.push_str("o ");
-        return prefix;
-    }
-
-    if row.has_next_sibling {
-        prefix.push_str("|- ");
-    } else {
-        prefix.push_str("\\- ");
-    }
-
-    prefix
 }
 
 fn session_status_pill(
@@ -330,14 +222,12 @@ fn panel_inner(area: ratatui::layout::Rect) -> ratatui::layout::Rect {
     }
 }
 
-fn compact_text(value: &str, max_width: usize) -> String {
-    if value.chars().count() <= max_width {
-        return value.to_string();
-    }
-
-    let head_len = max_width.saturating_sub(3);
-    let head = value.chars().take(head_len).collect::<String>();
-    format!("{head}...")
+fn index_by_session_id(sessions: &[ChatSession]) -> HashMap<&str, usize> {
+    sessions
+        .iter()
+        .enumerate()
+        .map(|(index, session)| (session.id.as_str(), index))
+        .collect()
 }
 
 fn relative_time_label(updated_unix: Option<i64>) -> String {

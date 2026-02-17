@@ -4,9 +4,11 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use dark_tui_components::{next_index, previous_index};
+
 use crate::models::{
-    ActorChatMessageRow, ActorRow, DashboardSnapshot, ProductRow, VariantRow, compact_id,
-    compact_locator, compact_timestamp,
+    compact_id, compact_locator, compact_timestamp, ActorChatMessageRow, ActorRow,
+    DashboardSnapshot, ProductRow, VariantRow,
 };
 use crate::theme::Theme;
 
@@ -1303,7 +1305,7 @@ impl App {
                 product.variant_total, product.variant_dirty, product.variant_drift
             ),
             format!("Repo: {}", product.repo_name),
-            format!("Branch: {}", product.branch),
+            format!("Branches: {}", product.branches),
             format!("Updated: {}", product.updated_at),
         ]
     }
@@ -1552,22 +1554,6 @@ fn resolve_index_by_id<T>(rows: &[T], id: Option<&str>, id_accessor: impl Fn(&T)
     rows.iter()
         .position(|row| id_accessor(row) == id)
         .unwrap_or_default()
-}
-
-fn next_index(current: usize, len: usize) -> usize {
-    if len == 0 {
-        return 0;
-    }
-
-    (current + 1) % len
-}
-
-fn previous_index(current: usize, len: usize) -> usize {
-    if len == 0 {
-        return 0;
-    }
-
-    (current + len - 1) % len
 }
 
 fn normalize_string_options(mut values: Vec<String>) -> Vec<String> {

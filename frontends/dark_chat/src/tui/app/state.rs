@@ -3,7 +3,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use dark_tui_components::ComponentTheme;
+use dark_tui_components::{next_index, previous_index, ComponentTheme};
 use serde::{Deserialize, Serialize};
 use tui_textarea::{CursorMove, TextArea};
 
@@ -1256,22 +1256,6 @@ fn remove_char_at_cursor(buffer: &mut String, cursor: usize) {
 
     chars.remove(cursor);
     *buffer = chars.into_iter().collect();
-}
-
-fn next_index(current: usize, len: usize) -> usize {
-    if len == 0 {
-        return 0;
-    }
-
-    (current + 1) % len
-}
-
-fn previous_index(current: usize, len: usize) -> usize {
-    if len == 0 {
-        return 0;
-    }
-
-    (current + len - 1) % len
 }
 
 fn now_label() -> String {

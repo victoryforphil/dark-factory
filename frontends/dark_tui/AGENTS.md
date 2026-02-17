@@ -14,10 +14,13 @@ This file defines local guidance for agents working in `frontends/dark_tui`.
 - TUI rendering uses `ratatui` with a `crossterm` backend.
 - Shared dark_core REST + websocket client/types live in `lib/dark_rust` and should be reused.
 - Shared reusable UI primitives live in `lib/dark_tui_components` and should be preferred over local one-off widget copies.
+- Shared chat panel primitives come from `dark_chat::framework` and should be preferred over local chat UI duplication.
 
 ## Modularity Direction
 
 - Keep app state, API orchestration, and rendering in separate modules.
+- Keep service transport/wire/conversion concerns split across `service.rs`, `service_wire.rs`, and `service_convert.rs`.
+- Keep catalog layout logic separate from card rendering helpers (`unified_catalog_view.rs` + `catalog_cards.rs`).
 - Keep key handling explicit and centralized.
 - Keep render functions focused per pane/widget.
 

@@ -1,10 +1,10 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::Frame;
 
-use dark_tui_components::{PaneBlockComponent, StatusPill};
+use dark_tui_components::{compact_tail, compact_text, PaneBlockComponent, StatusPill};
 
 use crate::tui::app::{App, FocusPane};
 
@@ -180,36 +180,4 @@ fn help_line(
         Span::raw(" "),
         Span::styled(action.to_string(), Style::default().fg(theme.text_muted)),
     ])
-}
-
-fn compact_text(value: &str, max_len: usize) -> String {
-    if value.chars().count() <= max_len {
-        return value.to_string();
-    }
-
-    let visible = max_len.saturating_sub(3);
-    let head = value.chars().take(visible).collect::<String>();
-    format!("{head}...")
-}
-
-fn compact_tail(value: &str, max_len: usize) -> String {
-    let trimmed = value.trim();
-    if trimmed.chars().count() <= max_len {
-        return trimmed.to_string();
-    }
-
-    if max_len <= 3 {
-        return ".".repeat(max_len);
-    }
-
-    let keep = max_len - 3;
-    let tail = trimmed
-        .chars()
-        .rev()
-        .take(keep)
-        .collect::<String>()
-        .chars()
-        .rev()
-        .collect::<String>();
-    format!("...{tail}")
 }

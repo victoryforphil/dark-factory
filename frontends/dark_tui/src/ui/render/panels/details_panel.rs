@@ -1,27 +1,18 @@
-use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
+use ratatui::Frame;
 
 use crate::app::{App, VizSelection};
 use crate::models::{
-    ActorRow, ProductRow, VariantRow, compact_id, compact_locator, compact_timestamp,
+    compact_id, compact_locator, compact_timestamp, ActorRow, ProductRow, VariantRow,
 };
 use crate::theme::{EntityKind, Theme};
 
-use dark_tui_components::{LabeledField, SectionHeader, StatusPill};
+use dark_tui_components::{compact_text_normalized, LabeledField, SectionHeader, StatusPill};
 
 pub(crate) struct DetailsPanel;
-
-fn compact_text(value: &str, max_len: usize) -> String {
-    let normalized = value.trim().replace('\n', " ");
-    if normalized.len() <= max_len {
-        return normalized;
-    }
-
-    format!("{}...", &normalized[..max_len.saturating_sub(3)])
-}
 
 impl DetailsPanel {
     pub(crate) fn render(frame: &mut Frame, area: Rect, app: &App) {
@@ -29,8 +20,18 @@ impl DetailsPanel {
 
         // Determine which entity type is being shown for border accent.
         let entity_kind = Self::active_entity_kind(app);
+        let product_border = app
+            .selected_product()
+            .map(|product| {
+                if product.is_git_repo {
+                    theme.entity_variant
+                } else {
+                    theme.entity_product
+                }
+            })
+            .unwrap_or(theme.entity_product);
         let (title, border_color) = match entity_kind {
-            EntityKind::Product => ("\u{25a0} Product", theme.entity_product),
+            EntityKind::Product => ("\u{25a0} Product", product_border),
             EntityKind::Variant => ("\u{25b6} Variant", theme.entity_variant),
             EntityKind::Actor => ("\u{25cf} Actor", theme.entity_actor),
         };
@@ -101,6 +102,7 @@ impl DetailsPanel {
         lines.push(SectionHeader::new("Identity", theme.entity_product).line(width, theme));
         lines.push(LabeledField::new("Name", &product.display_name).line(theme));
         lines.push(LabeledField::new("ID", compact_id(&product.id)).line(theme));
+        lines.push(LabeledField::new("Type", &product.product_type).line(theme));
         lines.push(
             LabeledField::new(
                 "Locator",
@@ -114,6 +116,13 @@ impl DetailsPanel {
         lines.push(SectionHeader::new("Repository", theme.entity_product).line(width, theme));
         lines.push(LabeledField::new("Repo", &product.repo_name).line(theme));
         lines.push(LabeledField::new("Branch", &product.branch).line(theme));
+        lines.push(
+            LabeledField::new(
+                "Branches",
+                compact_text_normalized(&product.branches, width.saturating_sub(16) as usize),
+            )
+            .line(theme),
+        );
         lines.push(Self::variant_summary_line(product, theme));
         lines.push(Line::raw(""));
 
@@ -209,7 +218,7 @@ impl DetailsPanel {
         lines.push(
             LabeledField::new(
                 "Description",
-                compact_text(&actor.description, width.saturating_sub(16) as usize),
+                compact_text_normalized(&actor.description, width.saturating_sub(16) as usize),
             )
             .line(theme),
         );
