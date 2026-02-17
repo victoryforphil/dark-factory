@@ -1,6 +1,6 @@
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use crate::app::{App, ResultsViewMode, VizSelection};
+use crate::app::{App, FocusPane, ResultsViewMode, VizSelection};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CommandId {
@@ -11,6 +11,7 @@ pub(crate) enum CommandId {
     Refresh,
     ToggleFilter,
     ToggleView,
+    ToggleInspector,
     PollVariant,
     PollActor,
     OpenMoveActorForm,
@@ -42,7 +43,7 @@ pub(crate) struct ContextMenuState {
 }
 
 #[allow(dead_code)]
-const TOOLBAR_COMMANDS: &[CommandBinding] = &[
+const TOOLBAR_COMMON_COMMANDS: &[CommandBinding] = &[
     CommandBinding {
         id: CommandId::Quit,
         key: "q",
@@ -74,24 +75,35 @@ const TOOLBAR_COMMANDS: &[CommandBinding] = &[
         label: "Filter",
     },
     CommandBinding {
-        id: CommandId::PollVariant,
-        key: "p",
-        label: "Poll",
+        id: CommandId::ToggleInspector,
+        key: "b",
+        label: "Inspector",
     },
     CommandBinding {
-        id: CommandId::OpenMoveActorForm,
-        key: "g",
-        label: "Move",
+        id: CommandId::ToggleChat,
+        key: "t",
+        label: "Chat",
+    },
+];
+
+const TOOLBAR_PRODUCT_COMMANDS: &[CommandBinding] = &[
+    CommandBinding {
+        id: CommandId::InitProduct,
+        key: "i",
+        label: "Init",
     },
     CommandBinding {
         id: CommandId::OpenCloneForm,
         key: "x",
         label: "Clone",
     },
+];
+
+const TOOLBAR_VARIANT_COMMANDS: &[CommandBinding] = &[
     CommandBinding {
-        id: CommandId::OpenDeleteVariantForm,
-        key: "d",
-        label: "Delete",
+        id: CommandId::PollVariant,
+        key: "p",
+        label: "Poll",
     },
     CommandBinding {
         id: CommandId::ImportVariantActors,
@@ -99,14 +111,27 @@ const TOOLBAR_COMMANDS: &[CommandBinding] = &[
         label: "Import",
     },
     CommandBinding {
-        id: CommandId::InitProduct,
-        key: "i",
-        label: "Init",
+        id: CommandId::OpenDeleteVariantForm,
+        key: "d",
+        label: "Delete",
     },
     CommandBinding {
         id: CommandId::OpenSpawnForm,
         key: "n",
         label: "New actor",
+    },
+];
+
+const TOOLBAR_ACTOR_COMMANDS: &[CommandBinding] = &[
+    CommandBinding {
+        id: CommandId::PollActor,
+        key: "o",
+        label: "Poll actor",
+    },
+    CommandBinding {
+        id: CommandId::OpenMoveActorForm,
+        key: "g",
+        label: "Move",
     },
     CommandBinding {
         id: CommandId::BuildAttach,
@@ -114,29 +139,48 @@ const TOOLBAR_COMMANDS: &[CommandBinding] = &[
         label: "Attach",
     },
     CommandBinding {
-        id: CommandId::ToggleChat,
-        key: "t",
-        label: "Chat",
-    },
-    CommandBinding {
         id: CommandId::OpenChatCompose,
         key: "c",
         label: "Compose",
     },
     CommandBinding {
-        id: CommandId::ResetPan,
-        key: "0",
-        label: "Reset pan",
+        id: CommandId::OpenSpawnForm,
+        key: "n",
+        label: "New actor",
     },
 ];
 
-#[allow(dead_code)]
+const TOOLBAR_VIZ_COMMANDS: &[CommandBinding] = &[CommandBinding {
+    id: CommandId::ResetPan,
+    key: "0",
+    label: "Reset pan",
+}];
+
 pub(crate) fn toolbar_bindings(app: &App) -> Vec<CommandBinding> {
-    TOOLBAR_COMMANDS
-        .iter()
-        .copied()
-        .filter(|binding| should_show_in_toolbar(app, binding.id))
-        .collect()
+    let mut commands: Vec<CommandBinding> = TOOLBAR_COMMON_COMMANDS.to_vec();
+
+    if app.results_view_mode() == ResultsViewMode::Viz {
+        commands.extend_from_slice(TOOLBAR_VIZ_COMMANDS);
+    }
+
+    match toolbar_selection_context(app) {
+        ToolbarSelectionContext::Product => commands.extend_from_slice(TOOLBAR_PRODUCT_COMMANDS),
+        ToolbarSelectionContext::Variant => commands.extend_from_slice(TOOLBAR_VARIANT_COMMANDS),
+        ToolbarSelectionContext::Actor => commands.extend_from_slice(TOOLBAR_ACTOR_COMMANDS),
+    }
+
+    let mut deduped: Vec<CommandBinding> = Vec::new();
+    for binding in commands {
+        if deduped.iter().any(|existing| existing.id == binding.id) {
+            continue;
+        }
+
+        if is_command_enabled(app, binding.id) {
+            deduped.push(binding);
+        }
+    }
+
+    deduped
 }
 
 pub(crate) fn resolve_key_command(app: &App, key: KeyEvent) -> Option<CommandId> {
@@ -151,6 +195,7 @@ pub(crate) fn resolve_key_command(app: &App, key: KeyEvent) -> Option<CommandId>
         KeyCode::Up | KeyCode::Char('k') => CommandId::MoveUp,
         KeyCode::Char('r') => CommandId::Refresh,
         KeyCode::Char('f') => CommandId::ToggleFilter,
+        KeyCode::Char('b') => CommandId::ToggleInspector,
         KeyCode::Char('v') | KeyCode::Char(' ') => CommandId::ToggleView,
         KeyCode::Char('p') => CommandId::PollVariant,
         KeyCode::Char('o') => CommandId::PollActor,
@@ -182,14 +227,15 @@ pub(crate) fn is_command_enabled(app: &App, command: CommandId) -> bool {
         | CommandId::MoveUp
         | CommandId::Refresh
         | CommandId::ToggleFilter
+        | CommandId::ToggleInspector
         | CommandId::ToggleView
         | CommandId::InitProduct
-        | CommandId::OpenSpawnForm
         | CommandId::ToggleChat => true,
         CommandId::ResetPan => app.results_view_mode() == ResultsViewMode::Viz,
         CommandId::PollVariant
         | CommandId::OpenDeleteVariantForm
-        | CommandId::ImportVariantActors => app.selected_variant_id().is_some(),
+        | CommandId::ImportVariantActors
+        | CommandId::OpenSpawnForm => app.selected_variant_id().is_some(),
         CommandId::PollActor | CommandId::OpenMoveActorForm => app.selected_actor_id().is_some(),
         CommandId::OpenCloneForm => app.selected_product().is_some(),
         CommandId::BuildAttach | CommandId::OpenChatCompose => app.selected_actor_id().is_some(),
@@ -338,10 +384,25 @@ impl ContextMenuState {
 }
 
 #[allow(dead_code)]
-fn should_show_in_toolbar(app: &App, command: CommandId) -> bool {
-    if command == CommandId::ResetPan {
-        return app.results_view_mode() == ResultsViewMode::Viz;
+enum ToolbarSelectionContext {
+    Product,
+    Variant,
+    Actor,
+}
+
+fn toolbar_selection_context(app: &App) -> ToolbarSelectionContext {
+    if app.results_view_mode() == ResultsViewMode::Viz {
+        if let Some(selection) = app.viz_selection() {
+            return match selection {
+                VizSelection::Product { .. } => ToolbarSelectionContext::Product,
+                VizSelection::Variant { .. } => ToolbarSelectionContext::Variant,
+                VizSelection::Actor { .. } => ToolbarSelectionContext::Actor,
+            };
+        }
     }
 
-    true
+    match app.focus() {
+        FocusPane::Products => ToolbarSelectionContext::Product,
+        FocusPane::Variants => ToolbarSelectionContext::Variant,
+    }
 }

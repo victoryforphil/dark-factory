@@ -35,7 +35,6 @@ type TuiTerminal = Terminal<CrosstermBackend<Stdout>>;
 type ChatOptionsTask = Option<tokio::task::JoinHandle<(String, Result<(Vec<String>, Vec<String>)>)>>;
 type ChatSendTask = Option<tokio::task::JoinHandle<(String, Result<()>)>>;
 const API_TIMEOUT_SECONDS: u64 = 20;
-const ACTOR_AUTO_POLL_INTERVAL_SECONDS: u64 = 15;
 
 enum LoopAction {
     None,
@@ -54,6 +53,7 @@ enum LoopAction {
     OpenSpawnForm,
     SpawnSession,
     BuildAttach,
+    ToggleInspector,
     ToggleChat,
     OpenChatCompose,
     SendChatMessage,
@@ -147,7 +147,13 @@ pub async fn run(cli: Cli) -> Result<()> {
 
     let mut terminal = setup_terminal()?;
 
-    let run_result = run_loop(&mut terminal, &service, &mut app).await;
+    let actor_auto_poll_interval = if cli.actor_auto_poll_seconds == 0 {
+        None
+    } else {
+        Some(Duration::from_secs(cli.actor_auto_poll_seconds.max(1)))
+    };
+
+    let run_result = run_loop(&mut terminal, &service, &mut app, actor_auto_poll_interval).await;
     let restore_result = restore_terminal(&mut terminal);
 
     if let Err(error) = restore_result {
@@ -163,9 +169,9 @@ async fn run_loop(
     terminal: &mut TuiTerminal,
     service: &DashboardService,
     app: &mut App,
+    actor_auto_poll_interval: Option<Duration>,
 ) -> Result<()> {
     let refresh_interval = Duration::from_secs(app.refresh_seconds().max(1));
-    let actor_auto_poll_interval = Duration::from_secs(ACTOR_AUTO_POLL_INTERVAL_SECONDS);
     let mut force_refresh = true;
     let mut next_refresh_at = Instant::now();
     let mut next_actor_auto_poll_at = Instant::now();
@@ -209,7 +215,8 @@ async fn run_loop(
         }
 
         if snapshot_task.is_none() && (force_refresh || Instant::now() >= next_refresh_at) {
-            let should_auto_poll_actors = Instant::now() >= next_actor_auto_poll_at;
+            let should_auto_poll_actors = actor_auto_poll_interval
+                .is_some_and(|_| Instant::now() >= next_actor_auto_poll_at);
             let auto_poll_actor_ids: Vec<String> = if should_auto_poll_actors {
                 app.actors().iter().map(|actor| actor.id.clone()).collect()
             } else {
@@ -233,7 +240,8 @@ async fn run_loop(
             }));
 
             if should_auto_poll_actors {
-                next_actor_auto_poll_at = Instant::now() + actor_auto_poll_interval;
+                next_actor_auto_poll_at =
+                    Instant::now() + actor_auto_poll_interval.expect("auto poll interval exists");
             }
             force_refresh = false;
         }
@@ -543,6 +551,26 @@ async fn run_loop(
                         continue;
                     }
                 }
+            }
+
+            if injected_key.is_some() {
+                // Key-bar clicks should behave like button presses only.
+                // Skip other mouse handlers (chat/viz resize, pan/drag, selection).
+                let key = injected_key.expect("injected key should be set");
+                let action = handle_key(app, key);
+                if matches!(action, LoopAction::Quit) {
+                    break;
+                }
+                process_loop_action(
+                    action,
+                    app,
+                    service,
+                    &mut action_tasks,
+                    &mut chat_options_task,
+                    &mut chat_send_task,
+                    &mut force_refresh,
+                );
+                continue;
             }
 
             if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
@@ -959,6 +987,9 @@ fn key_event_from_key_hint(action: render::KeyHintAction) -> Option<KeyEvent> {
         render::KeyHintAction::Refresh => KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE),
         render::KeyHintAction::View => KeyEvent::new(KeyCode::Char('v'), KeyModifiers::NONE),
         render::KeyHintAction::Filter => KeyEvent::new(KeyCode::Char('f'), KeyModifiers::NONE),
+        render::KeyHintAction::ToggleInspector => {
+            KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE)
+        }
         render::KeyHintAction::Poll => KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE),
         render::KeyHintAction::PollActor => KeyEvent::new(KeyCode::Char('o'), KeyModifiers::NONE),
         render::KeyHintAction::Move => KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE),
@@ -988,6 +1019,7 @@ fn command_key_event(command: CommandId) -> Option<KeyEvent> {
         CommandId::MoveUp => KeyEvent::new(KeyCode::Up, KeyModifiers::NONE),
         CommandId::Refresh => KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE),
         CommandId::ToggleFilter => KeyEvent::new(KeyCode::Char('f'), KeyModifiers::NONE),
+        CommandId::ToggleInspector => KeyEvent::new(KeyCode::Char('b'), KeyModifiers::NONE),
         CommandId::ToggleView => KeyEvent::new(KeyCode::Char('v'), KeyModifiers::NONE),
         CommandId::PollVariant => KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE),
         CommandId::PollActor => KeyEvent::new(KeyCode::Char('o'), KeyModifiers::NONE),
@@ -1026,6 +1058,7 @@ fn apply_command(app: &mut App, command: CommandId) -> LoopAction {
             app.toggle_variant_filter();
             LoopAction::None
         }
+        CommandId::ToggleInspector => LoopAction::ToggleInspector,
         CommandId::ToggleView => {
             app.toggle_results_view_mode();
             app.set_status(format!("Results view mode: {}", app.results_view_mode().label()));
@@ -1361,6 +1394,15 @@ fn process_loop_action(
                 "Chat panel shown."
             } else {
                 "Chat panel hidden."
+            };
+            app.set_status(status);
+        }
+        LoopAction::ToggleInspector => {
+            app.toggle_inspector_visibility();
+            let status = if app.is_inspector_visible() {
+                "Inspector shown."
+            } else {
+                "Inspector hidden."
             };
             app.set_status(status);
         }

@@ -9,8 +9,6 @@ use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::Frame;
 
-use dark_tui_components::HorizontalSplit;
-
 use crate::app::{App, ResizeTarget, ResultsViewMode};
 use crate::ui::command_palette::ContextMenuState;
 
@@ -87,41 +85,54 @@ fn render_body(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
     }
 }
 
-fn active_split(app: &App) -> &HorizontalSplit {
-    if app.is_chat_visible() {
-        app.body_split_with_chat()
-    } else {
-        app.body_split_without_chat()
-    }
-}
-
 fn resolve_columns(area: Rect, app: &App) -> Vec<Rect> {
-    active_split(app).resolve(area)
+    if app.is_inspector_visible() {
+        if app.is_chat_visible() {
+            return app.body_split_with_chat().resolve(area);
+        }
+        return app.body_split_without_chat().resolve(area);
+    }
+
+    if app.is_chat_visible() {
+        return app.body_split_without_chat().resolve(area);
+    }
+
+    vec![area]
 }
 
 /// Table mode: main/sidebar split. Details panel fills the entire sidebar.
 fn render_body_table(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
     let columns = resolve_columns(area, app);
-    if app.is_chat_visible() && columns.len() >= 3 {
+    if app.is_inspector_visible() && app.is_chat_visible() && columns.len() >= 3 {
         CatalogTreeView::render(frame, columns[0], app);
         ChatPanel::render(frame, columns[1], app);
         DetailsPanel::render(frame, columns[2], app);
-    } else if columns.len() >= 2 {
+    } else if app.is_inspector_visible() && columns.len() >= 2 {
         CatalogTreeView::render(frame, columns[0], app);
         DetailsPanel::render(frame, columns[1], app);
+    } else if app.is_chat_visible() && columns.len() >= 2 {
+        CatalogTreeView::render(frame, columns[0], app);
+        ChatPanel::render(frame, columns[1], app);
+    } else if let Some(main) = columns.first() {
+        CatalogTreeView::render(frame, *main, app);
     }
 }
 
 /// Viz mode: main/sidebar split. Details panel fills the entire sidebar.
 fn render_body_viz(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
     let columns = resolve_columns(area, app);
-    if app.is_chat_visible() && columns.len() >= 3 {
+    if app.is_inspector_visible() && app.is_chat_visible() && columns.len() >= 3 {
         UnifiedCatalogView::render(frame, columns[0], app);
         ChatPanel::render(frame, columns[1], app);
         DetailsPanel::render(frame, columns[2], app);
-    } else if columns.len() >= 2 {
+    } else if app.is_inspector_visible() && columns.len() >= 2 {
         UnifiedCatalogView::render(frame, columns[0], app);
         DetailsPanel::render(frame, columns[1], app);
+    } else if app.is_chat_visible() && columns.len() >= 2 {
+        UnifiedCatalogView::render(frame, columns[0], app);
+        ChatPanel::render(frame, columns[1], app);
+    } else if let Some(main) = columns.first() {
+        UnifiedCatalogView::render(frame, *main, app);
     }
 }
 
@@ -163,12 +174,21 @@ pub(crate) fn divider_hit(root: Rect, app: &App, col: u16) -> Option<ResizeTarge
         return None;
     }
 
+    if !app.is_inspector_visible() {
+        if app.is_chat_visible() {
+            let divider = app.body_split_without_chat().divider_hit(body, col, 1)?;
+            return Some(ResizeTarget::BodyWithoutChat(divider));
+        }
+
+        return None;
+    }
+
     if app.is_chat_visible() {
-        let divider = active_split(app).divider_hit(body, col, 1)?;
+        let divider = app.body_split_with_chat().divider_hit(body, col, 1)?;
         return Some(ResizeTarget::BodyWithChat(divider));
     }
 
-    let divider = active_split(app).divider_hit(body, col, 1)?;
+    let divider = app.body_split_without_chat().divider_hit(body, col, 1)?;
     Some(ResizeTarget::BodyWithoutChat(divider))
 }
 

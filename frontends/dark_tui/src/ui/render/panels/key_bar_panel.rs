@@ -3,37 +3,10 @@ use ratatui::style::Style;
 use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
-use crate::app::{App, ResultsViewMode};
+use crate::app::App;
+use crate::ui::command_palette::toolbar_bindings;
 
 use dark_tui_components::{KeyBind, KeyHintBar};
-
-/// Core navigation + view keys (always visible).
-const CORE_KEYS: &[KeyBind] = &[
-    KeyBind::new("q", "Quit"),
-    KeyBind::new("Tab", "Focus"),
-    KeyBind::new("j/k", "Select"),
-    KeyBind::new("r", "Refresh"),
-    KeyBind::new("v", "View"),
-    KeyBind::new("f", "Filter"),
-];
-
-/// Action keys (always visible).
-const ACTION_KEYS: &[KeyBind] = &[
-    KeyBind::new("p", "Poll"),
-    KeyBind::new("o", "Poll actor"),
-    KeyBind::new("x", "Clone"),
-    KeyBind::new("d", "Delete"),
-    KeyBind::new("m", "Import"),
-    KeyBind::new("g", "Move"),
-    KeyBind::new("i", "Init"),
-    KeyBind::new("n", "Spawn"),
-    KeyBind::new("a", "Attach"),
-    KeyBind::new("t", "Chat"),
-    KeyBind::new("c", "Compose"),
-];
-
-/// Extra key hints for viz mode.
-const VIZ_KEYS: &[KeyBind] = &[KeyBind::new("0", "Reset pan")];
 
 /// Extra key hints while composing a chat message.
 const CHAT_COMPOSE_KEYS: &[KeyBind] =
@@ -63,6 +36,7 @@ pub enum KeyHintAction {
     Refresh,
     View,
     Filter,
+    ToggleInspector,
     Poll,
     PollActor,
     Clone,
@@ -92,6 +66,7 @@ impl KeyHintAction {
             "r" => Some(Self::Refresh),
             "v" => Some(Self::View),
             "f" => Some(Self::Filter),
+            "b" => Some(Self::ToggleInspector),
             "p" => Some(Self::Poll),
             "o" => Some(Self::PollActor),
             "x" => Some(Self::Clone),
@@ -120,29 +95,42 @@ impl KeyHintAction {
 pub(crate) struct KeyBarPanel;
 
 impl KeyBarPanel {
-    fn active_keys(app: &App) -> Vec<&'static KeyBind> {
-        let mut all_keys: Vec<&KeyBind> = Vec::with_capacity(12);
-        all_keys.extend(CORE_KEYS.iter());
-        all_keys.extend(ACTION_KEYS.iter());
-
-        if app.results_view_mode() == ResultsViewMode::Viz {
-            all_keys.extend(VIZ_KEYS.iter());
-        }
+    fn active_keys(app: &App) -> Vec<KeyBind> {
+        let mut all_keys: Vec<KeyBind> = toolbar_bindings(app)
+            .into_iter()
+            .map(|binding| KeyBind::new(binding.key, binding.label))
+            .collect();
 
         if app.is_chat_composing() {
-            all_keys.extend(CHAT_COMPOSE_KEYS.iter());
+            all_keys.extend(
+                CHAT_COMPOSE_KEYS
+                    .iter()
+                    .map(|binding| KeyBind::new(binding.key, binding.action)),
+            );
         }
 
         if app.is_clone_form_open() {
-            all_keys.extend(CLONE_FORM_KEYS.iter());
+            all_keys.extend(
+                CLONE_FORM_KEYS
+                    .iter()
+                    .map(|binding| KeyBind::new(binding.key, binding.action)),
+            );
         }
 
         if app.is_delete_variant_form_open() {
-            all_keys.extend(DELETE_FORM_KEYS.iter());
+            all_keys.extend(
+                DELETE_FORM_KEYS
+                    .iter()
+                    .map(|binding| KeyBind::new(binding.key, binding.action)),
+            );
         }
 
         if app.is_move_actor_form_open() {
-            all_keys.extend(MOVE_FORM_KEYS.iter());
+            all_keys.extend(
+                MOVE_FORM_KEYS
+                    .iter()
+                    .map(|binding| KeyBind::new(binding.key, binding.action)),
+            );
         }
 
         all_keys
@@ -151,13 +139,7 @@ impl KeyBarPanel {
     pub(crate) fn render(frame: &mut Frame, area: Rect, app: &App) {
         let theme = app.theme();
 
-        let all_keys = Self::active_keys(app);
-
-        // Build owned KeyBind vec for the bar (KeyHintBar expects a slice).
-        let owned: Vec<KeyBind> = all_keys
-            .into_iter()
-            .map(|kb| KeyBind::new(kb.key, kb.action))
-            .collect();
+        let owned = Self::active_keys(app);
 
         let bar = KeyHintBar::new(&owned);
         let lines = bar.lines_wrapped(area.width, theme);
@@ -181,58 +163,43 @@ impl KeyBarPanel {
         let local_row = row.saturating_sub(area.y);
         let local_col = col.saturating_sub(area.x);
 
-        // Build the same key list as render() to calculate positions
-        let all_keys: Vec<(&'static str, &'static str)> = Self::active_keys(app)
-            .into_iter()
-            .map(|kb| (kb.key, kb.action))
-            .collect();
-
-        // Calculate which key was clicked by tracking column positions
-        // Format: " key " (2 + key_len) + separator + " action" (1 + action_len)
         let separator = " \u{2502} ";
+        let sep_width = display_width(separator);
 
-        let mut current_col: u16 = 0;
+        let mut current_width: u16 = 0;
         let mut current_row: u16 = 0;
 
-        for (key, action) in &all_keys {
-            let key_width = (key.len() + 2) as u16; // " key "
-            let sep_width = if current_col > 0 {
-                separator.len() as u16
+        for bind in Self::active_keys(app) {
+            let entry_width = display_width(bind.key) + 2 + display_width(bind.action) + 1;
+            let total_width = if current_width > 0 {
+                sep_width + entry_width
             } else {
-                0
+                entry_width
             };
-            let action_width = (action.len() + 1) as u16; // " action"
 
-            let entry_start = current_col;
-            let entry_end = current_col + sep_width + key_width + action_width;
-
-            // Check if click is within this entry
-            if local_row == current_row && local_col >= entry_start && local_col < entry_end {
-                // Check if click is on the key part (the first part of the entry)
-                let key_start = current_col + sep_width;
-                let key_end = key_start + key_width;
-
-                if local_col >= key_start && local_col < key_end {
-                    return KeyHintAction::from_key(key);
-                }
-            }
-
-            // Move to next position
-            let entry_width = if current_col > 0 { separator.len() } else { 0 }
-                + key.len()
-                + 2
-                + action.len()
-                + 1;
-
-            current_col += entry_width as u16;
-
-            // Wrap to next row if needed
-            if current_col > area.width && area.width > 0 {
-                current_col = 0;
+            if current_width > 0 && current_width + total_width > area.width {
                 current_row += 1;
+                current_width = 0;
             }
+
+            if current_row >= area.height {
+                return None;
+            }
+
+            let text_start = current_width + if current_width > 0 { sep_width } else { 0 };
+            let text_end = text_start + entry_width;
+
+            if local_row == current_row && local_col >= text_start && local_col < text_end {
+                return KeyHintAction::from_key(bind.key);
+            }
+
+            current_width += total_width;
         }
 
         None
     }
+}
+
+fn display_width(value: &str) -> u16 {
+    value.chars().count() as u16
 }

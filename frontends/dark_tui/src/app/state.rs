@@ -212,6 +212,7 @@ pub struct App {
     clone_form: Option<CloneFormState>,
     delete_variant_form: Option<DeleteVariantFormState>,
     move_actor_form: Option<MoveActorFormState>,
+    inspector_visible: bool,
     chat_visible: bool,
     chat_actor_id: Option<String>,
     chat_messages: Vec<ActorChatMessageRow>,
@@ -275,6 +276,7 @@ impl App {
             clone_form: None,
             delete_variant_form: None,
             move_actor_form: None,
+            inspector_visible: true,
             chat_visible: false,
             chat_actor_id: None,
             chat_messages: Vec::new(),
@@ -821,6 +823,17 @@ impl App {
 
     pub fn is_chat_visible(&self) -> bool {
         self.chat_visible
+    }
+
+    pub fn is_inspector_visible(&self) -> bool {
+        self.inspector_visible
+    }
+
+    pub fn toggle_inspector_visibility(&mut self) {
+        self.inspector_visible = !self.inspector_visible;
+        if !self.inspector_visible {
+            self.resizing_target = None;
+        }
     }
 
     pub fn toggle_chat_visibility(&mut self) {
@@ -1705,6 +1718,7 @@ impl App {
             "  n             Spawn actor".to_string(),
             "  a             Build attach command".to_string(),
             "  t             Toggle chat panel".to_string(),
+            "  b             Toggle inspector".to_string(),
             "  c             Compose chat prompt".to_string(),
             "".to_string(),
             "CLI Parity:".to_string(),
@@ -1853,8 +1867,9 @@ impl App {
     fn set_chat_actor(&mut self, actor_id: &str) {
         let changed = self.chat_actor_id.as_deref() != Some(actor_id);
         self.chat_actor_id = Some(actor_id.to_string());
-        self.chat_visible = true;
-        self.chat_needs_refresh = true;
+        if self.chat_visible {
+            self.chat_needs_refresh = true;
+        }
 
         if changed {
             self.chat_messages.clear();

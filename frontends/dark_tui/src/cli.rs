@@ -16,6 +16,9 @@ pub struct Cli {
     #[arg(long, env = "DARK_TUI_REFRESH_SECONDS", default_value_t = 5)]
     pub refresh_seconds: u64,
 
+    #[arg(long, env = "DARK_TUI_ACTOR_AUTO_POLL_SECONDS", default_value_t = 15)]
+    pub actor_auto_poll_seconds: u64,
+
     #[arg(
         long,
         env = "DARK_TUI_POLL_VARIANTS",
