@@ -69,6 +69,7 @@ It reflects only what is currently true in this repository.
   - `.cursor/rules/`
   - `.cursorrules`
   - `.github/copilot-instructions.md`
+- OpenCode project config now exists at `opencode.jsonc` and allows external-directory access for `~/repos/vfp/**`.
 - If any of these files appear later, treat them as authoritative and update this guide.
 
 ## 5) Style Guide

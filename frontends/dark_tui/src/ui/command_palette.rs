@@ -21,6 +21,7 @@ pub(crate) enum CommandId {
     InitProduct,
     OpenSpawnForm,
     BuildAttach,
+    RunAttach,
     ToggleChat,
     OpenChatCompose,
     ResetPan,
@@ -124,6 +125,16 @@ const TOOLBAR_VARIANT_COMMANDS: &[CommandBinding] = &[
 
 const TOOLBAR_ACTOR_COMMANDS: &[CommandBinding] = &[
     CommandBinding {
+        id: CommandId::RunAttach,
+        key: "a",
+        label: "[A]ttach",
+    },
+    CommandBinding {
+        id: CommandId::BuildAttach,
+        key: "A",
+        label: "Copy attach cmd",
+    },
+    CommandBinding {
         id: CommandId::PollActor,
         key: "o",
         label: "[O] Poll actor",
@@ -132,11 +143,6 @@ const TOOLBAR_ACTOR_COMMANDS: &[CommandBinding] = &[
         id: CommandId::OpenMoveActorForm,
         key: "g",
         label: "[G] Move actor",
-    },
-    CommandBinding {
-        id: CommandId::BuildAttach,
-        key: "a",
-        label: "[A]ttach",
     },
     CommandBinding {
         id: CommandId::OpenChatCompose,
@@ -205,7 +211,8 @@ pub(crate) fn resolve_key_command(app: &App, key: KeyEvent) -> Option<CommandId>
         KeyCode::Char('m') => CommandId::ImportVariantActors,
         KeyCode::Char('i') => CommandId::InitProduct,
         KeyCode::Char('n') => CommandId::OpenSpawnForm,
-        KeyCode::Char('a') => CommandId::BuildAttach,
+        KeyCode::Char('a') => CommandId::RunAttach,
+        KeyCode::Char('A') => CommandId::BuildAttach,
         KeyCode::Char('t') => CommandId::ToggleChat,
         KeyCode::Char('c') => CommandId::OpenChatCompose,
         KeyCode::Char('0') => CommandId::ResetPan,
@@ -238,7 +245,9 @@ pub(crate) fn is_command_enabled(app: &App, command: CommandId) -> bool {
         | CommandId::OpenSpawnForm => app.selected_variant_id().is_some(),
         CommandId::PollActor | CommandId::OpenMoveActorForm => app.selected_actor_id().is_some(),
         CommandId::OpenCloneForm => app.selected_product().is_some(),
-        CommandId::BuildAttach | CommandId::OpenChatCompose => app.selected_actor_id().is_some(),
+        CommandId::BuildAttach | CommandId::RunAttach | CommandId::OpenChatCompose => {
+            app.selected_actor_id().is_some()
+        }
     }
 }
 
@@ -280,7 +289,7 @@ pub(crate) fn context_menu_commands(app: &App, target: &VizSelection) -> Vec<Com
         ],
         VizSelection::Actor { .. } => &[
             CommandBinding {
-                id: CommandId::BuildAttach,
+                id: CommandId::RunAttach,
                 key: "a",
                 label: "[A]ttach",
             },

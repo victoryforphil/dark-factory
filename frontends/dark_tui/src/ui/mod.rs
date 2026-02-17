@@ -5,6 +5,7 @@ use std::env;
 use std::future::Future;
 use std::io::{self, Stdout};
 use std::path::PathBuf;
+use std::process::Command;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, anyhow};
@@ -20,9 +21,11 @@ use crossterm::terminal::{
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::Rect;
+use tracing::{error, info, warn};
 
 use crate::app::{App, ResultsViewMode, VizSelection};
 use crate::cli::Cli;
+use crate::logging;
 use crate::models::{ActorChatMessageRow, DashboardSnapshot};
 use crate::service::{CloneVariantOptions, DashboardService, SpawnOptions};
 use crate::theme::Theme;
@@ -52,6 +55,7 @@ enum LoopAction {
     OpenSpawnForm,
     SpawnSession,
     BuildAttach,
+    RunAttach,
     ToggleInspector,
     ToggleChat,
     OpenChatCompose,
@@ -69,6 +73,7 @@ enum BackgroundActionResult {
     SpawnOptions(Result<(SpawnOptions, String)>),
     SpawnSession(Result<String>),
     BuildAttach(Result<String>),
+    RunAttach(Result<String>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,6 +88,7 @@ enum BackgroundActionKind {
     SpawnOptions,
     SpawnSession,
     BuildAttach,
+    RunAttach,
 }
 
 struct ActionTask {
@@ -105,6 +111,14 @@ struct ActorDragState {
 
 pub async fn run(cli: Cli) -> Result<()> {
     let directory = resolve_directory(cli.directory.as_deref())?;
+    let log_path = logging::init(&directory)?;
+    info!(
+        base_url = %cli.base_url,
+        directory = %directory,
+        log_path = %log_path.display(),
+        "Dark TUI // Startup // Logger initialized"
+    );
+
     let service =
         DashboardService::new(cli.base_url.clone(), directory.clone(), cli.poll_variants).await;
 
@@ -428,9 +442,14 @@ async fn run_loop(
                 },
                 Ok(BackgroundActionResult::BuildAttach(result)) => match result {
                     Ok(command) => {
+                        info!(command = %command, "Dark TUI // Attach // Attach command built");
                         let status = match copy_to_clipboard(&command) {
                             Ok(()) => "Attach command copied to clipboard.",
                             Err(error) => {
+                                warn!(
+                                    error = %error,
+                                    "Dark TUI // Attach // Clipboard copy failed"
+                                );
                                 app.set_command_message(command.clone());
                                 app.set_status(format!(
                                     "Attach command ready (clipboard failed: {error})"
@@ -440,6 +459,31 @@ async fn run_loop(
                         };
                         app.set_command_message(command);
                         app.set_status(status);
+                    }
+                    Err(error) => {
+                        app.set_status(format!("Attach command failed: {error}"));
+                    }
+                },
+                Ok(BackgroundActionResult::RunAttach(result)) => match result {
+                    Ok(command) => {
+                        info!(command = %command, "Dark TUI // Attach // Running attach handoff");
+                        app.set_command_message(command.clone());
+                        app.set_status("Running attach command...");
+                        match run_attach_handoff(terminal, &command) {
+                            Ok(exit_status) => {
+                                let code = exit_status
+                                    .code()
+                                    .map(|value| value.to_string())
+                                    .unwrap_or_else(|| "signal".to_string());
+                                info!(exit = %code, "Dark TUI // Attach // Attach command finished");
+                                app.set_status(format!("Attach command finished (exit={code})."));
+                            }
+                            Err(error) => {
+                                error!(error = %error, "Dark TUI // Attach // Attach handoff failed");
+                                app.set_status(format!("Attach run failed: {error}"));
+                            }
+                        }
+                        force_refresh = true;
                     }
                     Err(error) => {
                         app.set_status(format!("Attach command failed: {error}"));
@@ -975,6 +1019,58 @@ fn copy_to_clipboard(value: &str) -> Result<()> {
     Ok(())
 }
 
+fn run_attach_handoff(terminal: &mut TuiTerminal, command: &str) -> Result<std::process::ExitStatus> {
+    suspend_terminal_for_handoff(terminal)?;
+
+    let run_result = run_attach_command(command);
+
+    let resume_result = resume_terminal_after_handoff(terminal);
+
+    match (run_result, resume_result) {
+        (Ok(status), Ok(())) => Ok(status),
+        (Err(run_error), Ok(())) => Err(run_error),
+        (Ok(_), Err(resume_error)) => Err(resume_error),
+        (Err(run_error), Err(resume_error)) => {
+            Err(anyhow!("{run_error}; additionally failed to restore terminal: {resume_error}"))
+        }
+    }
+}
+
+fn run_attach_command(command: &str) -> Result<std::process::ExitStatus> {
+    info!(command = %command, "Dark TUI // Attach // Executing shell command");
+    Command::new("/bin/sh")
+        .arg("-lc")
+        .arg(command)
+        .status()
+        .with_context(|| format!("failed to run attach command: {command}"))
+}
+
+fn suspend_terminal_for_handoff(terminal: &mut TuiTerminal) -> Result<()> {
+    disable_raw_mode().context("failed to disable raw mode for attach handoff")?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)
+        .context("failed to leave alternate screen for attach handoff")?;
+    terminal
+        .show_cursor()
+        .context("failed to show cursor for attach handoff")?;
+    Ok(())
+}
+
+fn resume_terminal_after_handoff(terminal: &mut TuiTerminal) -> Result<()> {
+    enable_raw_mode().context("failed to re-enable raw mode after attach handoff")?;
+    execute!(terminal.backend_mut(), EnterAlternateScreen, EnableMouseCapture)
+        .context("failed to re-enter alternate screen after attach handoff")?;
+    terminal
+        .autoresize()
+        .context("failed to autoresize terminal after attach handoff")?;
+    terminal
+        .clear()
+        .context("failed to clear terminal after attach handoff")?;
+    terminal
+        .hide_cursor()
+        .context("failed to hide cursor after attach handoff")?;
+    Ok(())
+}
+
 enum ContextMenuKeyOutcome {
     Consumed,
     Close,
@@ -1056,7 +1152,8 @@ fn command_key_event(command: CommandId) -> Option<KeyEvent> {
         CommandId::ImportVariantActors => KeyEvent::new(KeyCode::Char('m'), KeyModifiers::NONE),
         CommandId::InitProduct => KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE),
         CommandId::OpenSpawnForm => KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE),
-        CommandId::BuildAttach => KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE),
+        CommandId::BuildAttach => KeyEvent::new(KeyCode::Char('A'), KeyModifiers::SHIFT),
+        CommandId::RunAttach => KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE),
         CommandId::ToggleChat => KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE),
         CommandId::OpenChatCompose => KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE),
         CommandId::ResetPan => KeyEvent::new(KeyCode::Char('0'), KeyModifiers::NONE),
@@ -1103,6 +1200,7 @@ fn apply_command(app: &mut App, command: CommandId) -> LoopAction {
         CommandId::InitProduct => LoopAction::InitProduct,
         CommandId::OpenSpawnForm => LoopAction::OpenSpawnForm,
         CommandId::BuildAttach => LoopAction::BuildAttach,
+        CommandId::RunAttach => LoopAction::RunAttach,
         CommandId::ToggleChat => LoopAction::ToggleChat,
         CommandId::OpenChatCompose => LoopAction::OpenChatCompose,
         CommandId::ResetPan => {
@@ -1412,6 +1510,29 @@ fn process_loop_action(
             });
             app.set_action_requests_in_flight(action_tasks.len());
         }
+        LoopAction::RunAttach => {
+            let Some(actor_id) = app.selected_actor_id().map(ToString::to_string) else {
+                app.set_status("Attach run skipped: no actor selected.");
+                return;
+            };
+
+            if has_action_in_flight(action_tasks, BackgroundActionKind::RunAttach) {
+                app.set_status("Attach run already in progress.");
+                return;
+            }
+
+            app.set_status(format!("Preparing attach handoff for {actor_id}..."));
+            let service = service.clone();
+            action_tasks.push(ActionTask {
+                kind: BackgroundActionKind::RunAttach,
+                handle: tokio::spawn(async move {
+                    BackgroundActionResult::RunAttach(
+                        run_with_api_timeout(service.build_attach_command(&actor_id)).await,
+                    )
+                }),
+            });
+            app.set_action_requests_in_flight(action_tasks.len());
+        }
         LoopAction::ToggleChat => {
             app.toggle_chat_visibility();
             let status = if app.is_chat_visible() {
@@ -1703,5 +1824,22 @@ fn handle_chat_picker_key(app: &mut App, key: KeyEvent) -> LoopAction {
             LoopAction::None
         }
         _ => LoopAction::None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::run_attach_command;
+
+    #[test]
+    fn run_attach_command_reports_success() {
+        let status = run_attach_command("exit 0").expect("command should run");
+        assert!(status.success());
+    }
+
+    #[test]
+    fn run_attach_command_reports_nonzero_exit() {
+        let status = run_attach_command("exit 7").expect("command should run");
+        assert_eq!(status.code(), Some(7));
     }
 }

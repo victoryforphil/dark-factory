@@ -28,6 +28,14 @@
       },
       "oauth": false,
     },
+    "perplexity": {
+      "type": "local",
+      "command": ["npx", "-y", "@perplexity-ai/mcp-server"],
+      "enabled": true,
+      "environment": {
+        "PERPLEXITY_API_KEY": "{env:PERPLEXITY_API_KEY}",
+      },
+    },
     "context7": {
       "type": "remote",
       "url": "https://mcp.context7.com/mcp",
@@ -48,6 +56,11 @@
       "url": "https://mcp.prisma.io/mcp",
       "enabled": true,
       "oauth": false,
+    },
+  },
+  "permission": {
+    "external_directory": {
+      "~/repos/vfp/**": "allow",
     },
   },
 }
