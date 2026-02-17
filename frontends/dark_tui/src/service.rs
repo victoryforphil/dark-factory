@@ -2,14 +2,10 @@ use std::path::Path;
 
 use anyhow::{Context, Result, anyhow};
 use dark_chat::providers::{ChatProvider, OpenCodeProvider};
-use dark_rust::{
-    DarkCoreClient, LocatorId, LocatorKind, RawApiResponse,
-};
+use dark_rust::{DarkCoreClient, LocatorId, LocatorKind, RawApiResponse};
 use serde_json::{Value, json};
 
-use crate::models::{
-    ActorChatMessageRow, ActorRow, DashboardSnapshot,
-};
+use crate::models::{ActorChatMessageRow, ActorRow, DashboardSnapshot};
 use crate::service_convert::{
     actor_opencode_context, collect_product_metrics, directory_name, ensure_success, now_label,
     query_slice_or_none, required_actor_opencode_context, summarize_error, to_actor_row,
@@ -294,14 +290,8 @@ impl DashboardService {
             .get("data")
             .and_then(|value| value.get("variant"))
             .context("Dark TUI // Clone // Missing variant payload")?;
-        let variant_id = variant
-            .get("id")
-            .and_then(Value::as_str)
-            .unwrap_or("-");
-        let variant_name = variant
-            .get("name")
-            .and_then(Value::as_str)
-            .unwrap_or("-");
+        let variant_id = variant.get("id").and_then(Value::as_str).unwrap_or("-");
+        let variant_name = variant.get("name").and_then(Value::as_str).unwrap_or("-");
         let target_path = body
             .get("data")
             .and_then(|value| value.get("clone"))
