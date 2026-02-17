@@ -21,6 +21,7 @@ const CORE_KEYS: &[KeyBind] = &[
 const ACTION_KEYS: &[KeyBind] = &[
     KeyBind::new("p", "Poll"),
     KeyBind::new("x", "Clone"),
+    KeyBind::new("d", "Delete"),
     KeyBind::new("m", "Import"),
     KeyBind::new("i", "Init"),
     KeyBind::new("n", "Spawn"),
@@ -40,6 +41,12 @@ const CHAT_COMPOSE_KEYS: &[KeyBind] =
 const CLONE_FORM_KEYS: &[KeyBind] = &[
     KeyBind::new("Enter", "Clone"),
     KeyBind::new("Tab", "Field"),
+    KeyBind::new("Esc", "Cancel"),
+];
+
+const DELETE_FORM_KEYS: &[KeyBind] = &[
+    KeyBind::new("Space", "Toggle remove"),
+    KeyBind::new("Enter", "Delete"),
     KeyBind::new("Esc", "Cancel"),
 ];
 
@@ -69,6 +76,10 @@ impl KeyBarPanel {
 
         if app.is_clone_form_open() {
             all_keys.extend(CLONE_FORM_KEYS.iter());
+        }
+
+        if app.is_delete_variant_form_open() {
+            all_keys.extend(DELETE_FORM_KEYS.iter());
         }
 
         // Build owned KeyBind vec for the bar (KeyHintBar expects a slice).

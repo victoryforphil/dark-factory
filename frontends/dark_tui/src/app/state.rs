@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use dark_tui_components::{next_index, previous_index};
+use dark_tui_components::{next_index, previous_index, HorizontalSplit};
 
 use crate::models::{
     compact_id, compact_locator, compact_timestamp, ActorChatMessageRow, ActorRow,
@@ -57,6 +57,12 @@ pub struct CloneVariantRequest {
 }
 
 #[derive(Debug, Clone)]
+pub struct DeleteVariantRequest {
+    pub variant_id: String,
+    pub dry: bool,
+}
+
+#[derive(Debug, Clone)]
 struct SpawnFormState {
     providers: Vec<String>,
     selected_provider: usize,
@@ -71,6 +77,12 @@ struct CloneFormState {
     branch_name: String,
     clone_type: String,
     source_variant_id: String,
+}
+
+#[derive(Debug, Clone)]
+struct DeleteVariantFormState {
+    variant_id: String,
+    remove_clone_directory: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -133,6 +145,12 @@ pub struct DragAnchor {
     pub row: u16,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResizeTarget {
+    BodyWithChat(usize),
+    BodyWithoutChat(usize),
+}
+
 #[derive(Debug)]
 pub struct App {
     directory: String,
@@ -156,12 +174,16 @@ pub struct App {
     /// Viz-mode camera pan offset (pixels = terminal cells).
     viz_offset_x: i32,
     viz_offset_y: i32,
+    body_split_with_chat: HorizontalSplit,
+    body_split_without_chat: HorizontalSplit,
+    resizing_target: Option<ResizeTarget>,
     /// Active drag anchor (set on mouse-down, cleared on mouse-up).
     drag_anchor: Option<DragAnchor>,
     /// Color theme — loaded once at startup.
     theme: Theme,
     spawn_form: Option<SpawnFormState>,
     clone_form: Option<CloneFormState>,
+    delete_variant_form: Option<DeleteVariantFormState>,
     chat_visible: bool,
     chat_actor_id: Option<String>,
     chat_messages: Vec<ActorChatMessageRow>,
@@ -216,10 +238,14 @@ impl App {
             last_updated: "-".to_string(),
             viz_offset_x: 0,
             viz_offset_y: 0,
+            body_split_with_chat: HorizontalSplit::three(44, 32, 24, 20, 18, 16),
+            body_split_without_chat: HorizontalSplit::two(76, 24, 20, 16),
+            resizing_target: None,
             drag_anchor: None,
             theme,
             spawn_form: None,
             clone_form: None,
+            delete_variant_form: None,
             chat_visible: false,
             chat_actor_id: None,
             chat_messages: Vec::new(),
@@ -296,6 +322,34 @@ impl App {
         &self.theme
     }
 
+    pub fn body_split_with_chat(&self) -> &HorizontalSplit {
+        &self.body_split_with_chat
+    }
+
+    pub fn body_split_with_chat_mut(&mut self) -> &mut HorizontalSplit {
+        &mut self.body_split_with_chat
+    }
+
+    pub fn body_split_without_chat(&self) -> &HorizontalSplit {
+        &self.body_split_without_chat
+    }
+
+    pub fn body_split_without_chat_mut(&mut self) -> &mut HorizontalSplit {
+        &mut self.body_split_without_chat
+    }
+
+    pub fn resizing_target(&self) -> Option<ResizeTarget> {
+        self.resizing_target
+    }
+
+    pub fn start_resize(&mut self, target: ResizeTarget) {
+        self.resizing_target = Some(target);
+    }
+
+    pub fn stop_resize(&mut self) {
+        self.resizing_target = None;
+    }
+
     pub fn status_message(&self) -> &str {
         &self.status_message
     }
@@ -325,6 +379,10 @@ impl App {
 
     pub fn is_clone_form_open(&self) -> bool {
         self.clone_form.is_some()
+    }
+
+    pub fn is_delete_variant_form_open(&self) -> bool {
+        self.delete_variant_form.is_some()
     }
 
     pub fn spawn_form_providers(&self) -> Option<&[String]> {
@@ -380,6 +438,46 @@ impl App {
 
     pub fn close_clone_form(&mut self) {
         self.clone_form = None;
+    }
+
+    pub fn open_delete_variant_form(&mut self, variant_id: &str) {
+        self.delete_variant_form = Some(DeleteVariantFormState {
+            variant_id: variant_id.to_string(),
+            remove_clone_directory: false,
+        });
+    }
+
+    pub fn close_delete_variant_form(&mut self) {
+        self.delete_variant_form = None;
+    }
+
+    pub fn delete_variant_form_variant_id(&self) -> Option<&str> {
+        self.delete_variant_form
+            .as_ref()
+            .map(|form| form.variant_id.as_str())
+    }
+
+    pub fn delete_variant_form_remove_clone_directory(&self) -> bool {
+        self.delete_variant_form
+            .as_ref()
+            .map(|form| form.remove_clone_directory)
+            .unwrap_or(false)
+    }
+
+    pub fn toggle_delete_variant_remove_clone_directory(&mut self) {
+        let Some(form) = self.delete_variant_form.as_mut() else {
+            return;
+        };
+
+        form.remove_clone_directory = !form.remove_clone_directory;
+    }
+
+    pub fn take_delete_variant_request(&mut self) -> Option<DeleteVariantRequest> {
+        let form = self.delete_variant_form.take()?;
+        Some(DeleteVariantRequest {
+            variant_id: form.variant_id,
+            dry: !form.remove_clone_directory,
+        })
     }
 
     pub fn clone_form_selected_field(&self) -> Option<usize> {

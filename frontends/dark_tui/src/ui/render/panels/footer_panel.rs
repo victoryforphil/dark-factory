@@ -16,6 +16,9 @@ impl FooterPanel {
 
         // --- State pills ---
         let focus_pill = StatusPill::accent(app.focus().label(), theme);
+        let view_pill =
+            StatusPill::info(format!("view:{}", app.results_view_mode().label()), theme);
+        let dir_pill = StatusPill::muted(format!("dir:{}", app.directory_display()), theme);
 
         let filter_pill = if app.filter_variants_to_product() {
             StatusPill::warn("filtered", theme)
@@ -87,6 +90,8 @@ impl FooterPanel {
             inner,
             FooterBarProps {
                 segments: vec![
+                    view_pill.span(),
+                    dir_pill.span(),
                     focus_pill.span(),
                     filter_pill.span(),
                     chat_pill.span(),

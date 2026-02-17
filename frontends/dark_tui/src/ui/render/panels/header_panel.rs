@@ -6,8 +6,6 @@ use ratatui::Frame;
 
 use crate::app::App;
 
-use dark_tui_components::StatusPill;
-
 pub(crate) struct HeaderPanel;
 
 impl HeaderPanel {
@@ -22,15 +20,7 @@ impl HeaderPanel {
                 .add_modifier(Modifier::BOLD),
         );
 
-        let sep = Span::styled(" \u{2502} ", Style::default().fg(theme.text_muted));
-
-        let view_pill = StatusPill::info(app.results_view_mode().label(), theme);
-        let dir_span = Span::styled(
-            format!(" {}", app.directory_display()),
-            Style::default().fg(theme.text_muted),
-        );
-
-        let line = Line::from(vec![brand, sep, view_pill.span(), dir_span]);
+        let line = Line::from(vec![brand]);
 
         // Second line: thin horizontal rule for visual separation.
         let rule_len = area.width as usize;

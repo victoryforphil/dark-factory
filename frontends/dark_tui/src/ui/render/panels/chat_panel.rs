@@ -20,6 +20,7 @@ pub(crate) enum ChatPanelHit {
     Outside,
     ModelLabel,
     AgentLabel,
+    ComposerBody,
     PickerItem(usize),
     PickerPopup,
     AutocompleteItem(usize),
@@ -96,6 +97,12 @@ impl ChatPanel {
             }
             if rect_contains(agent_rect, col, row) {
                 return ChatPanelHit::AgentLabel;
+            }
+        }
+
+        if let Some(composer_rect) = composer_body_area(area) {
+            if rect_contains(composer_rect, col, row) {
+                return ChatPanelHit::ComposerBody;
             }
         }
 
@@ -345,4 +352,32 @@ fn composer_label_areas(area: Rect, app: &App) -> Option<(Rect, Rect)> {
     };
 
     Some((model_rect, agent_rect))
+}
+
+fn composer_body_area(area: Rect) -> Option<Rect> {
+    let inner = inner_rect(area);
+    if inner.width < 10 || inner.height < 6 {
+        return None;
+    }
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(4),
+            Constraint::Length(5),
+        ])
+        .split(inner);
+
+    let composer = inner_rect(chunks[2]);
+    if composer.width < 3 || composer.height < 3 {
+        return None;
+    }
+
+    Some(Rect {
+        x: composer.x,
+        y: composer.y.saturating_add(1),
+        width: composer.width,
+        height: composer.height.saturating_sub(1),
+    })
 }

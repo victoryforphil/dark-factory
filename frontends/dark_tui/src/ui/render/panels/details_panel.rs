@@ -5,12 +5,10 @@ use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
 use crate::app::{App, VizSelection};
-use crate::models::{
-    compact_id, compact_locator, compact_timestamp, ActorRow, ProductRow, VariantRow,
-};
+use crate::models::{compact_timestamp, ActorRow, ProductRow, VariantRow};
 use crate::theme::{EntityKind, Theme};
 
-use dark_tui_components::{compact_text_normalized, LabeledField, SectionHeader, StatusPill};
+use dark_tui_components::{compact_text_normalized, SectionHeader, StatusPill};
 
 pub(crate) struct DetailsPanel;
 
@@ -100,46 +98,42 @@ impl DetailsPanel {
 
         // --- Identity section ---
         lines.push(SectionHeader::new("Identity", theme.entity_product).line(width, theme));
-        lines.push(LabeledField::new("Name", &product.display_name).line(theme));
-        lines.push(LabeledField::new("ID", compact_id(&product.id)).line(theme));
-        lines.push(LabeledField::new("Type", &product.product_type).line(theme));
-        lines.push(
-            LabeledField::new(
-                "Locator",
-                compact_locator(&product.locator, width.saturating_sub(16) as usize),
-            )
-            .line(theme),
-        );
-        lines.push(
-            LabeledField::new(
-                "Workspace",
-                compact_locator(
-                    &product.workspace_locator,
-                    width.saturating_sub(16) as usize,
-                ),
-            )
-            .line(theme),
+        Self::push_stacked_field(&mut lines, "Name", &product.display_name, width, theme);
+        Self::push_stacked_field(&mut lines, "ID", &product.id, width, theme);
+        Self::push_stacked_field(&mut lines, "Type", &product.product_type, width, theme);
+        Self::push_stacked_field(&mut lines, "Locator", &product.locator, width, theme);
+        Self::push_stacked_field(
+            &mut lines,
+            "Workspace",
+            &product.workspace_locator,
+            width,
+            theme,
         );
         lines.push(Line::raw(""));
 
         // --- Repository section ---
         lines.push(SectionHeader::new("Repository", theme.entity_product).line(width, theme));
-        lines.push(LabeledField::new("Repo", &product.repo_name).line(theme));
-        lines.push(LabeledField::new("Branch", &product.branch).line(theme));
-        lines.push(
-            LabeledField::new(
-                "Branches",
-                compact_text_normalized(&product.branches, width.saturating_sub(16) as usize),
-            )
-            .line(theme),
+        Self::push_stacked_field(&mut lines, "Repo", &product.repo_name, width, theme);
+        Self::push_stacked_field(&mut lines, "Branch", &product.branch, width, theme);
+        Self::push_stacked_field(
+            &mut lines,
+            "Branches",
+            &compact_text_normalized(&product.branches, width.saturating_sub(8) as usize),
+            width,
+            theme,
         );
         lines.push(Self::variant_summary_line(product, theme));
         lines.push(Line::raw(""));
 
         // --- Timestamps ---
         lines.push(SectionHeader::new("Timestamps", theme.text_muted).line(width, theme));
-        lines
-            .push(LabeledField::new("Updated", compact_timestamp(&product.updated_at)).line(theme));
+        Self::push_stacked_field(
+            &mut lines,
+            "Updated",
+            compact_timestamp(&product.updated_at),
+            width,
+            theme,
+        );
 
         lines
     }
@@ -160,44 +154,41 @@ impl DetailsPanel {
 
         // --- Identity section ---
         lines.push(SectionHeader::new("Identity", theme.entity_variant).line(width, theme));
-        lines.push(LabeledField::new("Name", &variant.name).line(theme));
-        lines.push(LabeledField::new("ID", compact_id(&variant.id)).line(theme));
-        lines.push(LabeledField::new("Product", compact_id(&variant.product_id)).line(theme));
-        lines.push(
-            LabeledField::new(
-                "Locator",
-                compact_locator(&variant.locator, width.saturating_sub(16) as usize),
-            )
-            .line(theme),
-        );
+        Self::push_stacked_field(&mut lines, "Name", &variant.name, width, theme);
+        Self::push_stacked_field(&mut lines, "ID", &variant.id, width, theme);
+        Self::push_stacked_field(&mut lines, "Product", &variant.product_id, width, theme);
+        Self::push_stacked_field(&mut lines, "Locator", &variant.locator, width, theme);
         lines.push(Line::raw(""));
 
         // --- Git section ---
         lines.push(SectionHeader::new("Git", theme.entity_variant).line(width, theme));
-        lines.push(LabeledField::new("Branch", &variant.branch).line(theme));
-        lines.push(
-            LabeledField::new(
-                "Worktree",
-                compact_locator(&variant.worktree, width.saturating_sub(16) as usize),
-            )
-            .line(theme),
-        );
-        lines.push(
-            LabeledField::new(
-                "Ahead/Behind",
-                format!("{}/{}", variant.ahead, variant.behind),
-            )
-            .line(theme),
+        Self::push_stacked_field(&mut lines, "Branch", &variant.branch, width, theme);
+        Self::push_stacked_field(&mut lines, "Worktree", &variant.worktree, width, theme);
+        Self::push_stacked_field(
+            &mut lines,
+            "Ahead/Behind",
+            format!("{}/{}", variant.ahead, variant.behind),
+            width,
+            theme,
         );
         lines.push(Line::raw(""));
 
         // --- Timestamps ---
         lines.push(SectionHeader::new("Timestamps", theme.text_muted).line(width, theme));
-        lines.push(
-            LabeledField::new("Polled", compact_timestamp(&variant.last_polled_at)).line(theme),
+        Self::push_stacked_field(
+            &mut lines,
+            "Polled",
+            compact_timestamp(&variant.last_polled_at),
+            width,
+            theme,
         );
-        lines
-            .push(LabeledField::new("Updated", compact_timestamp(&variant.updated_at)).line(theme));
+        Self::push_stacked_field(
+            &mut lines,
+            "Updated",
+            compact_timestamp(&variant.updated_at),
+            width,
+            theme,
+        );
 
         lines
     }
@@ -224,34 +215,40 @@ impl DetailsPanel {
 
         // --- Identity section ---
         lines.push(SectionHeader::new("Identity", theme.entity_actor).line(width, theme));
-        lines.push(LabeledField::new("Title", &actor.title).line(theme));
-        lines.push(
-            LabeledField::new(
-                "Description",
-                compact_text_normalized(&actor.description, width.saturating_sub(16) as usize),
-            )
-            .line(theme),
+        Self::push_stacked_field(&mut lines, "Title", &actor.title, width, theme);
+        Self::push_stacked_field(
+            &mut lines,
+            "Description",
+            &compact_text_normalized(&actor.description, width.saturating_sub(8) as usize),
+            width,
+            theme,
         );
-        lines.push(LabeledField::new("ID", compact_id(&actor.id)).line(theme));
-        lines.push(LabeledField::new("Variant", compact_id(&actor.variant_id)).line(theme));
+        Self::push_stacked_field(&mut lines, "ID", &actor.id, width, theme);
+        Self::push_stacked_field(&mut lines, "Variant", &actor.variant_id, width, theme);
         lines.push(Line::raw(""));
 
         // --- Runtime section ---
         lines.push(SectionHeader::new("Runtime", theme.entity_actor).line(width, theme));
-        lines.push(LabeledField::new("Provider", &actor.provider).line(theme));
-        lines.push(
-            LabeledField::new(
-                "Directory",
-                compact_locator(&actor.directory, width.saturating_sub(16) as usize),
-            )
-            .line(theme),
-        );
+        Self::push_stacked_field(&mut lines, "Provider", &actor.provider, width, theme);
+        Self::push_stacked_field(&mut lines, "Directory", &actor.directory, width, theme);
         lines.push(Line::raw(""));
 
         // --- Timestamps ---
         lines.push(SectionHeader::new("Timestamps", theme.text_muted).line(width, theme));
-        lines.push(LabeledField::new("Created", compact_timestamp(&actor.created_at)).line(theme));
-        lines.push(LabeledField::new("Updated", compact_timestamp(&actor.updated_at)).line(theme));
+        Self::push_stacked_field(
+            &mut lines,
+            "Created",
+            compact_timestamp(&actor.created_at),
+            width,
+            theme,
+        );
+        Self::push_stacked_field(
+            &mut lines,
+            "Updated",
+            compact_timestamp(&actor.updated_at),
+            width,
+            theme,
+        );
 
         lines
     }
@@ -341,5 +338,27 @@ impl DetailsPanel {
             Span::styled("  Variants    ", Style::default().fg(theme.text_muted)),
             summary_pill.span(),
         ])
+    }
+
+    fn push_stacked_field(
+        lines: &mut Vec<Line<'static>>,
+        label: &str,
+        value: impl AsRef<str>,
+        width: u16,
+        theme: &Theme,
+    ) {
+        lines.push(Line::styled(
+            format!("  {label}"),
+            Style::default().fg(theme.text_muted),
+        ));
+
+        let value_str = value.as_ref();
+        let content_width = width.saturating_sub(2) as usize;
+        let value_width = value_str.chars().count();
+        let right_pad = content_width.saturating_sub(value_width);
+        lines.push(Line::styled(
+            format!("  {}{}", " ".repeat(right_pad), value_str),
+            Style::default().fg(theme.text_secondary),
+        ));
     }
 }

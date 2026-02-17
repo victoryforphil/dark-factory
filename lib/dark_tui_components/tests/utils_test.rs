@@ -1,7 +1,7 @@
 use dark_tui_components::{
     compact_id, compact_id_len, compact_label, compact_locator, compact_session_id, compact_tail,
     compact_text, compact_text_normalized, compact_timestamp, inner_rect, next_index,
-    previous_index, rect_contains, with_cursor_tail,
+    previous_index, rect_contains, with_cursor_tail, HorizontalSplit,
 };
 use ratatui::layout::Rect;
 
@@ -94,4 +94,40 @@ fn index_helpers_wrap_in_both_directions() {
     assert_eq!(previous_index(0, 5), 4);
     assert_eq!(next_index(4, 5), 0);
     assert_eq!(next_index(2, 5), 3);
+}
+
+#[test]
+fn split_layout_resolves_expected_widths() {
+    let split = HorizontalSplit::three(24, 54, 22, 16, 20, 16);
+    let area = Rect::new(0, 0, 100, 10);
+    let columns = split.resolve(area);
+
+    assert_eq!(columns.len(), 3);
+    assert_eq!(columns[0].width, 24);
+    assert_eq!(columns[1].width, 54);
+    assert_eq!(columns[2].width, 22);
+}
+
+#[test]
+fn split_layout_divider_hit_detects_boundary() {
+    let split = HorizontalSplit::three(24, 54, 22, 16, 20, 16);
+    let area = Rect::new(0, 0, 100, 10);
+    assert_eq!(split.divider_hit(area, 23, 1), Some(0));
+    assert_eq!(split.divider_hit(area, 77, 1), Some(1));
+    assert_eq!(split.divider_hit(area, 50, 1), None);
+}
+
+#[test]
+fn split_layout_resize_respects_minimums() {
+    let mut split = HorizontalSplit::three(24, 54, 22, 16, 20, 16);
+    let area = Rect::new(0, 0, 100, 10);
+
+    let changed = split.resize_from_pointer(area, 0, 2);
+    assert!(changed);
+
+    let percents = split.percents();
+    assert_eq!(percents.len(), 3);
+    assert!(percents[0] >= 16);
+    assert!(percents[1] >= 20);
+    assert_eq!(percents.iter().copied().sum::<u16>(), 100);
 }

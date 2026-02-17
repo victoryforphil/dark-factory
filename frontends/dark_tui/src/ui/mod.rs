@@ -35,6 +35,8 @@ enum LoopAction {
     Refresh,
     OpenCloneForm,
     CloneVariant,
+    OpenDeleteVariantForm,
+    DeleteVariant,
     PollVariant,
     ImportVariantActors,
     InitProduct,
@@ -48,6 +50,7 @@ enum LoopAction {
 
 enum BackgroundActionResult {
     CloneVariant(Result<String>),
+    DeleteVariant(Result<String>),
     PollVariant(Result<String>),
     ImportVariantActors(Result<String>),
     InitProduct(Result<String>),
@@ -59,6 +62,7 @@ enum BackgroundActionResult {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BackgroundActionKind {
     CloneVariant,
+    DeleteVariant,
     PollVariant,
     ImportVariantActors,
     InitProduct,
@@ -304,6 +308,15 @@ async fn run_loop(
                         app.set_status(format!("Clone failed: {error}"));
                     }
                 },
+                Ok(BackgroundActionResult::DeleteVariant(result)) => match result {
+                    Ok(message) => {
+                        app.set_status(message);
+                        force_refresh = true;
+                    }
+                    Err(error) => {
+                        app.set_status(format!("Delete failed: {error}"));
+                    }
+                },
                 Ok(BackgroundActionResult::ImportVariantActors(result)) => match result {
                     Ok(message) => {
                         app.set_status(message);
@@ -384,6 +397,30 @@ async fn run_loop(
                 height: size.height,
             };
 
+            if let Some(target) = app.resizing_target() {
+                match mouse.kind {
+                    MouseEventKind::Drag(MouseButton::Left) => {
+                        if render::resize_divider(root, app, target, mouse.column) {
+                            app.set_status("Resizing panels...");
+                        }
+                    }
+                    MouseEventKind::Up(MouseButton::Left) | MouseEventKind::Up(MouseButton::Right) => {
+                        app.stop_resize();
+                        app.set_status("Panel resize complete.");
+                    }
+                    _ => {}
+                }
+                continue;
+            }
+
+            if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
+                if let Some(target) = render::divider_hit(root, app, mouse.column) {
+                    app.start_resize(target);
+                    app.set_status("Resize mode: drag divider left/right.");
+                    continue;
+                }
+            }
+
             match render::chat_hit_test(root, app, mouse.column, mouse.row) {
                 render::ChatPanelHit::ModelLabel => {
                     if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
@@ -396,6 +433,16 @@ async fn run_loop(
                     if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
                         app.open_chat_agent_picker();
                         app.set_status("Agent picker opened. Type to filter.");
+                    }
+                    continue;
+                }
+                render::ChatPanelHit::ComposerBody => {
+                    if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
+                        if app.open_chat_composer() {
+                            app.set_status("Chat compose mode enabled.");
+                        } else {
+                            app.set_status("Chat compose unavailable: select an actor first.");
+                        }
                     }
                     continue;
                 }
@@ -537,6 +584,42 @@ async fn run_loop(
                                 },
                             ))
                             .await,
+                        )
+                    }),
+                });
+                app.set_action_requests_in_flight(action_tasks.len());
+            }
+            LoopAction::OpenDeleteVariantForm => {
+                let Some(variant_id) = app.selected_variant_id().map(ToString::to_string) else {
+                    app.set_status("Delete unavailable: select a variant first.");
+                    continue;
+                };
+
+                app.open_delete_variant_form(&variant_id);
+                app.set_status("Delete confirmation open. Toggle clone removal with Space.");
+            }
+            LoopAction::DeleteVariant => {
+                let Some(request) = app.take_delete_variant_request() else {
+                    app.set_status("Delete skipped: confirmation not open.");
+                    continue;
+                };
+
+                if has_action_in_flight(&action_tasks, BackgroundActionKind::DeleteVariant) {
+                    app.set_status("Variant delete already in progress.");
+                    continue;
+                }
+
+                let dry = request.dry;
+                let variant_id = request.variant_id;
+                app.set_status(format!(
+                    "Deleting variant {variant_id} (dry={dry})..."
+                ));
+                let service = service.clone();
+                action_tasks.push(ActionTask {
+                    kind: BackgroundActionKind::DeleteVariant,
+                    handle: tokio::spawn(async move {
+                        BackgroundActionResult::DeleteVariant(
+                            run_with_api_timeout(service.delete_variant(&variant_id, dry)).await,
                         )
                     }),
                 });
@@ -809,6 +892,10 @@ fn copy_to_clipboard(value: &str) -> Result<()> {
 }
 
 fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
+    if app.is_delete_variant_form_open() {
+        return handle_delete_variant_form_key(app, key);
+    }
+
     if app.is_clone_form_open() {
         return handle_clone_form_key(app, key);
     }
@@ -862,6 +949,7 @@ fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
         }
         KeyCode::Char('p') => LoopAction::PollVariant,
         KeyCode::Char('x') => LoopAction::OpenCloneForm,
+        KeyCode::Char('d') => LoopAction::OpenDeleteVariantForm,
         KeyCode::Char('m') => LoopAction::ImportVariantActors,
         KeyCode::Char('i') => LoopAction::InitProduct,
         KeyCode::Char('n') => LoopAction::OpenSpawnForm,
@@ -871,6 +959,31 @@ fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
         KeyCode::Char('0') => {
             app.reset_viz_offset();
             app.set_status("Pan reset to origin");
+            LoopAction::None
+        }
+        _ => LoopAction::None,
+    }
+}
+
+fn handle_delete_variant_form_key(app: &mut App, key: KeyEvent) -> LoopAction {
+    match key.code {
+        KeyCode::Esc => {
+            app.close_delete_variant_form();
+            app.set_status("Delete confirmation closed.");
+            LoopAction::None
+        }
+        KeyCode::Enter => LoopAction::DeleteVariant,
+        KeyCode::Char(' ') => {
+            app.toggle_delete_variant_remove_clone_directory();
+            let remove = app.delete_variant_form_remove_clone_directory();
+            app.set_status(format!(
+                "Delete mode: {}",
+                if remove {
+                    "remove clone directory"
+                } else {
+                    "keep clone directory"
+                }
+            ));
             LoopAction::None
         }
         _ => LoopAction::None,

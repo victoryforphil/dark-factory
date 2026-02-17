@@ -26,4 +26,6 @@ pub use theme::{ComponentTheme, ComponentThemeLike};
 pub use utils::compact::*;
 pub use utils::index::*;
 pub use utils::rect::*;
+pub use utils::resizable::*;
+pub use utils::split_layout::*;
 pub use utils::viewport::*;

@@ -93,6 +93,10 @@ It reflects only what is currently true in this repository.
 - `.opencode/agents/reflector.md` is the reflection/review subagent for post-task lessons.
 - `.opencode/agents/sweeper.md` is the project hygiene subagent for cleanup audits and low-risk fixes.
 - `.opencode/agents/designer.md` is the UI/UX-focused Ratatui design subagent for component-first TUI polish.
+- `.opencode/agents/planner.md` is a planning-first subagent for interactive scope gathering before implementation.
+- `.opencode/agents/developer_senior.md` is a general senior coding subagent for complex, logic-heavy implementation tasks.
+- `.opencode/agents/developer_jr.md` is a lightweight coding subagent for simpler cleanup/refactor/script tasks (model: `openrouter/z-ai/glm-5`).
+- `.opencode/skills/builder/SKILL.md` documents parallel divide-and-conquer delegation between `@developer_senior` and `@developer_jr`.
 - `.opencode/skills/gitter-commit/SKILL.md` documents when to route commit tasks to `@gitter`.
 - `.opencode/skills/tsc-fix/SKILL.md` documents safe-first TypeScript error remediation.
 - `.opencode/skills/proto-install/SKILL.md` documents standardized script-based `proto install` usage.
@@ -102,6 +106,7 @@ It reflects only what is currently true in this repository.
 - `.opencode/skills/reflect/SKILL.md` documents quick end-of-task reflection and lesson capture.
 - `.opencode/skills/reflect-constant/SKILL.md` documents periodic background reflection with `@reflector`.
 - `.opencode/commands/scrape_docs.md` provides the command entrypoint for docs scraping tasks.
+- `.opencode/commands/adhd.md` provides a two-phase plan-then-build entrypoint that pairs `@planner` with parallel `@developer_senior`/`@developer_jr` execution.
 - `.opencode/commands/tsc_fix.md` provides the command entrypoint for safe TypeScript fixing loops.
 - `.opencode/commands/crtique.md` provides the command entrypoint for critique-driven fix-then-rule updates.
 - `.opencode/commands/critique.md` provides an alias entrypoint for the same critique-driven workflow.
@@ -114,6 +119,10 @@ It reflects only what is currently true in this repository.
 - Use `@reflector` when you want transcript/session-aware reflection (including one-agent-reviewing-another-agent workflows).
 - Use `@sweeper` when you need repo-wide hygiene audits (style conformance, dead code, and stale docs checks).
 - Use `@designer` when you need visual/UI direction, reusable TUI component design, or Ratatui-focused UX polish.
+- Use `@planner` when work is still being shaped and you need interactive clarification before implementation.
+- Use `@developer_senior` for free-form or tricky implementation where reasoning depth matters.
+- Use `@developer_jr` for smaller, bounded coding work such as script cleanup and low-risk refactors.
+- Use `builder` skill when a task splits into multiple tracks so parent agents can orchestrate these subagents in parallel.
 
 ## 8) Dark Core API Coverage
 

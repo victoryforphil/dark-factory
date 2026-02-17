@@ -246,6 +246,32 @@ impl DashboardService {
         ))
     }
 
+    pub async fn delete_variant(&self, variant_id: &str, dry: bool) -> Result<String> {
+        let query = [(
+            "dry".to_string(),
+            if dry { "true" } else { "false" }.to_string(),
+        )];
+        let response = self
+            .request(
+                "DELETE",
+                &format!("/variants/{variant_id}"),
+                Some(&query),
+                None,
+            )
+            .await?;
+        let _ = ensure_success(response)?;
+
+        if dry {
+            Ok(format!(
+                "Deleted variant {variant_id}; clone directory kept (dry=true)."
+            ))
+        } else {
+            Ok(format!(
+                "Deleted variant {variant_id}; clone directory removed (dry=false)."
+            ))
+        }
+    }
+
     pub async fn init_product(&self) -> Result<String> {
         let locator = LocatorId::from_host_path(Path::new(&self.directory), LocatorKind::Local)
             .map(|parsed| parsed.to_locator_id())?;

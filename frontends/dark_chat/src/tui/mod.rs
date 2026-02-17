@@ -28,7 +28,7 @@ use tokio::sync::mpsc::error::TryRecvError;
 use crate::cli::{Cli, ProviderKind};
 use crate::core::{ChatBackend, ChatSnapshot};
 use crate::providers::OpenCodeProvider;
-use crate::tui::app::{App, FocusPane};
+use crate::tui::app::{App, FocusPane, ResizeTarget};
 use crate::tui::commands::{
     LocalSlashCommand, build_prompt_with_file_context, parse_local_slash_command,
     parse_remote_slash_command, run_local_grep_summary,
@@ -233,12 +233,42 @@ async fn run_loop(terminal: &mut TuiTerminal, backend: &ChatBackend, app: &mut A
 
         if let Event::Mouse(mouse) = ev {
             let size = terminal.size()?;
-            let layout = MainView::layout(ratatui::layout::Rect {
+            let layout = MainView::layout(
+                ratatui::layout::Rect {
                 x: 0,
                 y: 0,
                 width: size.width,
                 height: size.height,
-            });
+                },
+                app,
+            );
+
+            if let Some(target) = app.resizing_target() {
+                match mouse.kind {
+                    MouseEventKind::Drag(MouseButton::Left) => {
+                        let split_area = split_area_for_layout(layout, target);
+                        let changed = match target {
+                            ResizeTarget::Wide(divider) => app
+                                .body_split_wide_mut()
+                                .resize_from_pointer(split_area, divider, mouse.column),
+                            ResizeTarget::NarrowTop(divider) => app
+                                .body_split_narrow_top_mut()
+                                .resize_from_pointer(split_area, divider, mouse.column),
+                        };
+
+                        if changed {
+                            app.set_status_message("Resizing panels...");
+                        }
+                    }
+                    MouseEventKind::Up(MouseButton::Left) | MouseEventKind::Up(MouseButton::Right) => {
+                        app.stop_resize();
+                        app.set_status_message("Panel resize complete.");
+                    }
+                    _ => {}
+                }
+
+                continue;
+            }
 
             if app.is_model_selector_open() {
                 let hit = crate::tui::panels::ChatPanel::model_selector_hit(
@@ -361,9 +391,17 @@ async fn run_loop(terminal: &mut TuiTerminal, backend: &ChatBackend, app: &mut A
                 continue;
             }
 
+            if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
+                if let Some(target) = MainView::divider_hit(&layout, mouse.column) {
+                    app.start_resize(target);
+                    app.set_status_message("Resize mode: drag divider left/right.");
+                    continue;
+                }
+            }
+
             match mouse.kind {
                 MouseEventKind::Down(MouseButton::Left) => {
-                    match MainView::hit_test(layout, mouse.column, mouse.row) {
+                    match MainView::hit_test(&layout, mouse.column, mouse.row) {
                         PanelHit::Sessions => {
                             app.set_focus(FocusPane::Sessions);
 
@@ -424,7 +462,7 @@ async fn run_loop(terminal: &mut TuiTerminal, backend: &ChatBackend, app: &mut A
                     }
                 }
                 MouseEventKind::ScrollUp => {
-                    match MainView::hit_test(layout, mouse.column, mouse.row) {
+                    match MainView::hit_test(&layout, mouse.column, mouse.row) {
                         PanelHit::Sessions => {
                             app.set_focus(FocusPane::Sessions);
                             app.scroll_sessions_up(1);
@@ -441,7 +479,7 @@ async fn run_loop(terminal: &mut TuiTerminal, backend: &ChatBackend, app: &mut A
                     }
                 }
                 MouseEventKind::ScrollDown => {
-                    match MainView::hit_test(layout, mouse.column, mouse.row) {
+                    match MainView::hit_test(&layout, mouse.column, mouse.row) {
                         PanelHit::Sessions => {
                             app.set_focus(FocusPane::Sessions);
                             app.scroll_sessions_down(1);
@@ -651,6 +689,35 @@ async fn run_loop(terminal: &mut TuiTerminal, backend: &ChatBackend, app: &mut A
     }
 
     Ok(())
+}
+
+fn split_area_for_layout(
+    layout: crate::tui::views::ViewLayout,
+    target: ResizeTarget,
+) -> ratatui::layout::Rect {
+    match target {
+        ResizeTarget::Wide(_) => {
+            let right_edge = layout
+                .runtime
+                .x
+                .saturating_add(layout.runtime.width);
+            ratatui::layout::Rect {
+                x: layout.sessions.x,
+                y: layout.sessions.y,
+                width: right_edge.saturating_sub(layout.sessions.x),
+                height: layout.sessions.height,
+            }
+        }
+        ResizeTarget::NarrowTop(_) => {
+            let right_edge = layout.chat.x.saturating_add(layout.chat.width);
+            ratatui::layout::Rect {
+                x: layout.sessions.x,
+                y: layout.sessions.y,
+                width: right_edge.saturating_sub(layout.sessions.x),
+                height: layout.sessions.height,
+            }
+        }
+    }
 }
 
 async fn run_with_api_timeout<T>(future: impl Future<Output = Result<T>>) -> Result<T> {

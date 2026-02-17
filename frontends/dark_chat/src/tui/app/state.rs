@@ -3,7 +3,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use dark_tui_components::{next_index, previous_index, ComponentTheme};
+use dark_tui_components::{next_index, previous_index, ComponentTheme, HorizontalSplit};
 use serde::{Deserialize, Serialize};
 use tui_textarea::{CursorMove, TextArea};
 
@@ -28,6 +28,12 @@ pub struct ComposerAutocompleteItem {
 pub enum ComposerAutocompleteMode {
     Slash,
     File,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResizeTarget {
+    Wide(usize),
+    NarrowTop(usize),
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -82,6 +88,9 @@ pub struct App {
     sessions_scroll_index: usize,
     chat_scroll_lines: u16,
     runtime_scroll_lines: u16,
+    body_split_wide: HorizontalSplit,
+    body_split_narrow_top: HorizontalSplit,
+    resizing_target: Option<ResizeTarget>,
     refresh_in_flight: bool,
     send_in_flight: bool,
     create_in_flight: bool,
@@ -154,6 +163,9 @@ impl App {
             sessions_scroll_index: 0,
             chat_scroll_lines: 0,
             runtime_scroll_lines: 0,
+            body_split_wide: HorizontalSplit::three(24, 54, 22, 16, 20, 16),
+            body_split_narrow_top: HorizontalSplit::two(36, 64, 14, 20),
+            resizing_target: None,
             refresh_in_flight: false,
             send_in_flight: false,
             create_in_flight: false,
@@ -228,6 +240,34 @@ impl App {
 
     pub fn runtime_scroll_lines(&self) -> u16 {
         self.runtime_scroll_lines
+    }
+
+    pub fn body_split_wide(&self) -> &HorizontalSplit {
+        &self.body_split_wide
+    }
+
+    pub fn body_split_wide_mut(&mut self) -> &mut HorizontalSplit {
+        &mut self.body_split_wide
+    }
+
+    pub fn body_split_narrow_top(&self) -> &HorizontalSplit {
+        &self.body_split_narrow_top
+    }
+
+    pub fn body_split_narrow_top_mut(&mut self) -> &mut HorizontalSplit {
+        &mut self.body_split_narrow_top
+    }
+
+    pub fn resizing_target(&self) -> Option<ResizeTarget> {
+        self.resizing_target
+    }
+
+    pub fn start_resize(&mut self, target: ResizeTarget) {
+        self.resizing_target = Some(target);
+    }
+
+    pub fn stop_resize(&mut self) {
+        self.resizing_target = None;
     }
 
     pub fn composer(&self) -> &TextArea<'static> {

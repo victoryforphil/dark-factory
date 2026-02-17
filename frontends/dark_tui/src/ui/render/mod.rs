@@ -5,21 +5,17 @@ use ratatui::layout::Rect;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::Frame;
 
-use crate::app::{App, ResultsViewMode};
+use dark_tui_components::HorizontalSplit;
+
+use crate::app::{App, ResizeTarget, ResultsViewMode};
 
 use panels::{
-    ChatPanel, CloneFormPanel, DetailsPanel, FooterPanel, HeaderPanel, KeyBarPanel, SpawnFormPanel,
+    ChatPanel, CloneFormPanel, DeleteVariantFormPanel, DetailsPanel, FooterPanel, HeaderPanel,
+    KeyBarPanel, SpawnFormPanel,
 };
 use views::{CatalogTreeView, UnifiedCatalogView};
 
 pub(crate) use panels::ChatPanelHit;
-
-/// Main layout constants — tuned for readability on 80-col and wider terminals.
-const SIDEBAR_PERCENT: u16 = 24;
-const MAIN_PERCENT: u16 = 76;
-const MAIN_WITH_CHAT_PERCENT: u16 = 46;
-const CHAT_PERCENT: u16 = 32;
-const SIDEBAR_WITH_CHAT_PERCENT: u16 = 22;
 
 pub fn render_dashboard(frame: &mut Frame, app: &App) {
     let root = frame.area();
@@ -46,6 +42,10 @@ pub fn render_dashboard(frame: &mut Frame, app: &App) {
     if app.is_clone_form_open() {
         CloneFormPanel::render(frame, root, app);
     }
+
+    if app.is_delete_variant_form_open() {
+        DeleteVariantFormPanel::render(frame, root, app);
+    }
 }
 
 fn render_body(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
@@ -55,85 +55,49 @@ fn render_body(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
     }
 }
 
+fn active_split(app: &App) -> &HorizontalSplit {
+    if app.is_chat_visible() {
+        app.body_split_with_chat()
+    } else {
+        app.body_split_without_chat()
+    }
+}
+
+fn resolve_columns(area: Rect, app: &App) -> Vec<Rect> {
+    active_split(app).resolve(area)
+}
+
 /// Table mode: main/sidebar split. Details panel fills the entire sidebar.
 fn render_body_table(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
-    if app.is_chat_visible() {
-        let columns = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(MAIN_WITH_CHAT_PERCENT),
-                Constraint::Percentage(CHAT_PERCENT),
-                Constraint::Percentage(SIDEBAR_WITH_CHAT_PERCENT),
-            ])
-            .split(area);
-
+    let columns = resolve_columns(area, app);
+    if app.is_chat_visible() && columns.len() >= 3 {
         CatalogTreeView::render(frame, columns[0], app);
         ChatPanel::render(frame, columns[1], app);
         DetailsPanel::render(frame, columns[2], app);
-        return;
+    } else if columns.len() >= 2 {
+        CatalogTreeView::render(frame, columns[0], app);
+        DetailsPanel::render(frame, columns[1], app);
     }
-
-    let columns = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(MAIN_PERCENT),
-            Constraint::Percentage(SIDEBAR_PERCENT),
-        ])
-        .split(area);
-
-    CatalogTreeView::render(frame, columns[0], app);
-    DetailsPanel::render(frame, columns[1], app);
 }
 
 /// Viz mode: main/sidebar split. Details panel fills the entire sidebar.
 fn render_body_viz(frame: &mut Frame, area: ratatui::layout::Rect, app: &App) {
-    if app.is_chat_visible() {
-        let columns = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(MAIN_WITH_CHAT_PERCENT),
-                Constraint::Percentage(CHAT_PERCENT),
-                Constraint::Percentage(SIDEBAR_WITH_CHAT_PERCENT),
-            ])
-            .split(area);
-
+    let columns = resolve_columns(area, app);
+    if app.is_chat_visible() && columns.len() >= 3 {
         UnifiedCatalogView::render(frame, columns[0], app);
         ChatPanel::render(frame, columns[1], app);
         DetailsPanel::render(frame, columns[2], app);
-        return;
+    } else if columns.len() >= 2 {
+        UnifiedCatalogView::render(frame, columns[0], app);
+        DetailsPanel::render(frame, columns[1], app);
     }
-
-    let columns = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(MAIN_PERCENT),
-            Constraint::Percentage(SIDEBAR_PERCENT),
-        ])
-        .split(area);
-
-    UnifiedCatalogView::render(frame, columns[0], app);
-    DetailsPanel::render(frame, columns[1], app);
 }
 
 pub(crate) fn try_select_viz_node(root: Rect, app: &mut App, col: u16, row: u16) -> bool {
     let body = body_area(root);
-    let main_area = if app.is_chat_visible() {
-        Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(MAIN_WITH_CHAT_PERCENT),
-                Constraint::Percentage(CHAT_PERCENT),
-                Constraint::Percentage(SIDEBAR_WITH_CHAT_PERCENT),
-            ])
-            .split(body)[0]
-    } else {
-        Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(MAIN_PERCENT),
-                Constraint::Percentage(SIDEBAR_PERCENT),
-            ])
-            .split(body)[0]
+    let columns = resolve_columns(body, app);
+    let Some(main_area) = columns.first().copied() else {
+        return false;
     };
 
     UnifiedCatalogView::click_select(main_area, app, col, row)
@@ -145,16 +109,38 @@ pub(crate) fn chat_area(root: Rect, app: &App) -> Option<Rect> {
     }
 
     let body = body_area(root);
-    let columns = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(MAIN_WITH_CHAT_PERCENT),
-            Constraint::Percentage(CHAT_PERCENT),
-            Constraint::Percentage(SIDEBAR_WITH_CHAT_PERCENT),
-        ])
-        .split(body);
+    resolve_columns(body, app).get(1).copied()
+}
 
-    Some(columns[1])
+pub(crate) fn divider_hit(root: Rect, app: &App, col: u16) -> Option<ResizeTarget> {
+    let body = body_area(root);
+    if body.width < 20 {
+        return None;
+    }
+
+    if app.is_chat_visible() {
+        let divider = active_split(app).divider_hit(body, col, 1)?;
+        return Some(ResizeTarget::BodyWithChat(divider));
+    }
+
+    let divider = active_split(app).divider_hit(body, col, 1)?;
+    Some(ResizeTarget::BodyWithoutChat(divider))
+}
+
+pub(crate) fn resize_divider(root: Rect, app: &mut App, target: ResizeTarget, col: u16) -> bool {
+    let body = body_area(root);
+    if body.width < 20 {
+        return false;
+    }
+
+    match target {
+        ResizeTarget::BodyWithChat(divider) => app
+            .body_split_with_chat_mut()
+            .resize_from_pointer(body, divider, col),
+        ResizeTarget::BodyWithoutChat(divider) => app
+            .body_split_without_chat_mut()
+            .resize_from_pointer(body, divider, col),
+    }
 }
 
 pub(crate) fn chat_hit_test(root: Rect, app: &App, col: u16, row: u16) -> ChatPanelHit {
