@@ -39,5 +39,14 @@ await runCommandSteps([
     command: "bash",
     args: ["-c", "curl -fsSL https://opencode.ai/install | bash"],
     cwd: repoRoot,
-  }
+  },
+  // Rust up
+  // curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+  {
+    name: "Install Rust",
+    command: "bash",
+    args: ["-c", "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y"],
+    cwd: repoRoot,
+  },
+
 ]);
