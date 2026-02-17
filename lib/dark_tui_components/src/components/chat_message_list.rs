@@ -3,7 +3,7 @@ use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, T
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Paragraph, Wrap};
+use ratatui::widgets::Paragraph;
 use ratatui::Frame;
 
 use crate::components::chat_types::{ChatMessageEntry, ChatMessageRole};
@@ -96,12 +96,7 @@ impl ChatMessageListComponent {
         let base_scroll = total_lines.saturating_sub(viewport_height);
         let scroll = base_scroll.saturating_sub(props.scroll_offset_lines as usize) as u16;
 
-        frame.render_widget(
-            Paragraph::new(lines)
-                .wrap(Wrap { trim: false })
-                .scroll((scroll, 0)),
-            area,
-        );
+        frame.render_widget(Paragraph::new(lines).scroll((scroll, 0)), area);
     }
 
     pub(crate) fn lines(

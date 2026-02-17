@@ -81,8 +81,8 @@ impl ChatPanel {
                 header,
                 messages: &messages,
                 empty_label,
-                max_messages: 40,
-                max_body_lines_per_message: 24,
+                max_messages: app.chat_render_limit(),
+                max_body_lines_per_message: app.chat_max_body_lines(),
                 scroll_offset_lines: app.chat_scroll_lines(),
                 composer: Self::composer(app),
                 palette: Self::palette(app),
@@ -136,7 +136,7 @@ impl ChatPanel {
             }
         }
 
-        if let Some(messages_rect) = message_body_area(area) {
+        if let Some(messages_rect) = message_panel_area(area) {
             if rect_contains(messages_rect, col, row) {
                 return ChatPanelHit::MessageBody;
             }
@@ -193,8 +193,8 @@ impl ChatPanel {
         let props = ChatMessageListProps {
             messages: &entries,
             empty_label,
-            max_messages: 40,
-            max_body_lines_per_message: 24,
+            max_messages: app.chat_render_limit(),
+            max_body_lines_per_message: app.chat_max_body_lines(),
             scroll_offset_lines: app.chat_scroll_lines(),
             palette: ChatPalette {
                 text_primary: theme.text_primary,
@@ -517,6 +517,29 @@ fn message_body_area(area: Rect) -> Option<Rect> {
     }
 
     Some(messages)
+}
+
+fn message_panel_area(area: Rect) -> Option<Rect> {
+    let inner = inner_rect(area);
+    if inner.width < 10 || inner.height < 6 {
+        return None;
+    }
+
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(4),
+            Constraint::Length(5),
+        ])
+        .split(inner);
+
+    let panel = chunks[1];
+    if panel.width < 3 || panel.height < 2 {
+        return None;
+    }
+
+    Some(panel)
 }
 
 /// Returns the rect for the clickable "Detail" pill in the header row.

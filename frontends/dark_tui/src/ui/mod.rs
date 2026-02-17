@@ -141,6 +141,12 @@ pub async fn run(cli: Cli) -> Result<()> {
     };
 
     let mut app = App::new(directory, cli.refresh_seconds, theme);
+    app.configure_chat_performance(
+        cli.chat_history_limit,
+        cli.chat_render_limit,
+        cli.chat_max_body_lines,
+        cli.chat_message_max_chars,
+    );
     let transport = if service.uses_realtime_transport() {
         "websocket"
     } else {
@@ -199,6 +205,7 @@ async fn run_loop(
     let mut actor_drag_state: Option<ActorDragState> = None;
     let mut key_hint_hover_token: Option<render::KeyHoverToken> = None;
     let mut key_hint_hover: Option<String> = None;
+    let mut pending_event: Option<Event> = None;
 
     loop {
         if snapshot_task
@@ -289,10 +296,12 @@ async fn run_loop(
                     continue;
                 };
                 let service = service.clone();
+                let chat_history_limit = app.chat_history_limit_query();
                 app.set_chat_refresh_in_flight(true);
                 chat_refresh_task = Some(tokio::spawn(async move {
                     let result =
-                        run_with_api_timeout(service.fetch_actor_messages(&actor, Some(80))).await;
+                        run_with_api_timeout(service.fetch_actor_messages(&actor, chat_history_limit))
+                            .await;
                     (actor_id, result)
                 }));
             }
@@ -517,11 +526,14 @@ async fn run_loop(
             )
         })?;
 
-        if !event::poll(Duration::from_millis(120))? {
-            continue;
-        }
-
-        let ev = event::read()?;
+        let ev = if let Some(ev) = pending_event.take() {
+            ev
+        } else {
+            if !event::poll(Duration::from_millis(120))? {
+                continue;
+            }
+            event::read()?
+        };
         let mut injected_key: Option<KeyEvent> = None;
 
         // --- Mouse events ---
@@ -674,8 +686,60 @@ async fn run_loop(
                 }
                 render::ChatPanelHit::MessageBody => {
                     match mouse.kind {
-                        MouseEventKind::ScrollUp => app.scroll_chat_up(3),
-                        MouseEventKind::ScrollDown => app.scroll_chat_down(3),
+                        MouseEventKind::ScrollUp => {
+                            let mut steps: u16 = 1;
+                            while steps < 8 && event::poll(Duration::from_millis(0))? {
+                                let next = event::read()?;
+                                match next {
+                                    Event::Mouse(next_mouse)
+                                        if matches!(next_mouse.kind, MouseEventKind::ScrollUp)
+                                            && matches!(
+                                                render::chat_hit_test(
+                                                    root,
+                                                    app,
+                                                    next_mouse.column,
+                                                    next_mouse.row,
+                                                ),
+                                                render::ChatPanelHit::MessageBody
+                                            ) =>
+                                    {
+                                        steps = steps.saturating_add(1);
+                                    }
+                                    other => {
+                                        pending_event = Some(other);
+                                        break;
+                                    }
+                                }
+                            }
+                            app.scroll_chat_up(steps);
+                        }
+                        MouseEventKind::ScrollDown => {
+                            let mut steps: u16 = 1;
+                            while steps < 8 && event::poll(Duration::from_millis(0))? {
+                                let next = event::read()?;
+                                match next {
+                                    Event::Mouse(next_mouse)
+                                        if matches!(next_mouse.kind, MouseEventKind::ScrollDown)
+                                            && matches!(
+                                                render::chat_hit_test(
+                                                    root,
+                                                    app,
+                                                    next_mouse.column,
+                                                    next_mouse.row,
+                                                ),
+                                                render::ChatPanelHit::MessageBody
+                                            ) =>
+                                    {
+                                        steps = steps.saturating_add(1);
+                                    }
+                                    other => {
+                                        pending_event = Some(other);
+                                        break;
+                                    }
+                                }
+                            }
+                            app.scroll_chat_down(steps);
+                        }
                         MouseEventKind::Down(MouseButton::Right) => {
                             if let Some(message_index) =
                                 render::chat_message_index_at_point(root, app, mouse.column, mouse.row)
