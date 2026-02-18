@@ -140,14 +140,6 @@ export const createVariantsRoutes = (
     .get(
       '/',
       async ({ query, set }) => {
-        const startedAt = logRouteStart('Variants // List', {
-          cursor: query.cursor ?? null,
-          limit: query.limit ?? null,
-          locator: query.locator ?? null,
-          name: query.name ?? null,
-          poll: query.poll ?? null,
-          productId: query.productId ?? null,
-        });
         try {
           const poll = parsePollQuery(query.poll);
           const variants = await dependencies.listVariants({
@@ -159,9 +151,6 @@ export const createVariantsRoutes = (
             poll,
           });
 
-          logRouteSuccess('Variants // List', startedAt, {
-            count: variants.length,
-          });
           return success(variants);
         } catch (error) {
           Log.error(
