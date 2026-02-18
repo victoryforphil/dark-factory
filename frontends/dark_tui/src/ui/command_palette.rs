@@ -22,6 +22,8 @@ pub(crate) enum CommandId {
     ImportVariantActors,
     InitProduct,
     OpenSpawnForm,
+    OpenVariantInExplorer,
+    OpenVariantInTerminal,
     BuildAttach,
     RunAttach,
     ToggleChat,
@@ -231,6 +233,8 @@ pub(crate) fn resolve_key_command(app: &App, key: KeyEvent) -> Option<CommandId>
         KeyCode::Char('m') => CommandId::ImportVariantActors,
         KeyCode::Char('i') => CommandId::InitProduct,
         KeyCode::Char('n') => CommandId::OpenSpawnForm,
+        KeyCode::Char('E') => CommandId::OpenVariantInExplorer,
+        KeyCode::Char('T') => CommandId::OpenVariantInTerminal,
         KeyCode::Char('a') => CommandId::RunAttach,
         KeyCode::Char('A') => CommandId::BuildAttach,
         KeyCode::Char('t') => CommandId::ToggleChat,
@@ -266,7 +270,9 @@ pub(crate) fn is_command_enabled(app: &App, command: CommandId) -> bool {
         | CommandId::OpenBranchForm
         | CommandId::OpenDeleteVariantForm
         | CommandId::ImportVariantActors
-        | CommandId::OpenSpawnForm => app.selected_variant_id().is_some(),
+        | CommandId::OpenSpawnForm
+        | CommandId::OpenVariantInExplorer
+        | CommandId::OpenVariantInTerminal => app.selected_variant_id().is_some(),
         CommandId::PollActor | CommandId::OpenMoveActorForm => app.selected_actor_id().is_some(),
         CommandId::OpenCloneForm => app.selected_product().is_some(),
         CommandId::BuildAttach | CommandId::RunAttach | CommandId::OpenChatCompose => {
@@ -299,6 +305,16 @@ pub(crate) fn context_menu_commands(app: &App, target: &VizSelection) -> Vec<Com
                 id: CommandId::OpenSpawnForm,
                 key: "n",
                 label: "Spawn actor",
+            },
+            CommandBinding {
+                id: CommandId::OpenVariantInExplorer,
+                key: "E",
+                label: "Open in explorer",
+            },
+            CommandBinding {
+                id: CommandId::OpenVariantInTerminal,
+                key: "T",
+                label: "Open in terminal",
             },
             CommandBinding {
                 id: CommandId::PollVariant,

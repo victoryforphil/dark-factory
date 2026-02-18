@@ -4,7 +4,7 @@ mod render;
 use std::env;
 use std::future::Future;
 use std::io::{self, Stdout};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
@@ -65,6 +65,8 @@ enum LoopAction {
     ImportVariantActors,
     InitProduct,
     OpenSpawnForm,
+    OpenVariantInExplorer,
+    OpenVariantInTerminal,
     SpawnSession,
     BuildAttach,
     RunAttach,
@@ -1308,6 +1310,111 @@ fn copy_to_clipboard(value: &str) -> Result<()> {
     Ok(())
 }
 
+fn selected_variant_local_path(app: &App) -> Result<PathBuf> {
+    let variant = app
+        .selected_variant()
+        .context("variant path unavailable: no variant selected")?;
+
+    let local_path = variant
+        .locator
+        .strip_prefix("@local://")
+        .ok_or_else(|| anyhow!("variant locator is not local: {}", variant.locator))?;
+
+    let path = PathBuf::from(local_path);
+    if !path.exists() {
+        return Err(anyhow!(
+            "variant path does not exist on disk: {}",
+            path.display()
+        ));
+    }
+    if !path.is_dir() {
+        return Err(anyhow!(
+            "variant path is not a directory: {}",
+            path.display()
+        ));
+    }
+
+    Ok(path)
+}
+
+fn open_directory_in_explorer(path: &Path) -> Result<()> {
+    let mut command = if cfg!(target_os = "macos") {
+        let mut command = Command::new("open");
+        command.arg(path);
+        command
+    } else if cfg!(target_os = "windows") {
+        let mut command = Command::new("explorer");
+        command.arg(path);
+        command
+    } else {
+        let mut command = Command::new("xdg-open");
+        command.arg(path);
+        command
+    };
+
+    run_os_command(&mut command, "open variant path in explorer")
+}
+
+fn open_directory_in_terminal(path: &Path) -> Result<()> {
+    if cfg!(target_os = "macos") {
+        let mut command = Command::new("open");
+        command.arg("-a").arg("Terminal").arg(path);
+        return run_os_command(&mut command, "open terminal at variant path");
+    }
+
+    if cfg!(target_os = "windows") {
+        let mut command = Command::new("cmd");
+        command
+            .arg("/C")
+            .arg("start")
+            .arg("")
+            .arg("/D")
+            .arg(path);
+        return run_os_command(&mut command, "open terminal at variant path");
+    }
+
+    let launchers: [(&str, &[&str]); 5] = [
+        ("x-terminal-emulator", &["--working-directory"]),
+        ("gnome-terminal", &["--working-directory"]),
+        ("xfce4-terminal", &["--working-directory"]),
+        ("konsole", &["--workdir"]),
+        ("alacritty", &["--working-directory"]),
+    ];
+
+    for (program, prefix_args) in launchers {
+        let mut command = Command::new(program);
+        for arg in prefix_args {
+            command.arg(arg);
+        }
+        command.arg(path);
+
+        match command.status() {
+            Ok(status) if status.success() => return Ok(()),
+            Ok(_) => continue,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => {
+                return Err(error)
+                    .with_context(|| format!("failed to launch terminal command: {program}"));
+            }
+        }
+    }
+
+    Err(anyhow!(
+        "no supported terminal launcher found (tried x-terminal-emulator, gnome-terminal, xfce4-terminal, konsole, alacritty)"
+    ))
+}
+
+fn run_os_command(command: &mut Command, action: &str) -> Result<()> {
+    let status = command
+        .status()
+        .with_context(|| format!("failed to {action}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(anyhow!("command exited with status {status}"))
+    }
+}
+
 fn run_attach_handoff(
     terminal: &mut TuiTerminal,
     command: &str,
@@ -1459,6 +1566,8 @@ fn command_key_event(command: CommandId) -> Option<KeyEvent> {
         CommandId::ImportVariantActors => KeyEvent::new(KeyCode::Char('m'), KeyModifiers::NONE),
         CommandId::InitProduct => KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE),
         CommandId::OpenSpawnForm => KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE),
+        CommandId::OpenVariantInExplorer => KeyEvent::new(KeyCode::Char('E'), KeyModifiers::SHIFT),
+        CommandId::OpenVariantInTerminal => KeyEvent::new(KeyCode::Char('T'), KeyModifiers::SHIFT),
         CommandId::BuildAttach => KeyEvent::new(KeyCode::Char('A'), KeyModifiers::SHIFT),
         CommandId::RunAttach => KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE),
         CommandId::ToggleChat => KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE),
@@ -1513,6 +1622,8 @@ fn apply_command(app: &mut App, command: CommandId) -> LoopAction {
         CommandId::ImportVariantActors => LoopAction::ImportVariantActors,
         CommandId::InitProduct => LoopAction::OpenInitProductForm,
         CommandId::OpenSpawnForm => LoopAction::OpenSpawnForm,
+        CommandId::OpenVariantInExplorer => LoopAction::OpenVariantInExplorer,
+        CommandId::OpenVariantInTerminal => LoopAction::OpenVariantInTerminal,
         CommandId::BuildAttach => LoopAction::BuildAttach,
         CommandId::RunAttach => LoopAction::RunAttach,
         CommandId::ToggleChat => LoopAction::ToggleChat,
@@ -1830,6 +1941,22 @@ fn process_loop_action(
                 }),
             });
             app.set_action_requests_in_flight(action_tasks.len());
+        }
+        LoopAction::OpenVariantInExplorer => {
+            match selected_variant_local_path(app)
+                .and_then(|path| open_directory_in_explorer(path.as_path()))
+            {
+                Ok(()) => app.set_status("Opened variant path in explorer."),
+                Err(error) => app.set_status(format!("Open in explorer failed: {error}")),
+            }
+        }
+        LoopAction::OpenVariantInTerminal => {
+            match selected_variant_local_path(app)
+                .and_then(|path| open_directory_in_terminal(path.as_path()))
+            {
+                Ok(()) => app.set_status("Opened terminal at variant path."),
+                Err(error) => app.set_status(format!("Open terminal failed: {error}")),
+            }
         }
         LoopAction::SpawnSession => {
             if has_action_in_flight(action_tasks, BackgroundActionKind::SpawnSession) {
