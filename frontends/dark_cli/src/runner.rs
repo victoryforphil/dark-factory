@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::env;
 use std::path::Path;
+use std::process::Command as ProcessCommand;
 
 use anyhow::{Context, Result};
 use dark_rust::types::{
@@ -22,6 +23,19 @@ const PRODUCTS_PAGE_LIMIT: u32 = 100;
 
 pub async fn run(cli: Cli, api: &DarkCoreClient) -> Result<()> {
     let response = dispatch(&cli, api).await?;
+
+    if (200..300).contains(&response.status)
+        && matches!(
+            &cli.command,
+            Command::Actors(crate::cli::ActorsCommand {
+                action: ActorsAction::Attach { .. }
+            })
+        )
+    {
+        run_tmux_attach_from_response(&response.body)?;
+        return Ok(());
+    }
+
     let output = crate::output::render(cli.format, &cli.command, &response.body)?;
 
     if (200..300).contains(&response.status) {
@@ -36,6 +50,65 @@ pub async fn run(cli: Cli, api: &DarkCoreClient) -> Result<()> {
         body: response.body,
     }
     .into())
+}
+
+fn run_tmux_attach_from_response(body: &Value) -> Result<()> {
+    let command = extract_attach_command(body)?;
+    let session_name = parse_tmux_attach_target(command)?;
+
+    let mut args = Vec::new();
+    if env::var_os("TMUX").is_some() {
+        args.push("switch-client");
+    } else {
+        args.push("attach-session");
+    }
+    args.push("-t");
+    args.push(session_name.as_str());
+
+    let status = ProcessCommand::new("tmux")
+        .args(&args)
+        .status()
+        .with_context(|| format!("failed to execute tmux attach for session `{session_name}`"))?;
+    if status.success() {
+        return Ok(());
+    }
+
+    Err(anyhow::anyhow!(
+        "tmux attach command failed for session `{session_name}` with status {status}"
+    ))
+}
+
+fn extract_attach_command(body: &Value) -> Result<&str> {
+    body.get("data")
+        .and_then(|value| value.get("attachCommand"))
+        .or_else(|| body.get("data").and_then(|value| value.get("command")))
+        .and_then(Value::as_str)
+        .with_context(|| format!("attach response missing attach command: {body}"))
+}
+
+fn parse_tmux_attach_target(command: &str) -> Result<String> {
+    let tokens: Vec<&str> = command.split_whitespace().collect();
+    if tokens.len() < 4 || tokens[0] != "tmux" {
+        anyhow::bail!("attach command is not a tmux attach command: {command}");
+    }
+
+    if tokens[1] != "attach-session" && tokens[1] != "switch-client" {
+        anyhow::bail!("unsupported tmux attach subcommand: {}", tokens[1]);
+    }
+
+    let mut iter = tokens.iter().copied();
+    while let Some(token) = iter.next() {
+        if token == "-t" {
+            if let Some(session_name) = iter.next() {
+                let trimmed = session_name.trim();
+                if !trimmed.is_empty() {
+                    return Ok(trimmed.to_string());
+                }
+            }
+        }
+    }
+
+    anyhow::bail!("tmux attach command missing -t <session>: {command}")
 }
 
 async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
@@ -541,6 +614,40 @@ fn extract_data_rows(body: &Value) -> Vec<Value> {
         .and_then(Value::as_array)
         .cloned()
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::{extract_attach_command, parse_tmux_attach_target};
+
+    #[test]
+    fn extracts_attach_command_from_actor_attach_response() {
+        let body = json!({
+            "ok": true,
+            "data": {
+                "attachCommand": "tmux attach-session -t dark-opencode-server"
+            }
+        });
+
+        let command = extract_attach_command(&body).expect("attach command should be present");
+        assert_eq!(command, "tmux attach-session -t dark-opencode-server");
+    }
+
+    #[test]
+    fn parses_tmux_attach_target_from_command() {
+        let session = parse_tmux_attach_target("tmux attach-session -t dark-opencode-server")
+            .expect("session should parse");
+        assert_eq!(session, "dark-opencode-server");
+    }
+
+    #[test]
+    fn rejects_non_tmux_attach_command() {
+        let error = parse_tmux_attach_target("opencode --session abc")
+            .expect_err("non tmux command should fail");
+        assert!(error.to_string().contains("not a tmux attach command"));
+    }
 }
 
 async fn resolve_provider_for_spawn(

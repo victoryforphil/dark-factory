@@ -535,20 +535,20 @@ async fn run_loop(
                 },
                 Ok(BackgroundActionResult::RunAttach(result)) => match result {
                     Ok(command) => {
-                        info!(command = %command, "Dark TUI // Attach // Running attach handoff");
+                        info!(command = %command, "Dark TUI // Attach // Running tmux attach");
                         app.set_command_message(command.clone());
-                        app.set_status("Running attach command...");
-                        match run_attach_handoff(terminal, &command) {
+                        app.set_status("Running tmux attach...");
+                        match run_attach_command(&command) {
                             Ok(exit_status) => {
                                 let code = exit_status
                                     .code()
                                     .map(|value| value.to_string())
                                     .unwrap_or_else(|| "signal".to_string());
-                                info!(exit = %code, "Dark TUI // Attach // Attach command finished");
+                                info!(exit = %code, "Dark TUI // Attach // tmux attach finished");
                                 app.set_status(format!("Attach command finished (exit={code})."));
                             }
                             Err(error) => {
-                                error!(error = %error, "Dark TUI // Attach // Attach handoff failed");
+                                error!(error = %error, "Dark TUI // Attach // tmux attach failed");
                                 app.set_status(format!("Attach run failed: {error}"));
                             }
                         }
@@ -1415,67 +1415,52 @@ fn run_os_command(command: &mut Command, action: &str) -> Result<()> {
     }
 }
 
-fn run_attach_handoff(
-    terminal: &mut TuiTerminal,
-    command: &str,
-) -> Result<std::process::ExitStatus> {
-    suspend_terminal_for_handoff(terminal)?;
-
-    let run_result = run_attach_command(command);
-
-    let resume_result = resume_terminal_after_handoff(terminal);
-
-    match (run_result, resume_result) {
-        (Ok(status), Ok(())) => Ok(status),
-        (Err(run_error), Ok(())) => Err(run_error),
-        (Ok(_), Err(resume_error)) => Err(resume_error),
-        (Err(run_error), Err(resume_error)) => Err(anyhow!(
-            "{run_error}; additionally failed to restore terminal: {resume_error}"
-        )),
-    }
-}
-
 fn run_attach_command(command: &str) -> Result<std::process::ExitStatus> {
-    info!(command = %command, "Dark TUI // Attach // Executing shell command");
-    Command::new("/bin/sh")
-        .arg("-lc")
-        .arg(command)
+    let session_name = parse_tmux_attach_target(command)?;
+    let mut args = Vec::new();
+    if env::var_os("TMUX").is_some() {
+        args.push("switch-client");
+    } else {
+        args.push("attach-session");
+    }
+    args.push("-t");
+    args.push(session_name.as_str());
+
+    info!(
+        session = %session_name,
+        action = %args[0],
+        "Dark TUI // Attach // Executing tmux attach command"
+    );
+
+    Command::new("tmux")
+        .args(&args)
         .status()
-        .with_context(|| format!("failed to run attach command: {command}"))
+        .with_context(|| format!("failed to run tmux attach command for session: {session_name}"))
 }
 
-fn suspend_terminal_for_handoff(terminal: &mut TuiTerminal) -> Result<()> {
-    disable_raw_mode().context("failed to disable raw mode for attach handoff")?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )
-    .context("failed to leave alternate screen for attach handoff")?;
-    terminal
-        .show_cursor()
-        .context("failed to show cursor for attach handoff")?;
-    Ok(())
-}
+fn parse_tmux_attach_target(command: &str) -> Result<String> {
+    let tokens: Vec<&str> = command.split_whitespace().collect();
+    if tokens.len() < 4 || tokens[0] != "tmux" {
+        return Err(anyhow!("attach command is not a tmux attach command: {command}"));
+    }
 
-fn resume_terminal_after_handoff(terminal: &mut TuiTerminal) -> Result<()> {
-    enable_raw_mode().context("failed to re-enable raw mode after attach handoff")?;
-    execute!(
-        terminal.backend_mut(),
-        EnterAlternateScreen,
-        EnableMouseCapture
-    )
-    .context("failed to re-enter alternate screen after attach handoff")?;
-    terminal
-        .autoresize()
-        .context("failed to autoresize terminal after attach handoff")?;
-    terminal
-        .clear()
-        .context("failed to clear terminal after attach handoff")?;
-    terminal
-        .hide_cursor()
-        .context("failed to hide cursor after attach handoff")?;
-    Ok(())
+    if tokens[1] != "attach-session" && tokens[1] != "switch-client" {
+        return Err(anyhow!("unsupported tmux attach subcommand: {}", tokens[1]));
+    }
+
+    let mut iter = tokens.iter().copied();
+    while let Some(token) = iter.next() {
+        if token == "-t" {
+            if let Some(session_name) = iter.next() {
+                let trimmed = session_name.trim();
+                if !trimmed.is_empty() {
+                    return Ok(trimmed.to_string());
+                }
+            }
+        }
+    }
+
+    Err(anyhow!("tmux attach command missing -t <session>: {command}"))
 }
 
 enum ContextMenuKeyOutcome {
@@ -2020,7 +2005,7 @@ fn process_loop_action(
                 return;
             }
 
-            app.set_status(format!("Preparing attach handoff for {actor_id}..."));
+            app.set_status(format!("Preparing tmux attach for {actor_id}..."));
             let service = service.clone();
             action_tasks.push(ActionTask {
                 kind: BackgroundActionKind::RunAttach,
@@ -2448,17 +2433,19 @@ fn handle_chat_picker_key(app: &mut App, key: KeyEvent) -> LoopAction {
 
 #[cfg(test)]
 mod tests {
-    use super::run_attach_command;
+    use super::parse_tmux_attach_target;
 
     #[test]
-    fn run_attach_command_reports_success() {
-        let status = run_attach_command("exit 0").expect("command should run");
-        assert!(status.success());
+    fn parse_tmux_attach_target_accepts_attach_session() {
+        let session = parse_tmux_attach_target("tmux attach-session -t dark-opencode-server")
+            .expect("session should parse");
+        assert_eq!(session, "dark-opencode-server");
     }
 
     #[test]
-    fn run_attach_command_reports_nonzero_exit() {
-        let status = run_attach_command("exit 7").expect("command should run");
-        assert_eq!(status.code(), Some(7));
+    fn parse_tmux_attach_target_rejects_non_tmux_command() {
+        let error = parse_tmux_attach_target("opencode --session=abc")
+            .expect_err("non tmux attach command should fail");
+        assert!(error.to_string().contains("not a tmux attach command"));
     }
 }

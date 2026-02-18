@@ -10,7 +10,7 @@ Ratatui-based TUI frontend for monitoring and operating `dark_core`.
 - `n` opens a `Spawn in TUI` popup with provider selection and an initial prompt field.
 - Selecting an actor opens a dedicated chat panel between catalog and details panes.
 - Chat panel supports compose/send, can be toggled visible/hidden, and is rendered via shared `dark_chat` framework components.
-- Action keys support refresh, variant poll, product init, spawn, and attach command generation.
+- Action keys support refresh, variant poll, product init, spawn, and tmux attach for actors.
 - Dashboard prefers shared websocket RPC transport from `lib/dark_rust` and falls back to REST when websocket is unavailable.
 - Realtime route mutation events from `dark_core` trigger immediate refreshes between interval ticks.
 - Service code is split into focused modules:
@@ -66,7 +66,7 @@ Runtime behavior:
 - `p`: poll selected variant
 - `i`: run product init for the configured directory
 - `n`: open spawn popup (provider + initial prompt)
-- `a`: build attach command for selected actor
+- `a`: attach to the managed tmux OpenCode session for the selected actor
 - `l`: toggle embedded `dark_core` tmux log panel
 - `t`: toggle chat panel visibility
 - `c`: start composing a chat prompt for selected actor

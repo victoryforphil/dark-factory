@@ -2,6 +2,7 @@ import { locatorIdToHostPath } from '../../../utils/locator';
 import { logInfoDuration, startLogTimer } from '../../../utils/logging';
 import { getConfig } from '../../../config';
 import type {
+  ActorConnectionInfo,
   ActorProviderAdapter,
   ActorStatusLabel,
   ProviderSubAgentSnapshot,
@@ -18,7 +19,7 @@ import {
   sendOpencodeSessionCommand,
   sendOpencodeSessionPrompt,
 } from './opencode_server.controller';
-import { getOpencodeBaseUrl } from './opencode_server.client';
+import { getOpencodeBaseUrl, getOpencodeRuntimeInfo } from './opencode_server.client';
 import { mapOpenCodeMessages, mapOpenCodeSessionStatus } from './opencode_server.mapper';
 import type { OpenCodeStatusLike } from './opencode_server.types';
 
@@ -209,6 +210,27 @@ const toSessionDescription = (
   return compact.length > 280 ? `${compact.slice(0, 277)}...` : compact;
 };
 
+const buildConnectionInfo = (input: {
+  directory: string;
+  projectId?: string;
+}): ActorConnectionInfo => {
+  const runtimeInfo = getOpencodeRuntimeInfo();
+
+  return {
+    provider: OPENCODE_SERVER_PROVIDER_KEY,
+    directory: input.directory,
+    serverUrl: getOpencodeBaseUrl(),
+    ...(input.projectId ? { projectId: input.projectId } : {}),
+    ...(runtimeInfo.source !== 'uninitialized' ? { serverSource: runtimeInfo.source } : {}),
+    ...(runtimeInfo.tmuxSessionName
+      ? {
+          serverTmuxSessionName: runtimeInfo.tmuxSessionName,
+          serverTmuxAttachCommand: `tmux attach -t ${runtimeInfo.tmuxSessionName}`,
+        }
+      : {}),
+  };
+};
+
 export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
   provider: OPENCODE_SERVER_PROVIDER_KEY,
   async spawn(input) {
@@ -246,10 +268,10 @@ export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
           }
         : {}),
       connectionInfo: {
-        provider: OPENCODE_SERVER_PROVIDER_KEY,
-        directory,
-        serverUrl: getOpencodeBaseUrl(),
-        projectId: attach.project.id,
+        ...buildConnectionInfo({
+          directory,
+          projectId: attach.project.id,
+        }),
       },
       attachCommand: attach.command,
     };
@@ -274,9 +296,9 @@ export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
         status,
         subAgents,
         connectionInfo: {
-          provider: OPENCODE_SERVER_PROVIDER_KEY,
-          directory,
-          serverUrl: getOpencodeBaseUrl(),
+          ...buildConnectionInfo({
+            directory,
+          }),
         },
       };
     }
@@ -291,10 +313,10 @@ export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
       status,
       subAgents,
       connectionInfo: {
-        provider: OPENCODE_SERVER_PROVIDER_KEY,
-        directory,
-        serverUrl: getOpencodeBaseUrl(),
-        projectId: attach.project.id,
+        ...buildConnectionInfo({
+          directory,
+          projectId: attach.project.id,
+        }),
       },
       attachCommand: attach.command,
     };
@@ -312,10 +334,10 @@ export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
     return {
       attachCommand: attach.command,
       connectionInfo: {
-        provider: OPENCODE_SERVER_PROVIDER_KEY,
-        directory,
-        serverUrl: getOpencodeBaseUrl(),
-        projectId: attach.project.id,
+        ...buildConnectionInfo({
+          directory,
+          projectId: attach.project.id,
+        }),
       },
     };
   },
@@ -404,9 +426,9 @@ export const opencodeServerActorProviderAdapter: ActorProviderAdapter = {
               statuses,
             }),
             connectionInfo: {
-              provider: OPENCODE_SERVER_PROVIDER_KEY,
-              directory,
-              serverUrl: getOpencodeBaseUrl(),
+              ...buildConnectionInfo({
+                directory,
+              }),
             },
           };
         }),

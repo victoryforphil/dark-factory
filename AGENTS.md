@@ -157,6 +157,7 @@ It reflects only what is currently true in this repository.
 - Provider selection defaults are configured in core config TOML under `providers`.
 - `providers.defaultProvider` controls spawn fallback when `/actors` create payload omits `provider`.
 - `providers.enabledProviders` controls which provider keys are allowed for actor operations.
+- OpenCode server runtime is tmux-managed when `opencode.autoStartServer=true`; startup uses `opencode.serverMode` (`serve`/`web`) and `opencode.tmuxSessionName` for the managed service session.
 - OpenCode import fallback now supports loading recent sessions when the status map is empty via `opencode.includeRecentSessionsWhenStatusEmpty`, `opencode.recentSessionWindowHours`, and `opencode.recentSessionLimit`.
 - Client/frontends should query `GET /system/providers` when they need current runtime provider configuration.
 

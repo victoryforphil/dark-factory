@@ -82,7 +82,7 @@ Commands:
 | `actors update --id <id> [--title <title>] [--description <text>]` | `PATCH /actors/:id` | Update actor metadata |
 | `actors delete --id <id> [--terminate]` | `DELETE /actors/:id` | Delete actor (optionally terminate provider runtime) |
 | `actors poll --id <id>` | `POST /actors/:id/poll` | Refresh actor runtime status |
-| `actors attach --id <id> [--model <model>] [--agent <agent>]` | `GET /actors/:id/attach` | Build provider attach command |
+| `actors attach --id <id> [--model <model>] [--agent <agent>]` | `GET /actors/:id/attach` | Resolve attach target and execute `tmux attach`/`tmux switch-client` |
 | `actors messages send --id <id> --prompt <prompt> [--no-reply]` | `POST /actors/:id/messages` | Send provider-backed prompt |
 | `actors messages list --id <id> [--n-last-messages <n>]` | `GET /actors/:id/messages` | Read provider-backed messages |
 | `actors commands --id <id> --command <command> [--args <args>]` | `POST /actors/:id/commands` | Run provider command |

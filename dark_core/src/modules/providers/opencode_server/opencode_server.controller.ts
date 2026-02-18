@@ -4,7 +4,6 @@ import type { Message, Part, Session } from '@opencode-ai/sdk';
 
 import { getConfig } from '../../../config';
 import { normalizeProviderDirectory } from '../common/providers.directory';
-import { toShellArgument } from '../common/providers.shell';
 import { getOpencodeClient } from './opencode_server.client';
 
 export interface OpencodeDirectoryInput {
@@ -187,22 +186,8 @@ export const buildOpencodeTuiAttachCommand = async (
   const project = await client.project.current();
   const config = getConfig();
 
-  const commandParts = [
-    config.opencode.tuiCommand,
-    `--project=${toShellArgument(project.worktree || directory)}`,
-    `--session=${toShellArgument(input.sessionId)}`,
-  ];
-
-  if (input.model) {
-    commandParts.push(`--model=${toShellArgument(input.model)}`);
-  }
-
-  if (input.agent) {
-    commandParts.push(`--agent=${toShellArgument(input.agent)}`);
-  }
-
   return {
-    command: commandParts.join(' '),
+    command: `tmux attach-session -t ${config.opencode.tmuxSessionName}`,
     project: {
       id: project.id,
       worktree: project.worktree,
