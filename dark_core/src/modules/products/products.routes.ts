@@ -81,7 +81,7 @@ const productVariantCloneResponse = t.Object({
     clone: t.Object({
       cloneType: t.String(),
       sourceLocator: t.String(),
-      sourceLocatorKind: t.Union([t.Literal('local'), t.Literal('git')]),
+      sourceLocatorKind: t.Union([t.Literal('local'), t.Literal('git'), t.Literal('ssh')]),
       targetPath: t.String(),
       targetLocator: t.String(),
       branchName: t.Nullable(t.String()),
@@ -150,11 +150,6 @@ export const createProductsRoutes = (
     .get(
       '/',
       async ({ query, set }) => {
-        const startedAt = logRouteStart('Products // List', {
-          cursor: query.cursor ?? null,
-          include: query.include ?? null,
-          limit: query.limit ?? null,
-        });
         try {
           const products = await dependencies.listProducts({
             cursor: query.cursor,
@@ -162,9 +157,6 @@ export const createProductsRoutes = (
             limit: query.limit ? Number(query.limit) : undefined,
           });
 
-          logRouteSuccess('Products // List', startedAt, {
-            count: products.length,
-          });
           return success(products);
         } catch (error) {
           Log.error(
@@ -489,6 +481,11 @@ export const createProductsRoutes = (
           }
 
           if (message.includes('Target path already exists')) {
+            set.status = 400;
+            return failure('VARIANTS_CLONE_TARGET_INVALID', message);
+          }
+
+          if (message.includes('local.copy requires local target path')) {
             set.status = 400;
             return failure('VARIANTS_CLONE_TARGET_INVALID', message);
           }

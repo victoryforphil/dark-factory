@@ -4,11 +4,17 @@ import { basename, join, resolve } from 'node:path';
 import type { Product, Variant } from '../../../../generated/prisma/client';
 
 import { getConfig } from '../../config';
-import { hostAbsolutePathToLocatorId, locatorIdToHostPath, parseLocatorId } from '../../utils/locator';
+import {
+  hostAbsolutePathToLocatorId,
+  locatorIdToHostPath,
+  normalizeLocator,
+  parseLocatorId,
+} from '../../utils/locator';
 import { buildRandomVariantId } from '../../utils/id';
 import Log, { formatLogMetadata } from '../../utils/logging';
 import { NotFoundError } from '../common/controller.errors';
 import { getPrismaClient } from '../prisma/prisma.client';
+import { buildSshInvocation } from '../ssh/ssh.controller';
 import { syncVariantGitInfo } from '../variants/variants.controller';
 
 type VariantCloneType = 'auto' | 'local.copy' | 'git.clone_branch';
@@ -28,7 +34,7 @@ export interface VariantCloneResult {
   clone: {
     cloneType: Exclude<VariantCloneType, 'auto'>;
     sourceLocator: string;
-    sourceLocatorKind: 'local' | 'git';
+    sourceLocatorKind: 'local' | 'git' | 'ssh';
     targetPath: string;
     targetLocator: string;
     branchName: string | null;
@@ -42,6 +48,8 @@ export interface VariantCloneResult {
 
 interface ResolvedCloneTarget {
   targetPath: string;
+  targetLocator: string;
+  targetKind: 'local' | 'ssh';
   generatedTargetPath: boolean;
 }
 
@@ -363,17 +371,41 @@ const withMergedCloneMetadata = (
   };
 };
 
-const resolveLocalPathFromInput = (targetPath: string): string => {
-  const parsed = parseLocatorId(targetPath);
+const resolveTargetFromInput = (targetPath: string): Omit<ResolvedCloneTarget, 'generatedTargetPath'> => {
+  const normalized = normalizeLocator(targetPath);
+  const parsed = parseLocatorId(normalized);
   if (parsed.type === 'local') {
-    return locatorIdToHostPath(parsed.locator);
+    const hostPath = locatorIdToHostPath(parsed.locator);
+    return {
+      targetPath: hostPath,
+      targetLocator: parsed.locator,
+      targetKind: 'local',
+    };
+  }
+
+  if (parsed.type === 'ssh') {
+    return {
+      targetPath: parsed.path,
+      targetLocator: parsed.locator,
+      targetKind: 'ssh',
+    };
   }
 
   if (targetPath.startsWith('/')) {
-    return resolve(targetPath);
+    const resolved = resolve(targetPath);
+    return {
+      targetPath: resolved,
+      targetLocator: hostAbsolutePathToLocatorId(resolved),
+      targetKind: 'local',
+    };
   }
 
-  return resolve(process.cwd(), targetPath);
+  const resolved = resolve(process.cwd(), targetPath);
+  return {
+    targetPath: resolved,
+    targetLocator: hostAbsolutePathToLocatorId(resolved),
+    targetKind: 'local',
+  };
 };
 
 const resolveSourceVariantLocator = async (
@@ -503,17 +535,21 @@ const resolveCloneTarget = async (
   targetPath?: string,
 ): Promise<ResolvedCloneTarget> => {
   if (targetPath && targetPath.trim().length > 0) {
-    const resolved = resolveLocalPathFromInput(targetPath);
-    await mkdir(resolve(resolved, '..'), { recursive: true });
+    const resolved = resolveTargetFromInput(targetPath);
+    if (resolved.targetKind === 'local') {
+      await mkdir(resolve(resolved.targetPath, '..'), { recursive: true });
+    }
 
-    if (await pathExists(resolved)) {
+    if (resolved.targetKind === 'local' && (await pathExists(resolved.targetPath))) {
       throw new Error(
-        `Variants // Clone // Target path already exists ${formatLogMetadata({ targetPath: resolved })}`,
+        `Variants // Clone // Target path already exists ${formatLogMetadata({ targetPath: resolved.targetPath })}`,
       );
     }
 
     return {
-      targetPath: resolved,
+      targetPath: resolved.targetPath,
+      targetLocator: resolved.targetLocator,
+      targetKind: resolved.targetKind,
       generatedTargetPath: false,
     };
   }
@@ -530,6 +566,8 @@ const resolveCloneTarget = async (
 
   return {
     targetPath: generatedPath,
+    targetLocator: hostAbsolutePathToLocatorId(generatedPath),
+    targetKind: 'local',
     generatedTargetPath: true,
   };
 };
@@ -674,6 +712,104 @@ const checkoutOrCreateBranch = async (
       })}`,
     );
   }
+};
+
+const cloneFromGitRemoteOverSsh = async (
+  productLocator: string,
+  targetLocator: string,
+  branchName: string,
+  branchProvided: boolean,
+  _onOutputLine?: (line: string, level: 'info' | 'warn') => void,
+): Promise<CloneExecutionMetadata> => {
+  const productParsed = parseLocatorId(productLocator);
+  if (productParsed.type !== 'git') {
+    throw new Error(
+      `Variants // Clone // Git clone requires git product locator ${formatLogMetadata({
+        productLocator,
+      })}`,
+    );
+  }
+
+  const targetParsed = parseLocatorId(targetLocator);
+  if (targetParsed.type !== 'ssh') {
+    throw new Error(
+      `Variants // Clone // Remote clone requires @ssh locator ${formatLogMetadata({
+        targetLocator,
+      })}`,
+    );
+  }
+
+  const branchExistsOnRemote = branchProvided
+    ? await doesRemoteBranchExist(productParsed.remote, branchName)
+    : false;
+  const cloneSourceBranch = branchExistsOnRemote ? branchName : productParsed.ref;
+
+  const cloneArgs = [
+    'clone',
+    '--progress',
+    '--filter=blob:none',
+    '--branch',
+    cloneSourceBranch,
+    '--single-branch',
+    productParsed.remote,
+    targetParsed.path,
+  ];
+  if (!branchExistsOnRemote) {
+    cloneArgs.splice(2, 0, '--depth', String(GIT_SHALLOW_CLONE_DEPTH));
+  }
+
+  const parentPath = resolve(targetParsed.path, '..');
+  const checkoutCommand = branchExistsOnRemote
+    ? `git checkout ${shellQuote(branchName)} && git pull --ff-only origin ${shellQuote(branchName)}`
+    : `git checkout -b ${shellQuote(branchName)}`;
+  const script = [
+    `mkdir -p ${shellQuote(parentPath)}`,
+    `if [ -e ${shellQuote(targetParsed.path)} ]; then echo ${shellQuote(`Target path already exists: ${targetParsed.path}`)} >&2; exit 17; fi`,
+    `git ${cloneArgs.map(shellQuote).join(' ')}`,
+    `cd ${shellQuote(targetParsed.path)}`,
+    checkoutCommand,
+  ].join(' && ');
+
+  const invocation = buildSshInvocation(targetParsed.host, ['-o', 'BatchMode=yes']);
+  const sshCommandParts = ['ssh', ...invocation.args, invocation.destination, script];
+  const attemptedCommand = sshCommandParts.map(shellQuote).join(' ');
+
+  const child = Bun.spawn(sshCommandParts, {
+    cwd: process.cwd(),
+    stdout: 'pipe',
+    stderr: 'pipe',
+    stdin: 'ignore',
+  });
+  const [stdout, stderr, exitCode] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+
+  if (exitCode !== 0) {
+    const errorText = trimToNull(stderr) ?? trimToNull(stdout);
+    if (errorText?.includes('Target path already exists:')) {
+      throw new Error(
+        `Variants // Clone // Target path already exists ${formatLogMetadata({
+          targetPath: targetParsed.path,
+        })}`,
+      );
+    }
+
+    throw new Error(
+      `Variants // Clone // Remote git clone failed ${formatLogMetadata({
+        branchName: cloneSourceBranch,
+        command: attemptedCommand,
+        exitCode,
+        stderr: trimToNull(stderr),
+      })}`,
+    );
+  }
+
+  return {
+    attemptedCommand,
+    usedNoLocalRetry: false,
+  };
 };
 
 const cloneFromGitRemote = async (
@@ -833,14 +969,13 @@ export const cloneVariantForProduct = async (
 
   const sourceLocator = await resolveSourceVariantLocator(product, input.sourceVariantId);
   const resolvedCloneType = resolveCloneType(product.locator, input.cloneType ?? 'auto');
-  const { targetPath, generatedTargetPath } = await resolveCloneTarget(
+  const { targetPath, targetLocator, targetKind, generatedTargetPath } = await resolveCloneTarget(
     product,
     input.name,
     input.targetPath,
   );
   const branch = buildBranchName(product, input.branchName);
   const branchProvided = Boolean(trimToNull(input.branchName));
-  const targetLocator = hostAbsolutePathToLocatorId(targetPath);
   const variantName = await buildVariantName(product.id, input.name);
   const variantId = buildRandomVariantId();
   const startedAt = new Date();
@@ -852,18 +987,22 @@ export const cloneVariantForProduct = async (
       generatedTargetPath,
       productId: product.id,
       sourceLocator,
+      targetKind,
+      targetLocator,
       targetPath,
       workspaceLocator: product.workspaceLocator,
     })}`,
   );
 
-  await mkdir(resolve(targetPath, '..'), { recursive: true });
-  Log.debug(
-    `Core // Variant Clones Controller // Clone target parent ensured ${formatLogMetadata({
-      productId: product.id,
-      targetPath,
-    })}`,
-  );
+  if (targetKind === 'local') {
+    await mkdir(resolve(targetPath, '..'), { recursive: true });
+    Log.debug(
+      `Core // Variant Clones Controller // Clone target parent ensured ${formatLogMetadata({
+        productId: product.id,
+        targetPath,
+      })}`,
+    );
+  }
 
   const seededVariant = await prisma.variant.create({
     data: {
@@ -933,6 +1072,14 @@ export const cloneVariantForProduct = async (
   const executeCloneLifecycle = async (): Promise<Variant> => {
     try {
       if (resolvedCloneType === 'local.copy') {
+        if (targetKind !== 'local') {
+          throw new Error(
+            `Variants // Clone // local.copy requires local target path ${formatLogMetadata({
+              targetLocator,
+            })}`,
+          );
+        }
+
         Log.info(
           `Core // Variant Clones Controller // Clone execution local copy ${formatLogMetadata({
             productId: product.id,
@@ -953,15 +1100,26 @@ export const cloneVariantForProduct = async (
             variantId,
           })}`,
         );
-        const execution = await cloneFromGitRemote(
-          product.locator,
-          targetPath,
-          branch.value,
-          branchProvided,
-          (line) => {
-            void updateCloneProgress(line);
-          },
-        );
+        const execution =
+          targetKind === 'local'
+            ? await cloneFromGitRemote(
+                product.locator,
+                targetPath,
+                branch.value,
+                branchProvided,
+                (line) => {
+                  void updateCloneProgress(line);
+                },
+              )
+            : await cloneFromGitRemoteOverSsh(
+                product.locator,
+                targetLocator,
+                branch.value,
+                branchProvided,
+                (line) => {
+                  void updateCloneProgress(line);
+                },
+              );
         attemptedCommand = execution.attemptedCommand;
         usedNoLocalRetry = execution.usedNoLocalRetry;
         Log.info(
@@ -1041,6 +1199,19 @@ export const cloneVariantForProduct = async (
   };
 
   const runAsync = input.runAsync === true;
+  const sourceLocatorKind = (() => {
+    const parsed = parseLocatorId(sourceLocator);
+    if (parsed.type === 'git') {
+      return 'git' as const;
+    }
+
+    if (parsed.type === 'ssh') {
+      return 'ssh' as const;
+    }
+
+    return 'local' as const;
+  })();
+
   if (runAsync) {
     void executeCloneLifecycle().catch((error) => {
       Log.error(
@@ -1058,7 +1229,7 @@ export const cloneVariantForProduct = async (
       clone: {
         cloneType: resolvedCloneType,
         sourceLocator,
-        sourceLocatorKind: parseLocatorId(sourceLocator).type === 'git' ? 'git' : 'local',
+        sourceLocatorKind,
         targetPath,
         targetLocator,
         branchName: resolvedCloneType === 'git.clone_branch' ? branch.value : null,
@@ -1078,7 +1249,7 @@ export const cloneVariantForProduct = async (
     clone: {
       cloneType: resolvedCloneType,
       sourceLocator,
-      sourceLocatorKind: parseLocatorId(sourceLocator).type === 'git' ? 'git' : 'local',
+      sourceLocatorKind,
       targetPath,
       targetLocator,
       branchName: resolvedCloneType === 'git.clone_branch' ? branch.value : null,

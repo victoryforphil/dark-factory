@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { opencodeServerConfigSection } from '../modules/providers/opencode_server/opencode_server.config';
 import { providersConfigSection } from '../modules/providers/providers.config';
 import { prismaConfigSection } from '../modules/prisma/prisma.config';
+import { sshConfigSection } from '../modules/ssh/ssh.config';
 import { serverConfigSection } from '../modules/system/system.config';
 import { variantsConfigSection } from '../modules/variants/variants.config';
 import { coreEnvironmentConfigValue, coreEnvironmentEnvBinding } from './env.config';
@@ -33,6 +34,9 @@ export const coreConfigDefinition = {
 
   /** Variant runtime defaults. */
   variants: variantsConfigSection,
+
+  /** SSH host + tunnel presets. */
+  ssh: sshConfigSection,
 } as const;
 
 /**
@@ -45,6 +49,7 @@ export const coreConfigEnvBindings: ReadonlyArray<EnvBinding> = [
   ...coreConfigDefinition.opencode.env,
   ...coreConfigDefinition.providers.env,
   ...coreConfigDefinition.variants.env,
+  ...coreConfigDefinition.ssh.env,
 ];
 
 /**
@@ -59,6 +64,7 @@ export const createCoreConfigSchema = (strict: boolean) => {
     opencode: createSubsystemSchema(coreConfigDefinition.opencode, strict),
     providers: createSubsystemSchema(coreConfigDefinition.providers, strict),
     variants: createSubsystemSchema(coreConfigDefinition.variants, strict),
+    ssh: createSubsystemSchema(coreConfigDefinition.ssh, strict),
   };
 
   return strict ? z.object(rootShape).strict() : z.object(rootShape).passthrough();

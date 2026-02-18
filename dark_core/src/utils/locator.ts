@@ -2,6 +2,7 @@ import { normalize, posix } from 'node:path';
 
 const LOCAL_LOCATOR_PREFIX = '@local://';
 const GIT_LOCATOR_PREFIX = '@git://';
+const SSH_LOCATOR_PREFIX = '@ssh://';
 const PRODUCT_ID_PREFIX = 'prd_';
 const PRODUCT_ID_WIDTH = 13;
 const WINDOWS_ABSOLUTE_PATH_PATTERN = /^[A-Za-z]:[\\/]/;
@@ -18,6 +19,12 @@ export type LocatorId =
       locator: string;
       remote: string;
       ref: string;
+    }
+  | {
+      type: 'ssh';
+      locator: string;
+      host: string;
+      path: string;
     }
   | {
       type: 'unknown';
@@ -92,6 +99,10 @@ export const isGitLocator = (locator: string): boolean => {
   return locator.startsWith(GIT_LOCATOR_PREFIX);
 };
 
+export const isSshLocator = (locator: string): boolean => {
+  return locator.startsWith(SSH_LOCATOR_PREFIX);
+};
+
 export const canonicalizeGitLocator = (locator: string): string => {
   if (!isGitLocator(locator)) {
     throw new Error(`Products // Locator // Expected @git:// locator (locator=${locator})`);
@@ -115,6 +126,37 @@ export const buildGitLocator = (remote: string, ref: string): string => {
   return canonicalizeGitLocator(`${GIT_LOCATOR_PREFIX}${remote}#${ref}`);
 };
 
+export const canonicalizeSshLocator = (locator: string): string => {
+  if (!isSshLocator(locator)) {
+    throw new Error(`Products // Locator // Expected @ssh:// locator (locator=${locator})`);
+  }
+
+  const sshValue = locator.slice(SSH_LOCATOR_PREFIX.length).trim();
+  const slashIndex = sshValue.indexOf('/');
+  if (slashIndex <= 0) {
+    throw new Error(
+      `Products // Locator // Expected ssh locator with host and absolute path (locator=${locator})`,
+    );
+  }
+
+  const host = sshValue.slice(0, slashIndex).trim();
+  const pathPart = sshValue.slice(slashIndex);
+  if (!host || /\s/.test(host)) {
+    throw new Error(
+      `Products // Locator // Expected ssh locator host without whitespace (locator=${locator})`,
+    );
+  }
+
+  if (!pathPart.startsWith('/')) {
+    throw new Error(
+      `Products // Locator // Expected absolute ssh path in locator (locator=${locator})`,
+    );
+  }
+
+  const canonicalPath = normalizeLocalPath(pathPart);
+  return `${SSH_LOCATOR_PREFIX}${host}${canonicalPath}`;
+};
+
 export const parseLocatorId = (locator: string): LocatorId => {
   const trimmedLocator = locator.trim();
 
@@ -127,6 +169,19 @@ export const parseLocatorId = (locator: string): LocatorId => {
       locator: canonicalLocator,
       remote: remote as string,
       ref: ref as string,
+    };
+  }
+
+  if (isSshLocator(trimmedLocator)) {
+    const canonicalLocator = canonicalizeSshLocator(trimmedLocator);
+    const sshValue = canonicalLocator.slice(SSH_LOCATOR_PREFIX.length);
+    const slashIndex = sshValue.indexOf('/');
+
+    return {
+      type: 'ssh',
+      locator: canonicalLocator,
+      host: sshValue.slice(0, slashIndex),
+      path: sshValue.slice(slashIndex),
     };
   }
 
@@ -173,6 +228,10 @@ export const normalizeLocator = (locator: string): string => {
     return canonicalizeLocalLocator(trimmedLocator);
   }
 
+  if (isSshLocator(trimmedLocator)) {
+    return canonicalizeSshLocator(trimmedLocator);
+  }
+
   if (isAbsoluteLocalPath(trimmedLocator)) {
     const canonicalLocalPath = normalizeLocalPath(trimmedLocator);
     return `${LOCAL_LOCATOR_PREFIX}${canonicalLocalPath}`;
@@ -190,6 +249,10 @@ export const locatorIdToHostPath = (locator: string): string => {
     case 'git':
       throw new Error(
         `Products // Locator // Unsupported git locator format for host path conversion (locator=${parsed.locator})`,
+      );
+    case 'ssh':
+      throw new Error(
+        `Products // Locator // Unsupported ssh locator format for host path conversion (locator=${parsed.locator})`,
       );
     case 'unknown':
       throw new Error(

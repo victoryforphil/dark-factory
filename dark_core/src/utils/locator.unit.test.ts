@@ -5,6 +5,7 @@ import {
   buildDeterministicIdFromLocator,
   canonicalizeGitLocator,
   canonicalizeLocalLocator,
+  canonicalizeSshLocator,
   hostAbsolutePathToLocatorId,
   locatorIdToHostPath,
   normalizeLocator,
@@ -36,6 +37,12 @@ describe('locator utilities', () => {
     expect(locator).toBe('@git://https://github.com/acme/dark-factory.git#main');
   });
 
+  it('canonicalizes ssh locator strings', () => {
+    const locator = canonicalizeSshLocator('@ssh://devbox//srv/work/../project/');
+
+    expect(locator).toBe('@ssh://devbox/srv/project');
+  });
+
   it('builds git locator identifiers from remote and branch', () => {
     const locator = buildGitLocator('git@github.com:acme/dark-factory.git', 'master');
 
@@ -51,6 +58,7 @@ describe('locator utilities', () => {
   it('parses locator ids by type', () => {
     const local = parseLocatorId('@local:///tmp/project');
     const git = parseLocatorId('@git://https://github.com/acme/dark-factory.git#main');
+    const ssh = parseLocatorId('@ssh://devbox/srv/project');
     const unknown = parseLocatorId('repo://dark-factory/product-a');
 
     expect(local).toEqual({
@@ -63,6 +71,12 @@ describe('locator utilities', () => {
       locator: '@git://https://github.com/acme/dark-factory.git#main',
       remote: 'https://github.com/acme/dark-factory.git',
       ref: 'main',
+    });
+    expect(ssh).toEqual({
+      type: 'ssh',
+      locator: '@ssh://devbox/srv/project',
+      host: 'devbox',
+      path: '/srv/project',
     });
     expect(unknown).toEqual({
       type: 'unknown',

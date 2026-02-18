@@ -10,6 +10,7 @@ It reflects only what is currently true in this repository.
   - Creating a local product (`@local://`) should also create a default variant at the same locator path.
   - Product identifiers can canonicalize to git locators (`@git://{remote}#{branch}`) when local product creation detects a valid git remote+branch; default variants still keep local working locators.
   - Variant locator values are not globally unique; multiple variants can share a locator and are differentiated by `(productId, name)`.
+  - Variant locators now support remote SSH forms (`@ssh://{host}/{absolute/path}`) in addition to local/git/unknown locator forms.
   - Product IDs are deterministic `prd_{token}` values derived from normalized locator text (SHA-256 first 64 bits encoded as fixed-width base36); repeated creates for the same canonical locator are idempotent.
   - `Product.workspaceLocator` stores optional local (`@local://...`) workspace home for clone destination defaults.
   - `Product.gitInfo` and `Variant.gitInfo` are optional JSON snapshots populated from local git metadata when available.
@@ -147,6 +148,7 @@ It reflects only what is currently true in this repository.
   - `PATCH /actors/:id` accepts optional `variantId` and updates `workingLocator` to the destination variant locator so actors can move between variants.
   - actor create/update payloads may include optional `subAgents` snapshots; actor responses can return `subAgents` alongside existing actor fields.
   - provider config discovery endpoint: `GET /system/providers`.
+  - SSH inventory/tunnels endpoints: `GET /system/ssh` (merged config + `~/.ssh/config` hosts, forward presets) and `POST /system/ssh/port-forward` (tmux-backed SSH `-L` session launch).
 - Realtime websocket coverage now includes `GET /ws` (upgrade) with JSON RPC-like envelopes:
   - client `rpc_request` payloads (`method`, `path`, optional `query`/`body`) dispatch through the same HTTP route handlers.
   - server `rpc_response` payloads return `status`, `path`, and `body` using the same API success/failure shape as HTTP.
