@@ -1011,15 +1011,12 @@ impl UnifiedCatalogView {
                 .add_modifier(Modifier::BOLD),
         )]);
 
-        let actor_type_pill = StatusPill::muted(Self::actor_type_label(actor), theme);
         let status_pill = actor_status_pill(&actor.status, theme);
         let provider_pill = StatusPill::info(format!("󰘧 {}", actor.provider), theme);
         let row1 = Line::from(vec![
             status_pill.span(),
             Span::raw(" "),
             provider_pill.span(),
-            Span::raw(" "),
-            actor_type_pill.span(),
         ]);
 
         // Row 2: last message preview when available
@@ -1166,17 +1163,6 @@ impl UnifiedCatalogView {
                 Some(text.to_string())
             }
         })
-    }
-
-    fn actor_type_label(actor: &crate::models::ActorRow) -> String {
-        let provider = actor.provider.trim();
-        let kind = if provider.is_empty() {
-            "actor".to_string()
-        } else {
-            provider.to_string()
-        };
-
-        format!("󰘧 {kind}")
     }
 
     fn draw_world_hline(
