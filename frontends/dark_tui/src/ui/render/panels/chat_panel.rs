@@ -873,7 +873,7 @@ fn render_detail_popup(frame: &mut Frame, area: Rect, app: &App) {
 
     // ── Hint row ─────────────────────────────────────────────────
     let hint_line = Line::from(Span::styled(
-        " esc close  j/k scroll",
+        " esc close  arrows scroll",
         Style::default().fg(theme.text_muted),
     ));
     frame.render_widget(Paragraph::new(hint_line), hint_area);

@@ -37,13 +37,25 @@ type ChatOptionsTask =
     Option<tokio::task::JoinHandle<(String, Result<(Vec<String>, Vec<String>)>)>>;
 type ChatSendTask = Option<tokio::task::JoinHandle<(String, Result<()>)>>;
 const API_TIMEOUT_SECONDS: u64 = 20;
+const CORE_LOGS_REFRESH_MILLIS: u64 = 900;
+const CORE_LOGS_CAPTURE_LINES: usize = 240;
+
+#[derive(Debug)]
+struct CoreLogsSnapshot {
+    session: String,
+    lines: Vec<String>,
+    status: String,
+}
 
 enum LoopAction {
     None,
     Quit,
     Refresh,
+    OpenInitProductForm,
     OpenCloneForm,
     CloneVariant,
+    OpenBranchForm,
+    SwitchVariantBranch,
     OpenDeleteVariantForm,
     DeleteVariant,
     OpenMoveActorForm,
@@ -58,12 +70,14 @@ enum LoopAction {
     RunAttach,
     ToggleInspector,
     ToggleChat,
+    ToggleCoreLogs,
     OpenChatCompose,
     SendChatMessage,
 }
 
 enum BackgroundActionResult {
     CloneVariant(Result<String>),
+    SwitchVariantBranch(Result<String>),
     DeleteVariant(Result<String>),
     PollVariant(Result<String>),
     PollActor(Result<String>),
@@ -79,6 +93,7 @@ enum BackgroundActionResult {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BackgroundActionKind {
     CloneVariant,
+    SwitchVariantBranch,
     DeleteVariant,
     PollVariant,
     PollActor,
@@ -192,15 +207,21 @@ async fn run_loop(
     actor_auto_poll_interval: Option<Duration>,
 ) -> Result<()> {
     let refresh_interval = Duration::from_secs(app.refresh_seconds().max(1));
+    let actor_message_preview_interval = Duration::from_secs(15);
     let mut force_refresh = true;
     let mut next_refresh_at = Instant::now();
     let mut next_actor_auto_poll_at = Instant::now();
-    let mut snapshot_task: Option<tokio::task::JoinHandle<Result<DashboardSnapshot>>> = None;
+    let mut next_actor_message_preview_at = Instant::now();
+    let mut next_core_logs_poll_at = Instant::now();
+    let mut snapshot_task: Option<
+        tokio::task::JoinHandle<Result<(DashboardSnapshot, Vec<(String, String)>)>>,
+    > = None;
     let mut chat_refresh_task: Option<
         tokio::task::JoinHandle<(String, Result<Vec<ActorChatMessageRow>>)>,
     > = None;
     let mut chat_send_task: ChatSendTask = None;
     let mut chat_options_task: ChatOptionsTask = None;
+    let mut core_logs_task: Option<tokio::task::JoinHandle<Result<CoreLogsSnapshot>>> = None;
     let mut action_tasks: Vec<ActionTask> = Vec::new();
     let mut context_menu: Option<ContextMenuState> = None;
     let mut actor_drag_state: Option<ActorDragState> = None;
@@ -218,9 +239,15 @@ async fn run_loop(
             };
             app.set_snapshot_refresh_in_flight(false);
             match task.await {
-                Ok(Ok(snapshot)) => {
+                Ok(Ok((snapshot, actor_previews))) => {
                     app.apply_snapshot(snapshot);
-                    context_menu = None;
+                    app.apply_actor_last_message_previews(actor_previews);
+                    if context_menu
+                        .as_ref()
+                        .is_some_and(|menu| !context_menu_target_exists(app, &menu.target))
+                    {
+                        context_menu = None;
+                    }
                     app.set_status(format!(
                         "World state refreshed (directory={})",
                         service.directory()
@@ -245,6 +272,13 @@ async fn run_loop(
             } else {
                 Vec::new()
             };
+            let should_refresh_actor_previews =
+                Instant::now() >= next_actor_message_preview_at && !app.actors().is_empty();
+            let preview_actors = if should_refresh_actor_previews {
+                app.actors().to_vec()
+            } else {
+                Vec::new()
+            };
             let service = service.clone();
             app.set_snapshot_refresh_in_flight(true);
             snapshot_task = Some(tokio::spawn(async move {
@@ -259,12 +293,25 @@ async fn run_loop(
 
                     while poll_tasks.join_next().await.is_some() {}
                 }
-                run_with_api_timeout(service.fetch_snapshot()).await
+
+                let snapshot = run_with_api_timeout(service.fetch_snapshot()).await?;
+                let actor_previews = if preview_actors.is_empty() {
+                    Vec::new()
+                } else {
+                    service
+                        .fetch_actor_last_message_previews(&preview_actors, 3)
+                        .await
+                };
+
+                Ok((snapshot, actor_previews))
             }));
 
             if should_auto_poll_actors {
                 next_actor_auto_poll_at =
                     Instant::now() + actor_auto_poll_interval.expect("auto poll interval exists");
+            }
+            if should_refresh_actor_previews {
+                next_actor_message_preview_at = Instant::now() + actor_message_preview_interval;
             }
             force_refresh = false;
         }
@@ -300,9 +347,10 @@ async fn run_loop(
                 let chat_history_limit = app.chat_history_limit_query();
                 app.set_chat_refresh_in_flight(true);
                 chat_refresh_task = Some(tokio::spawn(async move {
-                    let result =
-                        run_with_api_timeout(service.fetch_actor_messages(&actor, chat_history_limit))
-                            .await;
+                    let result = run_with_api_timeout(
+                        service.fetch_actor_messages(&actor, chat_history_limit),
+                    )
+                    .await;
                     (actor_id, result)
                 }));
             }
@@ -399,6 +447,15 @@ async fn run_loop(
                     }
                     Err(error) => {
                         app.set_status(format!("Clone failed: {error}"));
+                    }
+                },
+                Ok(BackgroundActionResult::SwitchVariantBranch(result)) => match result {
+                    Ok(message) => {
+                        app.set_status(message);
+                        force_refresh = true;
+                    }
+                    Err(error) => {
+                        app.set_status(format!("Branch switch failed: {error}"));
                     }
                 },
                 Ok(BackgroundActionResult::DeleteVariant(result)) => match result {
@@ -505,6 +562,47 @@ async fn run_loop(
             }
         }
         app.set_action_requests_in_flight(action_tasks.len());
+
+        if core_logs_task
+            .as_ref()
+            .is_some_and(|task| task.is_finished())
+        {
+            let Some(task) = core_logs_task.take() else {
+                unreachable!("core logs task should exist when marked finished");
+            };
+            match task.await {
+                Ok(Ok(snapshot)) => {
+                    app.set_core_logs_snapshot(snapshot.session, snapshot.lines, snapshot.status);
+                }
+                Ok(Err(error)) => {
+                    app.set_core_logs_snapshot(
+                        app.core_logs_session().to_string(),
+                        Vec::new(),
+                        format!("error: {error}"),
+                    );
+                }
+                Err(error) => {
+                    app.set_core_logs_snapshot(
+                        app.core_logs_session().to_string(),
+                        Vec::new(),
+                        format!("task failed: {error}"),
+                    );
+                }
+            }
+        }
+
+        if app.is_core_logs_visible()
+            && core_logs_task.is_none()
+            && Instant::now() >= next_core_logs_poll_at
+        {
+            let session = app.core_logs_session().to_string();
+            core_logs_task = Some(tokio::spawn(fetch_core_logs_snapshot(
+                session,
+                CORE_LOGS_CAPTURE_LINES,
+            )));
+            next_core_logs_poll_at =
+                Instant::now() + Duration::from_millis(CORE_LOGS_REFRESH_MILLIS);
+        }
 
         let drag_preview = actor_drag_state.as_ref().map(|state| render::DragPreview {
             col: state.current_col,
@@ -650,6 +748,28 @@ async fn run_loop(
                 }
             }
 
+            if app.is_branch_form_open() {
+                match render::branch_form_hit_test(root, app, mouse.column, mouse.row) {
+                    render::BranchFormHit::Suggestion(index) => {
+                        if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
+                            app.branch_form_set_selected(index);
+                            app.branch_form_apply_suggestion();
+                        }
+                        continue;
+                    }
+                    render::BranchFormHit::Input | render::BranchFormHit::Popup => {
+                        continue;
+                    }
+                    render::BranchFormHit::Outside => {
+                        if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
+                            app.close_branch_form();
+                            app.set_status("Branch switch form closed.");
+                        }
+                        continue;
+                    }
+                }
+            }
+
             match render::chat_hit_test(root, app, mouse.column, mouse.row) {
                 render::ChatPanelHit::DetailPopup => {
                     match mouse.kind {
@@ -720,16 +840,18 @@ async fn run_loop(
                                 let next = event::read()?;
                                 match next {
                                     Event::Mouse(next_mouse)
-                                        if matches!(next_mouse.kind, MouseEventKind::ScrollDown)
-                                            && matches!(
-                                                render::chat_hit_test(
-                                                    root,
-                                                    app,
-                                                    next_mouse.column,
-                                                    next_mouse.row,
-                                                ),
-                                                render::ChatPanelHit::MessageBody
-                                            ) =>
+                                        if matches!(
+                                            next_mouse.kind,
+                                            MouseEventKind::ScrollDown
+                                        ) && matches!(
+                                            render::chat_hit_test(
+                                                root,
+                                                app,
+                                                next_mouse.column,
+                                                next_mouse.row,
+                                            ),
+                                            render::ChatPanelHit::MessageBody
+                                        ) =>
                                     {
                                         steps = steps.saturating_add(1);
                                     }
@@ -742,9 +864,12 @@ async fn run_loop(
                             app.scroll_chat_down(steps);
                         }
                         MouseEventKind::Down(MouseButton::Right) => {
-                            if let Some(message_index) =
-                                render::chat_message_index_at_point(root, app, mouse.column, mouse.row)
-                            {
+                            if let Some(message_index) = render::chat_message_index_at_point(
+                                root,
+                                app,
+                                mouse.column,
+                                mouse.row,
+                            ) {
                                 if app.open_chat_detail_popup_for_message(message_index) {
                                     app.set_status(
                                         "Detail popup opened for selected message. Scroll with mouse wheel, click outside to close.",
@@ -1012,6 +1137,7 @@ async fn run_loop(
                         if matches!(
                             action,
                             LoopAction::OpenCloneForm
+                                | LoopAction::OpenBranchForm
                                 | LoopAction::OpenDeleteVariantForm
                                 | LoopAction::OpenMoveActorForm
                                 | LoopAction::OpenSpawnForm
@@ -1037,6 +1163,7 @@ async fn run_loop(
         if matches!(
             action,
             LoopAction::OpenCloneForm
+                | LoopAction::OpenBranchForm
                 | LoopAction::OpenDeleteVariantForm
                 | LoopAction::OpenMoveActorForm
                 | LoopAction::OpenSpawnForm
@@ -1066,6 +1193,38 @@ async fn run_with_api_timeout<T>(future: impl Future<Output = Result<T>>) -> Res
         Ok(result) => result,
         Err(_) => Err(anyhow!("request timed out after {}s", API_TIMEOUT_SECONDS)),
     }
+}
+
+async fn fetch_core_logs_snapshot(session: String, max_lines: usize) -> Result<CoreLogsSnapshot> {
+    tokio::task::spawn_blocking(move || {
+        let start_arg = format!("-{}", max_lines.max(1));
+        let output = Command::new("tmux")
+            .args(["capture-pane", "-pt", &session, "-S", &start_arg])
+            .output()
+            .with_context(|| format!("failed to read tmux session {session}"))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            return Ok(CoreLogsSnapshot {
+                session,
+                lines: vec![format!("(tmux unavailable: {stderr})")],
+                status: "tmux unavailable".to_string(),
+            });
+        }
+
+        let lines = String::from_utf8_lossy(&output.stdout)
+            .lines()
+            .map(|line| line.trim_end_matches('\r').to_string())
+            .collect::<Vec<_>>();
+
+        Ok(CoreLogsSnapshot {
+            session,
+            status: format!("streaming {} lines", lines.len()),
+            lines,
+        })
+    })
+    .await
+    .context("core logs capture task join failed")?
 }
 
 fn resolve_drop_target_variant(root: Rect, app: &App, col: u16, row: u16) -> Option<String> {
@@ -1149,7 +1308,10 @@ fn copy_to_clipboard(value: &str) -> Result<()> {
     Ok(())
 }
 
-fn run_attach_handoff(terminal: &mut TuiTerminal, command: &str) -> Result<std::process::ExitStatus> {
+fn run_attach_handoff(
+    terminal: &mut TuiTerminal,
+    command: &str,
+) -> Result<std::process::ExitStatus> {
     suspend_terminal_for_handoff(terminal)?;
 
     let run_result = run_attach_command(command);
@@ -1160,9 +1322,9 @@ fn run_attach_handoff(terminal: &mut TuiTerminal, command: &str) -> Result<std::
         (Ok(status), Ok(())) => Ok(status),
         (Err(run_error), Ok(())) => Err(run_error),
         (Ok(_), Err(resume_error)) => Err(resume_error),
-        (Err(run_error), Err(resume_error)) => {
-            Err(anyhow!("{run_error}; additionally failed to restore terminal: {resume_error}"))
-        }
+        (Err(run_error), Err(resume_error)) => Err(anyhow!(
+            "{run_error}; additionally failed to restore terminal: {resume_error}"
+        )),
     }
 }
 
@@ -1177,8 +1339,12 @@ fn run_attach_command(command: &str) -> Result<std::process::ExitStatus> {
 
 fn suspend_terminal_for_handoff(terminal: &mut TuiTerminal) -> Result<()> {
     disable_raw_mode().context("failed to disable raw mode for attach handoff")?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)
-        .context("failed to leave alternate screen for attach handoff")?;
+    execute!(
+        terminal.backend_mut(),
+        LeaveAlternateScreen,
+        DisableMouseCapture
+    )
+    .context("failed to leave alternate screen for attach handoff")?;
     terminal
         .show_cursor()
         .context("failed to show cursor for attach handoff")?;
@@ -1187,8 +1353,12 @@ fn suspend_terminal_for_handoff(terminal: &mut TuiTerminal) -> Result<()> {
 
 fn resume_terminal_after_handoff(terminal: &mut TuiTerminal) -> Result<()> {
     enable_raw_mode().context("failed to re-enable raw mode after attach handoff")?;
-    execute!(terminal.backend_mut(), EnterAlternateScreen, EnableMouseCapture)
-        .context("failed to re-enter alternate screen after attach handoff")?;
+    execute!(
+        terminal.backend_mut(),
+        EnterAlternateScreen,
+        EnableMouseCapture
+    )
+    .context("failed to re-enter alternate screen after attach handoff")?;
     terminal
         .autoresize()
         .context("failed to autoresize terminal after attach handoff")?;
@@ -1210,11 +1380,11 @@ enum ContextMenuKeyOutcome {
 fn handle_context_menu_key(menu: &mut ContextMenuState, key: KeyEvent) -> ContextMenuKeyOutcome {
     match key.code {
         KeyCode::Esc => ContextMenuKeyOutcome::Close,
-        KeyCode::Up | KeyCode::Char('k') => {
+        KeyCode::Up => {
             menu.move_up();
             ContextMenuKeyOutcome::Consumed
         }
-        KeyCode::Down | KeyCode::Char('j') => {
+        KeyCode::Down => {
             menu.move_down();
             ContextMenuKeyOutcome::Consumed
         }
@@ -1237,11 +1407,15 @@ fn key_event_from_key_hint(action: render::KeyHintAction) -> Option<KeyEvent> {
         render::KeyHintAction::Select => KeyEvent::new(KeyCode::Down, KeyModifiers::NONE),
         render::KeyHintAction::Refresh => KeyEvent::new(KeyCode::Char('r'), KeyModifiers::NONE),
         render::KeyHintAction::View => KeyEvent::new(KeyCode::Char('v'), KeyModifiers::NONE),
+        render::KeyHintAction::Density => KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE),
         render::KeyHintAction::Filter => KeyEvent::new(KeyCode::Char('f'), KeyModifiers::NONE),
         render::KeyHintAction::ToggleInspector => {
             KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE)
         }
         render::KeyHintAction::Poll => KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE),
+        render::KeyHintAction::SwitchBranch => {
+            KeyEvent::new(KeyCode::Char('w'), KeyModifiers::NONE)
+        }
         render::KeyHintAction::PollActor => KeyEvent::new(KeyCode::Char('o'), KeyModifiers::NONE),
         render::KeyHintAction::Move => KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE),
         render::KeyHintAction::Clone => KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE),
@@ -1251,6 +1425,7 @@ fn key_event_from_key_hint(action: render::KeyHintAction) -> Option<KeyEvent> {
         render::KeyHintAction::Spawn => KeyEvent::new(KeyCode::Char('n'), KeyModifiers::NONE),
         render::KeyHintAction::Attach => KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE),
         render::KeyHintAction::Chat => KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE),
+        render::KeyHintAction::CoreLogs => KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE),
         render::KeyHintAction::Compose => KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE),
         render::KeyHintAction::ResetPan => KeyEvent::new(KeyCode::Char('0'), KeyModifiers::NONE),
         render::KeyHintAction::Send => KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
@@ -1274,7 +1449,9 @@ fn command_key_event(command: CommandId) -> Option<KeyEvent> {
         CommandId::ToggleFilter => KeyEvent::new(KeyCode::Char('f'), KeyModifiers::NONE),
         CommandId::ToggleInspector => KeyEvent::new(KeyCode::Char('s'), KeyModifiers::NONE),
         CommandId::ToggleView => KeyEvent::new(KeyCode::Char('v'), KeyModifiers::NONE),
+        CommandId::CycleVizDensity => KeyEvent::new(KeyCode::Char('z'), KeyModifiers::NONE),
         CommandId::PollVariant => KeyEvent::new(KeyCode::Char('p'), KeyModifiers::NONE),
+        CommandId::OpenBranchForm => KeyEvent::new(KeyCode::Char('w'), KeyModifiers::NONE),
         CommandId::PollActor => KeyEvent::new(KeyCode::Char('o'), KeyModifiers::NONE),
         CommandId::OpenMoveActorForm => KeyEvent::new(KeyCode::Char('g'), KeyModifiers::NONE),
         CommandId::OpenCloneForm => KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE),
@@ -1285,6 +1462,7 @@ fn command_key_event(command: CommandId) -> Option<KeyEvent> {
         CommandId::BuildAttach => KeyEvent::new(KeyCode::Char('A'), KeyModifiers::SHIFT),
         CommandId::RunAttach => KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE),
         CommandId::ToggleChat => KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE),
+        CommandId::ToggleCoreLogs => KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE),
         CommandId::OpenChatCompose => KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE),
         CommandId::ResetPan => KeyEvent::new(KeyCode::Char('0'), KeyModifiers::NONE),
     };
@@ -1313,6 +1491,11 @@ fn apply_command(app: &mut App, command: CommandId) -> LoopAction {
             LoopAction::None
         }
         CommandId::ToggleInspector => LoopAction::ToggleInspector,
+        CommandId::CycleVizDensity => {
+            app.cycle_viz_density();
+            app.set_status(format!("Viz density: {}", app.viz_density().label()));
+            LoopAction::None
+        }
         CommandId::ToggleView => {
             app.toggle_results_view_mode();
             app.set_status(format!(
@@ -1322,22 +1505,34 @@ fn apply_command(app: &mut App, command: CommandId) -> LoopAction {
             LoopAction::None
         }
         CommandId::PollVariant => LoopAction::PollVariant,
+        CommandId::OpenBranchForm => LoopAction::OpenBranchForm,
         CommandId::PollActor => LoopAction::PollActor,
         CommandId::OpenMoveActorForm => LoopAction::OpenMoveActorForm,
         CommandId::OpenCloneForm => LoopAction::OpenCloneForm,
         CommandId::OpenDeleteVariantForm => LoopAction::OpenDeleteVariantForm,
         CommandId::ImportVariantActors => LoopAction::ImportVariantActors,
-        CommandId::InitProduct => LoopAction::InitProduct,
+        CommandId::InitProduct => LoopAction::OpenInitProductForm,
         CommandId::OpenSpawnForm => LoopAction::OpenSpawnForm,
         CommandId::BuildAttach => LoopAction::BuildAttach,
         CommandId::RunAttach => LoopAction::RunAttach,
         CommandId::ToggleChat => LoopAction::ToggleChat,
+        CommandId::ToggleCoreLogs => LoopAction::ToggleCoreLogs,
         CommandId::OpenChatCompose => LoopAction::OpenChatCompose,
         CommandId::ResetPan => {
             app.reset_viz_offset();
             app.set_status("Reset pan to origin.");
             LoopAction::None
         }
+    }
+}
+
+fn context_menu_target_exists(app: &App, target: &VizSelection) -> bool {
+    match target {
+        VizSelection::Product { product_index } => app.products().get(*product_index).is_some(),
+        VizSelection::Variant { variant_id, .. } => {
+            app.variants().iter().any(|variant| &variant.id == variant_id)
+        }
+        VizSelection::Actor { actor_id, .. } => app.actors().iter().any(|actor| &actor.id == actor_id),
     }
 }
 
@@ -1354,6 +1549,10 @@ fn process_loop_action(
         LoopAction::None | LoopAction::Quit => {}
         LoopAction::Refresh => {
             *force_refresh = true;
+        }
+        LoopAction::OpenInitProductForm => {
+            app.open_init_product_form();
+            app.set_status("Init product dialog open. Directory defaults to cwd and is editable.");
         }
         LoopAction::PollVariant => {
             let Some(variant_id) = app.selected_variant_id().map(ToString::to_string) else {
@@ -1471,8 +1670,46 @@ fn process_loop_action(
                                 branch_name: request.branch_name,
                                 clone_type: request.clone_type,
                                 source_variant_id: request.source_variant_id,
+                                run_async: true,
                             },
                         ))
+                        .await,
+                    )
+                }),
+            });
+            app.set_action_requests_in_flight(action_tasks.len());
+        }
+        LoopAction::OpenBranchForm => {
+            if app.open_branch_form() {
+                app.set_status("Branch switch form open. Type a branch and press Enter.");
+            } else {
+                app.set_status("Branch switch unavailable: select a variant first.");
+            }
+        }
+        LoopAction::SwitchVariantBranch => {
+            let Some(request) = app.take_branch_request() else {
+                app.set_status("Branch switch skipped: form empty or not open.");
+                return;
+            };
+
+            if has_action_in_flight(action_tasks, BackgroundActionKind::SwitchVariantBranch) {
+                app.set_status("Branch switch already in progress.");
+                return;
+            }
+
+            app.set_status(format!(
+                "Switching variant {} to branch {}...",
+                request.variant_id, request.branch_name
+            ));
+            let service = service.clone();
+            action_tasks.push(ActionTask {
+                kind: BackgroundActionKind::SwitchVariantBranch,
+                handle: tokio::spawn(async move {
+                    BackgroundActionResult::SwitchVariantBranch(
+                        run_with_api_timeout(
+                            service
+                                .switch_variant_branch(&request.variant_id, &request.branch_name),
+                        )
                         .await,
                     )
                 }),
@@ -1547,18 +1784,23 @@ fn process_loop_action(
             app.set_action_requests_in_flight(action_tasks.len());
         }
         LoopAction::InitProduct => {
+            let Some(request) = app.take_init_product_request() else {
+                app.set_status("Init product skipped: directory is required.");
+                return;
+            };
+
             if has_action_in_flight(action_tasks, BackgroundActionKind::InitProduct) {
                 app.set_status("Product init already in progress.");
                 return;
             }
 
-            app.set_status("Initializing product from current directory...");
+            app.set_status(format!("Initializing product from {}...", request.directory));
             let service = service.clone();
             action_tasks.push(ActionTask {
                 kind: BackgroundActionKind::InitProduct,
                 handle: tokio::spawn(async move {
                     BackgroundActionResult::InitProduct(
-                        run_with_api_timeout(service.init_product()).await,
+                        run_with_api_timeout(service.init_product(&request.directory)).await,
                     )
                 }),
             });
@@ -1684,6 +1926,20 @@ fn process_loop_action(
             };
             app.set_status(status);
         }
+        LoopAction::ToggleCoreLogs => {
+            app.toggle_core_logs_visibility();
+            let status = if app.is_core_logs_visible() {
+                app.set_core_logs_snapshot(
+                    app.core_logs_session().to_string(),
+                    Vec::new(),
+                    "connecting",
+                );
+                "Core logs shown."
+            } else {
+                "Core logs hidden."
+            };
+            app.set_status(status);
+        }
         LoopAction::ToggleInspector => {
             app.toggle_inspector_visibility();
             let status = if app.is_inspector_visible() {
@@ -1764,12 +2020,20 @@ fn process_loop_action(
 }
 
 fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
+    if app.is_init_product_form_open() {
+        return handle_init_product_form_key(app, key);
+    }
+
     if app.is_delete_variant_form_open() {
         return handle_delete_variant_form_key(app, key);
     }
 
     if app.is_clone_form_open() {
         return handle_clone_form_key(app, key);
+    }
+
+    if app.is_branch_form_open() {
+        return handle_branch_form_key(app, key);
     }
 
     if app.is_spawn_form_open() {
@@ -1831,6 +2095,29 @@ fn handle_delete_variant_form_key(app: &mut App, key: KeyEvent) -> LoopAction {
     }
 }
 
+fn handle_init_product_form_key(app: &mut App, key: KeyEvent) -> LoopAction {
+    match key.code {
+        KeyCode::Esc => {
+            app.close_init_product_form();
+            app.set_status("Init product dialog closed.");
+            LoopAction::None
+        }
+        KeyCode::Enter => LoopAction::InitProduct,
+        KeyCode::Backspace => {
+            app.init_product_form_backspace();
+            LoopAction::None
+        }
+        KeyCode::Char(value)
+            if !key.modifiers.contains(KeyModifiers::CONTROL)
+                && !key.modifiers.contains(KeyModifiers::ALT) =>
+        {
+            app.init_product_form_insert_char(value);
+            LoopAction::None
+        }
+        _ => LoopAction::None,
+    }
+}
+
 fn handle_clone_form_key(app: &mut App, key: KeyEvent) -> LoopAction {
     match key.code {
         KeyCode::Esc => {
@@ -1839,11 +2126,11 @@ fn handle_clone_form_key(app: &mut App, key: KeyEvent) -> LoopAction {
             LoopAction::None
         }
         KeyCode::Enter => LoopAction::CloneVariant,
-        KeyCode::Up | KeyCode::Char('k') | KeyCode::BackTab => {
+        KeyCode::Up | KeyCode::BackTab => {
             app.clone_form_move_up();
             LoopAction::None
         }
-        KeyCode::Down | KeyCode::Char('j') | KeyCode::Tab => {
+        KeyCode::Down | KeyCode::Tab => {
             app.clone_form_move_down();
             LoopAction::None
         }
@@ -1862,6 +2149,41 @@ fn handle_clone_form_key(app: &mut App, key: KeyEvent) -> LoopAction {
     }
 }
 
+fn handle_branch_form_key(app: &mut App, key: KeyEvent) -> LoopAction {
+    match key.code {
+        KeyCode::Esc => {
+            app.close_branch_form();
+            app.set_status("Branch switch form closed.");
+            LoopAction::None
+        }
+        KeyCode::Enter => LoopAction::SwitchVariantBranch,
+        KeyCode::Up => {
+            app.branch_form_move_up();
+            LoopAction::None
+        }
+        KeyCode::Down => {
+            app.branch_form_move_down();
+            LoopAction::None
+        }
+        KeyCode::Tab => {
+            app.branch_form_apply_suggestion();
+            LoopAction::None
+        }
+        KeyCode::Backspace => {
+            app.branch_form_backspace();
+            LoopAction::None
+        }
+        KeyCode::Char(value)
+            if !key.modifiers.contains(KeyModifiers::CONTROL)
+                && !key.modifiers.contains(KeyModifiers::ALT) =>
+        {
+            app.branch_form_insert_char(value);
+            LoopAction::None
+        }
+        _ => LoopAction::None,
+    }
+}
+
 fn handle_spawn_form_key(app: &mut App, key: KeyEvent) -> LoopAction {
     match key.code {
         KeyCode::Esc => {
@@ -1870,11 +2192,11 @@ fn handle_spawn_form_key(app: &mut App, key: KeyEvent) -> LoopAction {
             LoopAction::None
         }
         KeyCode::Enter => LoopAction::SpawnSession,
-        KeyCode::Up | KeyCode::Char('k') => {
+        KeyCode::Up => {
             app.spawn_form_move_provider_up();
             LoopAction::None
         }
-        KeyCode::Down | KeyCode::Char('j') => {
+        KeyCode::Down => {
             app.spawn_form_move_provider_down();
             LoopAction::None
         }
@@ -1901,11 +2223,11 @@ fn handle_move_actor_form_key(app: &mut App, key: KeyEvent) -> LoopAction {
             LoopAction::None
         }
         KeyCode::Enter => LoopAction::MoveActor,
-        KeyCode::Up | KeyCode::Char('k') | KeyCode::BackTab => {
+        KeyCode::Up | KeyCode::BackTab => {
             app.move_actor_form_move_up();
             LoopAction::None
         }
-        KeyCode::Down | KeyCode::Char('j') | KeyCode::Tab => {
+        KeyCode::Down | KeyCode::Tab => {
             app.move_actor_form_move_down();
             LoopAction::None
         }
@@ -1943,11 +2265,11 @@ fn handle_chat_detail_popup_key(app: &mut App, key: KeyEvent) -> LoopAction {
             app.set_status("Detail popup closed.");
             LoopAction::None
         }
-        KeyCode::Up | KeyCode::Char('k') => {
+        KeyCode::Up => {
             app.scroll_chat_detail_popup_up(3);
             LoopAction::None
         }
-        KeyCode::Down | KeyCode::Char('j') => {
+        KeyCode::Down => {
             app.scroll_chat_detail_popup_down(3);
             LoopAction::None
         }
@@ -1970,11 +2292,11 @@ fn handle_chat_picker_key(app: &mut App, key: KeyEvent) -> LoopAction {
             }
             LoopAction::None
         }
-        KeyCode::Up | KeyCode::Char('k') => {
+        KeyCode::Up => {
             app.chat_picker_move_up();
             LoopAction::None
         }
-        KeyCode::Down | KeyCode::Char('j') => {
+        KeyCode::Down => {
             app.chat_picker_move_down();
             LoopAction::None
         }

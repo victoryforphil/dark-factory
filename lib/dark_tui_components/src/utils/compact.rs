@@ -14,11 +14,19 @@ pub fn compact_text(value: &str, max_len: usize) -> String {
 /// Trims and newline-normalizes text before compacting.
 pub fn compact_text_normalized(value: &str, max_len: usize) -> String {
     let normalized = value.trim().replace('\n', " ");
-    if normalized.len() <= max_len {
+    if normalized.chars().count() <= max_len {
         return normalized;
     }
 
-    format!("{}...", &normalized[..max_len.saturating_sub(3)])
+    if max_len <= 3 {
+        return ".".repeat(max_len);
+    }
+
+    let head = normalized
+        .chars()
+        .take(max_len.saturating_sub(3))
+        .collect::<String>();
+    format!("{head}...")
 }
 
 /// Keeps the trailing portion of a long string and prefixes an ellipsis.
@@ -50,7 +58,7 @@ pub fn compact_label(value: Option<&str>, max_len: usize) -> String {
         return "-".to_string();
     };
 
-    if value.len() <= max_len {
+    if value.chars().count() <= max_len {
         return value.to_string();
     }
 
@@ -58,7 +66,8 @@ pub fn compact_label(value: Option<&str>, max_len: usize) -> String {
         return ".".repeat(max_len);
     }
 
-    format!("{}...", &value[..max_len - 3])
+    let head = value.chars().take(max_len - 3).collect::<String>();
+    format!("{head}...")
 }
 
 /// Compacts IDs to the default length used in TUI lists.
@@ -69,17 +78,18 @@ pub fn compact_id(value: &str) -> String {
 /// Compacts IDs to a custom maximum length.
 pub fn compact_id_len(value: &str, max_len: usize) -> String {
     let trimmed = value.trim();
-    if trimmed.len() <= max_len {
+    if trimmed.chars().count() <= max_len {
         return trimmed.to_string();
     }
 
-    format!("{}...", &trimmed[..max_len])
+    let head = trimmed.chars().take(max_len).collect::<String>();
+    format!("{head}...")
 }
 
 /// Keeps the tail of a locator string when it exceeds the target width.
 pub fn compact_locator(value: &str, max_len: usize) -> String {
     let trimmed = value.trim();
-    if trimmed.len() <= max_len {
+    if trimmed.chars().count() <= max_len {
         return trimmed.to_string();
     }
 
@@ -88,7 +98,15 @@ pub fn compact_locator(value: &str, max_len: usize) -> String {
     }
 
     let suffix_len = max_len.saturating_sub(3);
-    format!("...{}", &trimmed[trimmed.len() - suffix_len..])
+    let tail = trimmed
+        .chars()
+        .rev()
+        .take(suffix_len)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect::<String>();
+    format!("...{tail}")
 }
 
 /// Formats timestamps into concise display-friendly strings.
@@ -108,9 +126,14 @@ pub fn compact_timestamp(value: &str) -> String {
 
 /// Returns a short display slice for session identifiers.
 pub fn compact_session_id(value: &str) -> &str {
-    if value.len() <= 14 {
+    if value.chars().count() <= 14 {
         value
     } else {
-        &value[..14]
+        let end = value
+            .char_indices()
+            .nth(14)
+            .map(|(index, _)| index)
+            .unwrap_or(value.len());
+        &value[..end]
     }
 }

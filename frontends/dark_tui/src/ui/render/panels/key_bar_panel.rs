@@ -19,6 +19,12 @@ const CLONE_FORM_KEYS: &[KeyBind] = &[
     KeyBind::new("Esc", "Cancel"),
 ];
 
+const BRANCH_FORM_KEYS: &[KeyBind] = &[
+    KeyBind::new("Enter", "Switch"),
+    KeyBind::new("Tab", "Complete"),
+    KeyBind::new("Esc", "Cancel"),
+];
+
 const DELETE_FORM_KEYS: &[KeyBind] = &[
     KeyBind::new("Space", "Toggle remove"),
     KeyBind::new("Enter", "Delete"),
@@ -26,6 +32,9 @@ const DELETE_FORM_KEYS: &[KeyBind] = &[
 ];
 
 const MOVE_FORM_KEYS: &[KeyBind] = &[KeyBind::new("Enter", "Move"), KeyBind::new("Esc", "Cancel")];
+
+const INIT_PRODUCT_FORM_KEYS: &[KeyBind] =
+    &[KeyBind::new("Enter", "Init"), KeyBind::new("Esc", "Cancel")];
 
 /// Result of clicking on a key hint - maps to app action.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -35,9 +44,11 @@ pub enum KeyHintAction {
     Select,
     Refresh,
     View,
+    Density,
     Filter,
     ToggleInspector,
     Poll,
+    SwitchBranch,
     PollActor,
     Clone,
     Delete,
@@ -47,6 +58,7 @@ pub enum KeyHintAction {
     Spawn,
     Attach,
     Chat,
+    CoreLogs,
     Compose,
     ResetPan,
     Send,
@@ -79,14 +91,16 @@ impl KeyHintAction {
         match key {
             "q" => Some(Self::Quit),
             "Tab" => Some(Self::Focus),
-            "j/k" => Some(Self::Select),
+            "↑/↓" => Some(Self::Select),
             "r" => Some(Self::Refresh),
             "v" => Some(Self::View),
+            "z" => Some(Self::Density),
             "f" => Some(Self::Filter),
             "s" => Some(Self::ToggleInspector),
             "p" => Some(Self::Poll),
             "o" => Some(Self::PollActor),
             "x" => Some(Self::Clone),
+            "w" => Some(Self::SwitchBranch),
             "d" => Some(Self::Delete),
             "m" => Some(Self::Import),
             "g" => Some(Self::Move),
@@ -94,6 +108,7 @@ impl KeyHintAction {
             "n" => Some(Self::Spawn),
             "a" => Some(Self::Attach),
             "t" => Some(Self::Chat),
+            "l" => Some(Self::CoreLogs),
             "c" => Some(Self::Compose),
             "0" => Some(Self::ResetPan),
             "Enter" => Some(Self::Send),
@@ -134,6 +149,14 @@ impl KeyBarPanel {
             );
         }
 
+        if app.is_branch_form_open() {
+            all_keys.extend(
+                BRANCH_FORM_KEYS
+                    .iter()
+                    .map(|binding| KeyBind::new(binding.key, binding.action)),
+            );
+        }
+
         if app.is_delete_variant_form_open() {
             all_keys.extend(
                 DELETE_FORM_KEYS
@@ -145,6 +168,14 @@ impl KeyBarPanel {
         if app.is_move_actor_form_open() {
             all_keys.extend(
                 MOVE_FORM_KEYS
+                    .iter()
+                    .map(|binding| KeyBind::new(binding.key, binding.action)),
+            );
+        }
+
+        if app.is_init_product_form_open() {
+            all_keys.extend(
+                INIT_PRODUCT_FORM_KEYS
                     .iter()
                     .map(|binding| KeyBind::new(binding.key, binding.action)),
             );

@@ -6,7 +6,8 @@ use crate::types::{
     ActorAttachQuery, ActorCommandInput, ActorCreateInput, ActorDeleteQuery, ActorListQuery,
     ActorMessageInput, ActorMessagesQuery, ActorUpdateInput, ProductCreateInput,
     ProductIncludeQuery, ProductListQuery, ProductUpdateInput, ProductVariantCloneInput,
-    VariantCreateInput, VariantDeleteQuery, VariantImportActorsInput, VariantListQuery,
+    VariantBranchSwitchInput, VariantCreateInput, VariantDeleteQuery, VariantImportActorsInput,
+    VariantListQuery,
     VariantUpdateInput,
 };
 
@@ -279,6 +280,18 @@ impl DarkCoreClient {
     ) -> Result<RawApiResponse, DarkRustError> {
         self.post(
             &format!("/variants/{variant_id}/actors/import"),
+            serde_json::to_value(input)?,
+        )
+        .await
+    }
+
+    pub async fn variants_switch_branch(
+        &self,
+        variant_id: &str,
+        input: &VariantBranchSwitchInput,
+    ) -> Result<RawApiResponse, DarkRustError> {
+        self.post(
+            &format!("/variants/{variant_id}/branch"),
             serde_json::to_value(input)?,
         )
         .await

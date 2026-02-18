@@ -15,6 +15,7 @@ pub struct DarkCoreLaunchConfig {
     pub tmux_session_name: String,
     pub executable_path: Option<PathBuf>,
     pub workdir: Option<PathBuf>,
+    pub restart_existing_session: bool,
     pub wait_timeout: Duration,
     pub wait_interval: Duration,
 }
@@ -25,7 +26,8 @@ impl Default for DarkCoreLaunchConfig {
             tmux_session_name: "dark-core".to_string(),
             executable_path: None,
             workdir: None,
-            wait_timeout: Duration::from_secs(15),
+            restart_existing_session: true,
+            wait_timeout: Duration::from_secs(30),
             wait_interval: Duration::from_millis(350),
         }
     }
@@ -35,6 +37,7 @@ impl Default for DarkCoreLaunchConfig {
 pub enum EnsureDarkCoreState {
     AlreadyRunning,
     LaunchedTmux,
+    RestartedTmux,
     WaitingForTmuxSession,
 }
 
@@ -54,11 +57,17 @@ pub async fn ensure_dark_core_in_tmux_if_needed(
         return Ok(EnsureDarkCoreState::AlreadyRunning);
     }
 
-    if check_dark_core_health(base_url).await {
-        return Ok(EnsureDarkCoreState::AlreadyRunning);
-    }
-
     ensure_tmux_available()?;
+
+    let session_exists = tmux_session_exists(&launch_config.tmux_session_name)?;
+
+    if check_dark_core_health(base_url).await {
+        if session_exists && launch_config.restart_existing_session {
+            // Continue so we recycle the managed tmux session.
+        } else {
+            return Ok(EnsureDarkCoreState::AlreadyRunning);
+        }
+    }
 
     let workdir = resolve_workdir(
         launch_config.workdir,
@@ -66,15 +75,18 @@ pub async fn ensure_dark_core_in_tmux_if_needed(
     )?;
     let executable_path = resolve_or_build_executable_path(launch_config.executable_path, &workdir)?;
 
-    let session_exists = tmux_session_exists(&launch_config.tmux_session_name)?;
-    if !session_exists {
-        launch_dark_core_tmux(
-            &launch_config.tmux_session_name,
-            &workdir,
-            &executable_path,
-            base_url,
-        )?;
+    if session_exists {
+        // Prefer a clean restart when a managed session already exists so each
+        // boot attempt reuses a fresh dark_core process in tmux.
+        kill_tmux_session(&launch_config.tmux_session_name)?;
     }
+
+    launch_dark_core_tmux(
+        &launch_config.tmux_session_name,
+        &workdir,
+        &executable_path,
+        base_url,
+    )?;
 
     let became_healthy = wait_for_dark_core_health(
         base_url,
@@ -88,16 +100,19 @@ pub async fn ensure_dark_core_in_tmux_if_needed(
             "tmux attach -t {}",
             shell_escape_single_quotes(&launch_config.tmux_session_name)
         );
+        let tmux_tail = capture_tmux_tail(&launch_config.tmux_session_name, 40).unwrap_or_else(|_| {
+            "<unable to capture tmux output>".to_string()
+        });
         return Err(DarkRustError::Runtime {
             message: format!(
-                "dark_core did not become healthy in {:?} (baseUrl={base_url}, session={}). Inspect with: {attach_command}",
-                launch_config.wait_timeout, launch_config.tmux_session_name
+                "dark_core did not become healthy in {:?} (baseUrl={base_url}, session={}). Inspect with: {attach_command}. Recent tmux output: {tmux_tail}",
+                launch_config.wait_timeout, launch_config.tmux_session_name,
             ),
         });
     }
 
     Ok(if session_exists {
-        EnsureDarkCoreState::WaitingForTmuxSession
+        EnsureDarkCoreState::RestartedTmux
     } else {
         EnsureDarkCoreState::LaunchedTmux
     })
@@ -193,6 +208,43 @@ fn launch_dark_core_tmux(
     }
 
     Ok(())
+}
+
+fn kill_tmux_session(session_name: &str) -> Result<(), DarkRustError> {
+    let output = Command::new("tmux")
+        .args(["kill-session", "-t", session_name])
+        .output()
+        .map_err(|error| DarkRustError::Runtime {
+            message: format!("failed to kill tmux session (session={session_name},error={error})"),
+        })?;
+
+    if output.status.success() {
+        return Ok(());
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    Err(DarkRustError::Runtime {
+        message: format!("failed to kill tmux session (session={session_name},stderr={stderr})"),
+    })
+}
+
+fn capture_tmux_tail(session_name: &str, lines: usize) -> Result<String, DarkRustError> {
+    let start = format!("-{}", lines.max(1));
+    let output = Command::new("tmux")
+        .args(["capture-pane", "-pt", session_name, "-S", &start])
+        .output()
+        .map_err(|error| DarkRustError::Runtime {
+            message: format!("failed to capture tmux pane output (session={session_name},error={error})"),
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        return Err(DarkRustError::Runtime {
+            message: format!("failed to capture tmux pane output (session={session_name},stderr={stderr})"),
+        });
+    }
+
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
 fn resolve_or_build_executable_path(

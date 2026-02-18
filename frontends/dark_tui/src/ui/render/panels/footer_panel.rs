@@ -18,6 +18,14 @@ impl FooterPanel {
         let focus_pill = StatusPill::accent(app.focus().label(), theme);
         let view_pill =
             StatusPill::info(format!("view:{}", app.results_view_mode().label()), theme);
+        let density_pill = if app.results_view_mode().is_spatial() {
+            Some(StatusPill::muted(
+                format!("density:{}", app.viz_density().label()),
+                theme,
+            ))
+        } else {
+            None
+        };
         let dir_pill = StatusPill::muted(format!("dir:{}", app.directory_display()), theme);
 
         let filter_pill = if app.filter_variants_to_product() {
@@ -92,21 +100,27 @@ impl FooterPanel {
         let inner = footer_block.inner(area);
         frame.render_widget(footer_block, area);
 
+        let mut segments = vec![
+            view_pill.span(),
+            dir_pill.span(),
+            focus_pill.span(),
+            filter_pill.span(),
+            chat_pill.span(),
+            core_runtime_pill.span(),
+            runtime_pill.span(),
+            activity_pill.span(),
+            status_span,
+        ];
+
+        if let Some(pill) = density_pill {
+            segments.insert(1, pill.span());
+        }
+
         FooterBar::render(
             frame,
             inner,
             FooterBarProps {
-                segments: vec![
-                    view_pill.span(),
-                    dir_pill.span(),
-                    focus_pill.span(),
-                    filter_pill.span(),
-                    chat_pill.span(),
-                    core_runtime_pill.span(),
-                    runtime_pill.span(),
-                    activity_pill.span(),
-                    status_span,
-                ],
+                segments,
                 separator: "  ",
             },
             theme,

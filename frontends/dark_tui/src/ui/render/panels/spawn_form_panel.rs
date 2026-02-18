@@ -26,7 +26,7 @@ impl SpawnFormPanel {
         let prompt = app.spawn_form_prompt().unwrap_or_default();
 
         let mut lines = vec![Line::from(Span::styled(
-            "Provider (j/k or arrows):",
+            "Provider (arrows):",
             Style::default().fg(theme.text_muted),
         ))];
 

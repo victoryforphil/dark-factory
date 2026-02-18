@@ -33,6 +33,12 @@ pub struct VariantImportActorsInput {
     pub provider: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VariantBranchSwitchInput {
+    pub branch_name: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct ProductVariantCloneInput {

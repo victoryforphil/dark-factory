@@ -187,6 +187,12 @@ pub enum VariantsAction {
         #[arg(long)]
         id: String,
     },
+    Branch {
+        #[arg(long)]
+        id: String,
+        #[arg(long)]
+        branch_name: String,
+    },
 }
 
 #[derive(Debug, Args)]

@@ -30,7 +30,7 @@ impl CloneFormPanel {
 
         let mut lines = Vec::new();
         lines.push(Line::from(Span::styled(
-            "Field (j/k or arrows, Tab/Shift+Tab):",
+            "Field (arrows, Tab/Shift+Tab):",
             Style::default().fg(theme.text_muted),
         )));
         lines.push(field_line("Name", name, selected == 0, theme));

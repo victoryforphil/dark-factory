@@ -12,7 +12,7 @@ pub use products::{
 };
 pub use system::{SystemResetDatabaseData, SystemResetDatabaseDeletedRows};
 pub use variants::{
-    ProductVariantCloneInput, VariantCreateInput, VariantDeleteQuery, VariantGitInfo,
-    VariantGitStatus, VariantGitWorktree, VariantImportActorsInput, VariantListQuery,
-    VariantProductConnectInput, VariantProductRelationInput, VariantUpdateInput,
+    ProductVariantCloneInput, VariantBranchSwitchInput, VariantCreateInput, VariantDeleteQuery,
+    VariantGitInfo, VariantGitStatus, VariantGitWorktree, VariantImportActorsInput,
+    VariantListQuery, VariantProductConnectInput, VariantProductRelationInput, VariantUpdateInput,
 };

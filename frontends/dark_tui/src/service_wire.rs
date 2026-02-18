@@ -66,6 +66,19 @@ pub(crate) struct VariantGitInfoRecord {
     pub(crate) is_linked_worktree: Option<bool>,
     #[serde(default)]
     pub(crate) status: Option<VariantGitStatusRecord>,
+    #[serde(default, rename = "_clone")]
+    pub(crate) clone: Option<VariantCloneStatusRecord>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct VariantCloneStatusRecord {
+    #[serde(default)]
+    pub(crate) status: Option<String>,
+    #[serde(default)]
+    pub(crate) phase: Option<String>,
+    #[serde(default)]
+    pub(crate) last_line: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]

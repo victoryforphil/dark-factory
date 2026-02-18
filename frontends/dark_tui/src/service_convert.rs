@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use dark_rust::{DarkRustError, RawApiResponse};
 use serde_json::Value;
 
-use crate::models::{ActorRow, ProductRow, SubAgentRow, VariantRow, compact_timestamp};
+use crate::models::{compact_timestamp, ActorRow, ProductRow, SubAgentRow, VariantRow};
 use crate::service_wire::{ActorRecord, ProductMetrics, ProductRecord, VariantRecord};
 
 pub(crate) fn collect_product_metrics(variants: &[VariantRow]) -> HashMap<String, ProductMetrics> {
@@ -107,6 +107,27 @@ pub(crate) fn to_product_row(record: ProductRecord, metrics: ProductMetrics) -> 
 pub(crate) fn to_variant_row(record: VariantRecord) -> VariantRow {
     let git_info = record.git_info.unwrap_or_default();
     let status = git_info.status.unwrap_or_default();
+    let clone_status = git_info
+        .clone
+        .as_ref()
+        .and_then(|clone| clone.status.as_ref())
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "-".to_string());
+    let clone_phase = git_info
+        .clone
+        .as_ref()
+        .and_then(|clone| clone.phase.as_ref())
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_default();
+    let clone_last_line = git_info
+        .clone
+        .as_ref()
+        .and_then(|clone| clone.last_line.as_ref())
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "-".to_string());
 
     let ahead = status.ahead.unwrap_or(0);
     let behind = status.behind.unwrap_or(0);
@@ -119,6 +140,13 @@ pub(crate) fn to_variant_row(record: VariantRecord) -> VariantRow {
         None => "unknown",
     }
     .to_string();
+
+    let git_state = match clone_status.as_str() {
+        "cloning" => "cloning".to_string(),
+        "failed" => "clone-failed".to_string(),
+        _ if clone_phase == "clone.pending" => "cloning".to_string(),
+        _ => git_state,
+    };
 
     let has_git = clean.is_some() || git_info.branch.is_some();
     let is_dirty = matches!(clean, Some(false));
@@ -137,6 +165,8 @@ pub(crate) fn to_variant_row(record: VariantRecord) -> VariantRow {
         name: record.name.unwrap_or_else(|| "default".to_string()),
         branch: git_info.branch.unwrap_or_else(|| "-".to_string()),
         git_state,
+        clone_status,
+        clone_last_line,
         has_git,
         is_dirty,
         ahead,
@@ -321,7 +351,11 @@ pub(crate) fn required_actor_opencode_context(
 }
 
 pub(crate) fn query_slice_or_none(query: &[(String, String)]) -> Option<&[(String, String)]> {
-    if query.is_empty() { None } else { Some(query) }
+    if query.is_empty() {
+        None
+    } else {
+        Some(query)
+    }
 }
 
 pub(crate) fn ensure_success(response: RawApiResponse) -> Result<Value> {
@@ -392,6 +426,8 @@ mod tests {
                 name: "default".to_string(),
                 branch: "main".to_string(),
                 git_state: "dirty".to_string(),
+                clone_status: "-".to_string(),
+                clone_last_line: "-".to_string(),
                 has_git: true,
                 is_dirty: true,
                 ahead: 0,
@@ -407,6 +443,8 @@ mod tests {
                 name: "exp".to_string(),
                 branch: "feature".to_string(),
                 git_state: "drift".to_string(),
+                clone_status: "-".to_string(),
+                clone_last_line: "-".to_string(),
                 has_git: true,
                 is_dirty: false,
                 ahead: 2,

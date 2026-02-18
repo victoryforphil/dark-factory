@@ -168,6 +168,22 @@ impl DetailsPanel {
         Self::push_stacked_field(&mut lines, "Worktree", &variant.worktree, width, theme);
         Self::push_stacked_field(
             &mut lines,
+            "Clone Status",
+            &variant.clone_status,
+            width,
+            theme,
+        );
+        if variant.clone_last_line != "-" {
+            Self::push_stacked_field(
+                &mut lines,
+                "Clone Progress",
+                compact_text_normalized(&variant.clone_last_line, width.saturating_sub(8) as usize),
+                width,
+                theme,
+            );
+        }
+        Self::push_stacked_field(
+            &mut lines,
             "Ahead/Behind",
             format!("{}/{}", variant.ahead, variant.behind),
             width,
@@ -280,7 +296,12 @@ impl DetailsPanel {
             "error" | "failed" => StatusPill::error(&product.status, theme),
             _ => StatusPill::muted(&product.status, theme),
         };
-        let branch_pill = StatusPill::info(&product.branch, theme);
+        let branch = if product.branch.trim().is_empty() {
+            "-"
+        } else {
+            product.branch.as_str()
+        };
+        let branch_pill = StatusPill::info(format!(" {branch}"), theme);
 
         Line::from(vec![
             Span::raw(" "),
@@ -297,7 +318,19 @@ impl DetailsPanel {
             "no-git" => StatusPill::muted("no-git", theme),
             _ => StatusPill::muted(&variant.git_state, theme),
         };
-        let branch_pill = StatusPill::info(&variant.branch, theme);
+        let branch = if variant.branch.trim().is_empty() {
+            "-"
+        } else {
+            variant.branch.as_str()
+        };
+        let branch_pill = StatusPill::info(format!(" {branch}"), theme);
+        let ab_pill = if variant.behind > 0 {
+            StatusPill::warn(format!("+{}/-{}", variant.ahead, variant.behind), theme)
+        } else if variant.ahead > 0 {
+            StatusPill::ok(format!("+{}/-0", variant.ahead), theme)
+        } else {
+            StatusPill::muted("+0/-0", theme)
+        };
 
         let mut spans = vec![
             Span::raw(" "),
@@ -306,24 +339,14 @@ impl DetailsPanel {
             branch_pill.span(),
         ];
 
-        if variant.ahead > 0 || variant.behind > 0 {
-            let ab_pill = if variant.behind > 0 {
-                StatusPill::warn(
-                    format!("+{}/\u{2212}{}", variant.ahead, variant.behind),
-                    theme,
-                )
-            } else {
-                StatusPill::ok(format!("+{}", variant.ahead), theme)
-            };
-            spans.push(Span::raw(" "));
-            spans.push(ab_pill.span());
-        }
+        spans.push(Span::raw(" "));
+        spans.push(ab_pill.span());
 
         Line::from(spans)
     }
 
     fn actor_pill_row(actor: &ActorRow, theme: &Theme) -> Line<'static> {
-        let provider_pill = StatusPill::info(&actor.provider, theme);
+        let provider_pill = StatusPill::info(format!("󰘧 {}", actor.provider), theme);
         let status_pill = match actor.status.as_str() {
             "active" | "running" => StatusPill::ok(&actor.status, theme),
             "error" | "failed" | "dead" => StatusPill::error(&actor.status, theme),

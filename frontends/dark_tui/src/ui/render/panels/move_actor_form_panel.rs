@@ -38,7 +38,7 @@ impl MoveActorFormPanel {
             )),
             Line::raw(""),
             Line::from(Span::styled(
-                "Destination (j/k or arrows):",
+                "Destination (arrows):",
                 Style::default().fg(theme.text_muted),
             )),
         ];

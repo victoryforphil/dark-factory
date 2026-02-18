@@ -11,8 +11,10 @@ pub(crate) enum CommandId {
     Refresh,
     ToggleFilter,
     ToggleView,
+    CycleVizDensity,
     ToggleInspector,
     PollVariant,
+    OpenBranchForm,
     PollActor,
     OpenMoveActorForm,
     OpenCloneForm,
@@ -23,6 +25,7 @@ pub(crate) enum CommandId {
     BuildAttach,
     RunAttach,
     ToggleChat,
+    ToggleCoreLogs,
     OpenChatCompose,
     ResetPan,
 }
@@ -48,42 +51,52 @@ const TOOLBAR_COMMON_COMMANDS: &[CommandBinding] = &[
     CommandBinding {
         id: CommandId::Quit,
         key: "q",
-        label: "[Q]uit",
+        label: "Quit",
     },
     CommandBinding {
         id: CommandId::ToggleFocus,
         key: "Tab",
-        label: "[Tab] Focus",
+        label: "Focus",
     },
     CommandBinding {
         id: CommandId::MoveDown,
-        key: "j/k",
-        label: "[J/K] Select",
+        key: "↑/↓",
+        label: "Select",
     },
     CommandBinding {
         id: CommandId::Refresh,
         key: "r",
-        label: "[R]efresh",
+        label: "Refresh",
     },
     CommandBinding {
         id: CommandId::ToggleView,
         key: "v",
-        label: "[V]iew",
+        label: "View",
+    },
+    CommandBinding {
+        id: CommandId::CycleVizDensity,
+        key: "z",
+        label: "Density",
     },
     CommandBinding {
         id: CommandId::ToggleFilter,
         key: "f",
-        label: "[F]ilter",
+        label: "Filter",
     },
     CommandBinding {
         id: CommandId::ToggleInspector,
         key: "s",
-        label: "[S]idebar",
+        label: "Sidebar",
     },
     CommandBinding {
         id: CommandId::ToggleChat,
         key: "t",
-        label: "[T]oggle chat",
+        label: "Toggle chat",
+    },
+    CommandBinding {
+        id: CommandId::ToggleCoreLogs,
+        key: "l",
+        label: "Core logs",
     },
 ];
 
@@ -91,35 +104,40 @@ const TOOLBAR_PRODUCT_COMMANDS: &[CommandBinding] = &[
     CommandBinding {
         id: CommandId::InitProduct,
         key: "i",
-        label: "[I]nit product",
+        label: "Init product",
     },
     CommandBinding {
         id: CommandId::OpenCloneForm,
         key: "x",
-        label: "[X] Clone variant",
+        label: "Clone variant",
     },
 ];
 
 const TOOLBAR_VARIANT_COMMANDS: &[CommandBinding] = &[
     CommandBinding {
+        id: CommandId::OpenBranchForm,
+        key: "w",
+        label: "Switch branch",
+    },
+    CommandBinding {
         id: CommandId::PollVariant,
         key: "p",
-        label: "[P]oll variant",
+        label: "Poll variant",
     },
     CommandBinding {
         id: CommandId::ImportVariantActors,
         key: "m",
-        label: "[M] Import actors",
+        label: "Import actors",
     },
     CommandBinding {
         id: CommandId::OpenDeleteVariantForm,
         key: "d",
-        label: "[D]elete variant",
+        label: "Delete variant",
     },
     CommandBinding {
         id: CommandId::OpenSpawnForm,
         key: "n",
-        label: "[N] Spawn actor",
+        label: "Spawn actor",
     },
 ];
 
@@ -127,7 +145,7 @@ const TOOLBAR_ACTOR_COMMANDS: &[CommandBinding] = &[
     CommandBinding {
         id: CommandId::RunAttach,
         key: "a",
-        label: "[A]ttach",
+        label: "Attach",
     },
     CommandBinding {
         id: CommandId::BuildAttach,
@@ -137,17 +155,17 @@ const TOOLBAR_ACTOR_COMMANDS: &[CommandBinding] = &[
     CommandBinding {
         id: CommandId::PollActor,
         key: "o",
-        label: "[O] Poll actor",
+        label: "Poll actor",
     },
     CommandBinding {
         id: CommandId::OpenMoveActorForm,
         key: "g",
-        label: "[G] Move actor",
+        label: "Move actor",
     },
     CommandBinding {
         id: CommandId::OpenChatCompose,
         key: "c",
-        label: "[C]ompose",
+        label: "Compose",
     },
     CommandBinding {
         id: CommandId::OpenSpawnForm,
@@ -159,7 +177,7 @@ const TOOLBAR_ACTOR_COMMANDS: &[CommandBinding] = &[
 const TOOLBAR_VIZ_COMMANDS: &[CommandBinding] = &[CommandBinding {
     id: CommandId::ResetPan,
     key: "0",
-    label: "[0] Reset pan",
+    label: "Reset pan",
 }];
 
 pub(crate) fn toolbar_bindings(app: &App) -> Vec<CommandBinding> {
@@ -197,13 +215,15 @@ pub(crate) fn resolve_key_command(app: &App, key: KeyEvent) -> Option<CommandId>
     let command = match key.code {
         KeyCode::Char('q') | KeyCode::Esc => CommandId::Quit,
         KeyCode::Tab | KeyCode::BackTab => CommandId::ToggleFocus,
-        KeyCode::Down | KeyCode::Char('j') => CommandId::MoveDown,
-        KeyCode::Up | KeyCode::Char('k') => CommandId::MoveUp,
+        KeyCode::Down => CommandId::MoveDown,
+        KeyCode::Up => CommandId::MoveUp,
         KeyCode::Char('r') => CommandId::Refresh,
         KeyCode::Char('f') => CommandId::ToggleFilter,
         KeyCode::Char('s') | KeyCode::Char('b') => CommandId::ToggleInspector,
         KeyCode::Char('v') | KeyCode::Char(' ') => CommandId::ToggleView,
+        KeyCode::Char('z') => CommandId::CycleVizDensity,
         KeyCode::Char('p') => CommandId::PollVariant,
+        KeyCode::Char('w') => CommandId::OpenBranchForm,
         KeyCode::Char('o') => CommandId::PollActor,
         KeyCode::Char('g') => CommandId::OpenMoveActorForm,
         KeyCode::Char('x') => CommandId::OpenCloneForm,
@@ -214,6 +234,7 @@ pub(crate) fn resolve_key_command(app: &App, key: KeyEvent) -> Option<CommandId>
         KeyCode::Char('a') => CommandId::RunAttach,
         KeyCode::Char('A') => CommandId::BuildAttach,
         KeyCode::Char('t') => CommandId::ToggleChat,
+        KeyCode::Char('l') => CommandId::ToggleCoreLogs,
         KeyCode::Char('c') => CommandId::OpenChatCompose,
         KeyCode::Char('0') => CommandId::ResetPan,
         _ => return None,
@@ -237,9 +258,12 @@ pub(crate) fn is_command_enabled(app: &App, command: CommandId) -> bool {
         | CommandId::ToggleInspector
         | CommandId::ToggleView
         | CommandId::InitProduct
-        | CommandId::ToggleChat => true,
+        | CommandId::ToggleChat
+        | CommandId::ToggleCoreLogs => true,
+        CommandId::CycleVizDensity => app.results_view_mode().is_spatial(),
         CommandId::ResetPan => app.results_view_mode().is_spatial(),
         CommandId::PollVariant
+        | CommandId::OpenBranchForm
         | CommandId::OpenDeleteVariantForm
         | CommandId::ImportVariantActors
         | CommandId::OpenSpawnForm => app.selected_variant_id().is_some(),
@@ -257,61 +281,66 @@ pub(crate) fn context_menu_commands(app: &App, target: &VizSelection) -> Vec<Com
             CommandBinding {
                 id: CommandId::InitProduct,
                 key: "i",
-                label: "[I]nit product",
+                label: "Init product",
             },
             CommandBinding {
                 id: CommandId::OpenCloneForm,
                 key: "x",
-                label: "[X] Clone variant",
+                label: "Clone variant",
             },
         ],
         VizSelection::Variant { .. } => &[
             CommandBinding {
+                id: CommandId::OpenBranchForm,
+                key: "w",
+                label: "Switch branch",
+            },
+            CommandBinding {
                 id: CommandId::OpenSpawnForm,
                 key: "n",
-                label: "[N] Spawn actor",
+                label: "Spawn actor",
             },
             CommandBinding {
                 id: CommandId::PollVariant,
                 key: "p",
-                label: "[P]oll variant",
+                label: "Poll variant",
             },
             CommandBinding {
                 id: CommandId::ImportVariantActors,
                 key: "m",
-                label: "[M] Import actors",
+                label: "Import actors",
             },
             CommandBinding {
                 id: CommandId::OpenDeleteVariantForm,
                 key: "d",
-                label: "[D]elete variant",
+                label: "Delete variant",
             },
         ],
         VizSelection::Actor { .. } => &[
             CommandBinding {
                 id: CommandId::RunAttach,
                 key: "a",
-                label: "[A]ttach",
+                label: "Attach",
             },
             CommandBinding {
                 id: CommandId::PollActor,
                 key: "o",
-                label: "[O] Poll actor",
+                label: "Poll actor",
             },
             CommandBinding {
                 id: CommandId::OpenMoveActorForm,
                 key: "g",
-                label: "[G] Move actor",
+                label: "Move actor",
             },
             CommandBinding {
                 id: CommandId::OpenChatCompose,
                 key: "c",
-                label: "[C]ompose",
+                label: "Compose",
             },
             CommandBinding {
                 id: CommandId::OpenSpawnForm,
                 key: "n",
-                label: "[N] Spawn actor",
+                label: "Spawn actor",
             },
         ],
     };

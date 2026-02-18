@@ -33,6 +33,8 @@ pub struct VariantRow {
     pub name: String,
     pub branch: String,
     pub git_state: String,
+    pub clone_status: String,
+    pub clone_last_line: String,
     pub has_git: bool,
     pub is_dirty: bool,
     pub ahead: u64,

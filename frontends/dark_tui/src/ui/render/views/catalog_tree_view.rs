@@ -190,12 +190,13 @@ impl CatalogTreeView {
                     .iter()
                     .find(|variant| variant.id == *variant_id)
                 {
-                    let state_pill = match variant.git_state.as_str() {
-                        "clean" => StatusPill::ok("clean", theme),
-                        "dirty" => StatusPill::warn("dirty", theme),
-                        "no-git" => StatusPill::muted("no-git", theme),
-                        _ => StatusPill::muted(&variant.git_state, theme),
+                    let state_pill = variant_state_pill(&variant.git_state, theme);
+                    let branch = if variant.branch.trim().is_empty() {
+                        "-"
+                    } else {
+                        variant.branch.as_str()
                     };
+                    let ahead_behind = ahead_behind_pill(variant.ahead, variant.behind, theme);
 
                     vec![
                         Span::styled("  ├─ ", Style::default().fg(theme.catalog_connector)),
@@ -210,10 +211,9 @@ impl CatalogTreeView {
                         Span::raw("  "),
                         state_pill.span(),
                         Span::raw(" "),
-                        Span::styled(
-                            format!("{}/{}", variant.ahead, variant.behind),
-                            Style::default().fg(theme.text_muted),
-                        ),
+                        StatusPill::info(format!(" {branch}"), theme).span(),
+                        Span::raw(" "),
+                        ahead_behind.span(),
                     ]
                 } else {
                     vec![Span::styled(
@@ -235,12 +235,20 @@ impl CatalogTreeView {
                     } else {
                         actor.title.clone()
                     };
-                    let description =
-                        if actor.description.trim().is_empty() || actor.description.trim() == "-" {
-                            String::new()
-                        } else {
-                            format!(" -- {}", compact_text_normalized(&actor.description, 56))
-                        };
+                    let description = app
+                        .actor_last_message_preview(&actor.id)
+                        .map(|value| value.trim())
+                        .filter(|value| !value.is_empty())
+                        .map(|value| format!(" -- {}", compact_text_normalized(value, 56)))
+                        .or_else(|| {
+                            let fallback = actor.description.trim();
+                            if fallback.is_empty() || fallback == "-" {
+                                None
+                            } else {
+                                Some(format!(" -- {}", compact_text_normalized(fallback, 56)))
+                            }
+                        })
+                        .unwrap_or_default();
 
                     let mut spans = vec![
                         Span::styled("    └─ ", Style::default().fg(theme.catalog_connector)),
@@ -282,4 +290,23 @@ impl CatalogTreeView {
 fn recent_sub_agents(sub_agents: &[crate::models::SubAgentRow]) -> &[crate::models::SubAgentRow] {
     let start = sub_agents.len().saturating_sub(MAX_SUB_AGENT_ROWS);
     &sub_agents[start..]
+}
+
+fn variant_state_pill(state: &str, theme: &crate::theme::Theme) -> StatusPill {
+    match state {
+        "clean" => StatusPill::ok("clean", theme),
+        "dirty" => StatusPill::warn("dirty", theme),
+        "no-git" => StatusPill::muted("no-git", theme),
+        _ => StatusPill::muted(state, theme),
+    }
+}
+
+fn ahead_behind_pill(ahead: u64, behind: u64, theme: &crate::theme::Theme) -> StatusPill {
+    if behind > 0 {
+        StatusPill::warn(format!("+{ahead}/-{behind}"), theme)
+    } else if ahead > 0 {
+        StatusPill::ok(format!("+{ahead}/-0"), theme)
+    } else {
+        StatusPill::muted("+0/-0", theme)
+    }
 }

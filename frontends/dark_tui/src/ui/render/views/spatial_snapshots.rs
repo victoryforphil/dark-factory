@@ -170,6 +170,8 @@ fn variant(
         name: name.to_string(),
         branch: branch.to_string(),
         git_state: git_state.to_string(),
+        clone_status: "-".to_string(),
+        clone_last_line: "-".to_string(),
         has_git: true,
         is_dirty: git_state == "dirty",
         ahead,

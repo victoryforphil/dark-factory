@@ -7,8 +7,8 @@ use dark_rust::types::{
     ActorAttachQuery, ActorCommandInput, ActorCreateInput, ActorDeleteQuery, ActorListQuery,
     ActorMessageInput, ActorMessagesQuery, ActorUpdateInput, ProductCreateInput,
     ProductIncludeQuery, ProductListQuery, ProductUpdateInput, ProductVariantCloneInput,
-    VariantCreateInput, VariantDeleteQuery, VariantImportActorsInput, VariantListQuery,
-    VariantProductConnectInput, VariantProductRelationInput, VariantUpdateInput,
+    VariantBranchSwitchInput, VariantCreateInput, VariantDeleteQuery, VariantImportActorsInput,
+    VariantListQuery, VariantProductConnectInput, VariantProductRelationInput, VariantUpdateInput,
 };
 use dark_rust::{DarkCoreClient, DarkRustError, LocatorId, LocatorKind, RawApiResponse};
 use serde_json::{Value, json};
@@ -217,6 +217,15 @@ async fn dispatch(cli: &Cli, api: &DarkCoreClient) -> Result<RawApiResponse> {
                 .map_err(Into::into),
             VariantsAction::Delete { id } => api
                 .variants_delete(id, &VariantDeleteQuery { dry: Some(true) })
+                .await
+                .map_err(Into::into),
+            VariantsAction::Branch { id, branch_name } => api
+                .variants_switch_branch(
+                    id,
+                    &VariantBranchSwitchInput {
+                        branch_name: branch_name.clone(),
+                    },
+                )
                 .await
                 .map_err(Into::into),
         },

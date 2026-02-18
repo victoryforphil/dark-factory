@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -22,6 +23,14 @@ pub enum FocusPane {
 pub enum ResultsViewMode {
     Table,
     Viz,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VizDensity {
+    Compact,
+    Normal,
+    Wide,
+    XWide,
 }
 
 /// Identifies which node is selected in the viz catalog view.
@@ -58,6 +67,12 @@ pub struct CloneVariantRequest {
 }
 
 #[derive(Debug, Clone)]
+pub struct BranchVariantRequest {
+    pub variant_id: String,
+    pub branch_name: String,
+}
+
+#[derive(Debug, Clone)]
 pub struct DeleteVariantRequest {
     pub variant_id: String,
     pub dry: bool,
@@ -69,6 +84,11 @@ pub struct MoveActorRequest {
     pub source_variant_id: String,
     pub target_variant_id: String,
     pub target_variant_name: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct InitProductRequest {
+    pub directory: String,
 }
 
 #[derive(Debug, Clone)]
@@ -87,6 +107,14 @@ struct CloneFormState {
     branch_name: String,
     clone_type: String,
     source_variant_id: String,
+}
+
+#[derive(Debug, Clone)]
+struct BranchFormState {
+    variant_id: String,
+    branch_name: String,
+    suggestions: Vec<String>,
+    selected_suggestion: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -110,6 +138,11 @@ struct MoveActorFormState {
     source_variant_name: String,
     options: Vec<MoveActorOption>,
     selected_option: usize,
+}
+
+#[derive(Debug, Clone)]
+struct InitProductFormState {
+    directory: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -150,6 +183,26 @@ impl ResultsViewMode {
 
     pub fn is_spatial(self) -> bool {
         matches!(self, Self::Viz)
+    }
+}
+
+impl VizDensity {
+    pub fn cycle(self) -> Self {
+        match self {
+            Self::Compact => Self::Normal,
+            Self::Normal => Self::Wide,
+            Self::Wide => Self::XWide,
+            Self::XWide => Self::Compact,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Compact => "compact",
+            Self::Normal => "normal",
+            Self::Wide => "wide",
+            Self::XWide => "xwide",
+        }
     }
 }
 
@@ -207,12 +260,18 @@ pub struct App {
     viz_selection: Option<VizSelection>,
     status_message: String,
     core_runtime_hint: String,
+    core_logs_visible: bool,
+    core_logs_session: String,
+    core_logs_status: String,
+    core_logs_lines: Vec<String>,
+    actor_last_message_previews: HashMap<String, String>,
     command_message: String,
     runtime_status: String,
     last_updated: String,
     /// Viz-mode camera pan offset (pixels = terminal cells).
     viz_offset_x: i32,
     viz_offset_y: i32,
+    viz_density: VizDensity,
     body_split_with_chat: HorizontalSplit,
     body_split_without_chat: HorizontalSplit,
     resizing_target: Option<ResizeTarget>,
@@ -221,7 +280,9 @@ pub struct App {
     /// Color theme — loaded once at startup.
     theme: Theme,
     spawn_form: Option<SpawnFormState>,
+    init_product_form: Option<InitProductFormState>,
     clone_form: Option<CloneFormState>,
+    branch_form: Option<BranchFormState>,
     delete_variant_form: Option<DeleteVariantFormState>,
     move_actor_form: Option<MoveActorFormState>,
     inspector_visible: bool,
@@ -283,18 +344,26 @@ impl App {
             viz_selection: None,
             status_message: "Booting dashboard".to_string(),
             core_runtime_hint: "core:unknown".to_string(),
+            core_logs_visible: false,
+            core_logs_session: "dark-core".to_string(),
+            core_logs_status: "idle".to_string(),
+            core_logs_lines: Vec::new(),
+            actor_last_message_previews: HashMap::new(),
             command_message: String::new(),
             runtime_status: "unknown".to_string(),
             last_updated: "-".to_string(),
             viz_offset_x: 0,
             viz_offset_y: 0,
+            viz_density: VizDensity::Normal,
             body_split_with_chat: HorizontalSplit::three(44, 32, 24, 20, 18, 16),
             body_split_without_chat: HorizontalSplit::two(76, 24, 20, 16),
             resizing_target: None,
             drag_anchor: None,
             theme,
             spawn_form: None,
+            init_product_form: None,
             clone_form: None,
+            branch_form: None,
             delete_variant_form: None,
             move_actor_form: None,
             inspector_visible: true,
@@ -357,6 +426,10 @@ impl App {
         self.results_view_mode
     }
 
+    pub fn viz_density(&self) -> VizDensity {
+        self.viz_density
+    }
+
     pub fn products(&self) -> &[ProductRow] {
         &self.products
     }
@@ -375,6 +448,50 @@ impl App {
 
     pub fn core_runtime_hint(&self) -> &str {
         &self.core_runtime_hint
+    }
+
+    pub fn is_core_logs_visible(&self) -> bool {
+        self.core_logs_visible
+    }
+
+    pub fn core_logs_session(&self) -> &str {
+        &self.core_logs_session
+    }
+
+    pub fn core_logs_status(&self) -> &str {
+        &self.core_logs_status
+    }
+
+    pub fn core_logs_lines(&self) -> &[String] {
+        &self.core_logs_lines
+    }
+
+    pub fn actor_last_message_preview(&self, actor_id: &str) -> Option<&str> {
+        self.actor_last_message_previews
+            .get(actor_id)
+            .map(String::as_str)
+    }
+
+    pub fn apply_actor_last_message_previews(&mut self, previews: Vec<(String, String)>) {
+        for (actor_id, preview) in previews {
+            let trimmed = preview.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            self.actor_last_message_previews
+                .insert(actor_id, trimmed.to_string());
+        }
+
+        self.prune_actor_last_message_previews();
+    }
+
+    fn prune_actor_last_message_previews(&mut self) {
+        if self.actor_last_message_previews.is_empty() {
+            return;
+        }
+
+        self.actor_last_message_previews
+            .retain(|actor_id, _| self.actors.iter().any(|actor| actor.id == *actor_id));
     }
 
     #[allow(dead_code)]
@@ -445,12 +562,60 @@ impl App {
         self.clone_form.is_some()
     }
 
+    pub fn is_branch_form_open(&self) -> bool {
+        self.branch_form.is_some()
+    }
+
     pub fn is_delete_variant_form_open(&self) -> bool {
         self.delete_variant_form.is_some()
     }
 
     pub fn is_move_actor_form_open(&self) -> bool {
         self.move_actor_form.is_some()
+    }
+
+    pub fn is_init_product_form_open(&self) -> bool {
+        self.init_product_form.is_some()
+    }
+
+    pub fn open_init_product_form(&mut self) {
+        self.init_product_form = Some(InitProductFormState {
+            directory: self.directory.clone(),
+        });
+    }
+
+    pub fn close_init_product_form(&mut self) {
+        self.init_product_form = None;
+    }
+
+    pub fn init_product_form_directory(&self) -> Option<&str> {
+        self.init_product_form
+            .as_ref()
+            .map(|form| form.directory.as_str())
+    }
+
+    pub fn init_product_form_insert_char(&mut self, value: char) {
+        let Some(form) = self.init_product_form.as_mut() else {
+            return;
+        };
+        form.directory.push(value);
+    }
+
+    pub fn init_product_form_backspace(&mut self) {
+        let Some(form) = self.init_product_form.as_mut() else {
+            return;
+        };
+        form.directory.pop();
+    }
+
+    pub fn take_init_product_request(&mut self) -> Option<InitProductRequest> {
+        let form = self.init_product_form.take()?;
+        let directory = form.directory.trim().to_string();
+        if directory.is_empty() {
+            return None;
+        }
+
+        Some(InitProductRequest { directory })
     }
 
     pub fn spawn_form_providers(&self) -> Option<&[String]> {
@@ -510,8 +675,135 @@ impl App {
         });
     }
 
+    pub fn open_branch_form(&mut self) -> bool {
+        let Some(variant) = self.selected_variant().cloned() else {
+            return false;
+        };
+
+        let mut suggestions = self
+            .variants
+            .iter()
+            .filter(|row| row.product_id == variant.product_id)
+            .flat_map(|row| [row.branch.as_str(), row.worktree.as_str()])
+            .map(str::trim)
+            .filter(|value| !value.is_empty() && *value != "-")
+            .map(ToString::to_string)
+            .collect::<Vec<_>>();
+
+        suggestions.sort();
+        suggestions.dedup();
+
+        self.branch_form = Some(BranchFormState {
+            variant_id: variant.id,
+            branch_name: variant.branch,
+            suggestions,
+            selected_suggestion: 0,
+        });
+
+        true
+    }
+
+    pub fn close_branch_form(&mut self) {
+        self.branch_form = None;
+    }
+
     pub fn close_clone_form(&mut self) {
         self.clone_form = None;
+    }
+
+    pub fn branch_form_branch_name(&self) -> Option<&str> {
+        self.branch_form
+            .as_ref()
+            .map(|form| form.branch_name.as_str())
+    }
+
+    pub fn branch_form_suggestions(&self) -> Option<Vec<&str>> {
+        self.branch_form.as_ref().map(branch_suggestions_for)
+    }
+
+    pub fn branch_form_selected_suggestion_index(&self) -> Option<usize> {
+        self.branch_form
+            .as_ref()
+            .map(|form| form.selected_suggestion)
+    }
+
+    pub fn branch_form_move_up(&mut self) {
+        let Some(form) = self.branch_form.as_mut() else {
+            return;
+        };
+
+        let len = branch_suggestions_for(form).len();
+        form.selected_suggestion = previous_index(form.selected_suggestion, len);
+    }
+
+    pub fn branch_form_move_down(&mut self) {
+        let Some(form) = self.branch_form.as_mut() else {
+            return;
+        };
+
+        let len = branch_suggestions_for(form).len();
+        form.selected_suggestion = next_index(form.selected_suggestion, len);
+    }
+
+    pub fn branch_form_set_selected(&mut self, index: usize) {
+        let Some(form) = self.branch_form.as_mut() else {
+            return;
+        };
+
+        let len = branch_suggestions_for(form).len();
+        if len == 0 {
+            form.selected_suggestion = 0;
+            return;
+        }
+
+        form.selected_suggestion = index.min(len.saturating_sub(1));
+    }
+
+    pub fn branch_form_insert_char(&mut self, value: char) {
+        let Some(form) = self.branch_form.as_mut() else {
+            return;
+        };
+
+        form.branch_name.push(value);
+        form.selected_suggestion = 0;
+    }
+
+    pub fn branch_form_backspace(&mut self) {
+        let Some(form) = self.branch_form.as_mut() else {
+            return;
+        };
+
+        form.branch_name.pop();
+        form.selected_suggestion = 0;
+    }
+
+    pub fn branch_form_apply_suggestion(&mut self) {
+        let Some(form) = self.branch_form.as_mut() else {
+            return;
+        };
+
+        let suggestions = branch_suggestions_for(form);
+        if suggestions.is_empty() {
+            return;
+        }
+
+        let index = form
+            .selected_suggestion
+            .min(suggestions.len().saturating_sub(1));
+        form.branch_name = suggestions[index].to_string();
+    }
+
+    pub fn take_branch_request(&mut self) -> Option<BranchVariantRequest> {
+        let form = self.branch_form.take()?;
+        let branch_name = form.branch_name.trim().to_string();
+        if branch_name.is_empty() {
+            return None;
+        }
+
+        Some(BranchVariantRequest {
+            variant_id: form.variant_id,
+            branch_name,
+        })
     }
 
     pub fn open_delete_variant_form(&mut self, variant_id: &str) {
@@ -1600,6 +1892,7 @@ impl App {
         );
 
         self.prune_chat_actor();
+        self.prune_actor_last_message_previews();
         if self.chat_visible && self.chat_actor_id.is_some() {
             self.chat_needs_refresh = true;
         }
@@ -1611,6 +1904,21 @@ impl App {
 
     pub fn set_core_runtime_hint(&mut self, value: impl Into<String>) {
         self.core_runtime_hint = value.into();
+    }
+
+    pub fn toggle_core_logs_visibility(&mut self) {
+        self.core_logs_visible = !self.core_logs_visible;
+    }
+
+    pub fn set_core_logs_snapshot(
+        &mut self,
+        session: impl Into<String>,
+        lines: Vec<String>,
+        status: impl Into<String>,
+    ) {
+        self.core_logs_session = session.into();
+        self.core_logs_lines = lines;
+        self.core_logs_status = status.into();
     }
 
     pub fn set_command_message(&mut self, command: impl Into<String>) {
@@ -1693,6 +2001,10 @@ impl App {
         if self.results_view_mode.is_spatial() && self.viz_selection.is_none() {
             self.sync_viz_selection_from_table();
         }
+    }
+
+    pub fn cycle_viz_density(&mut self) {
+        self.viz_density = self.viz_density.cycle();
     }
 
     // --- Viz-mode node selection ---
@@ -1938,7 +2250,7 @@ impl App {
             "Keys:".to_string(),
             "  q / Ctrl+C      [Q]uit".to_string(),
             "  Tab / Shift+Tab [Tab] Focus".to_string(),
-            "  j/k or arrows   [J/K] Select".to_string(),
+            "  arrows          Select".to_string(),
             "  r               [R]efresh".to_string(),
             "  f               [F]ilter variants".to_string(),
             "  space or v      [V]iew toggle".to_string(),
@@ -1948,6 +2260,7 @@ impl App {
             "  i               [I]nit product".to_string(),
             "  n               [N] Spawn actor".to_string(),
             "  a               [A]ttach command".to_string(),
+            "  l               Core [L]ogs toggle".to_string(),
             "  t               [T]oggle chat".to_string(),
             "  s               [S]idebar toggle".to_string(),
             "  c               [C]ompose chat".to_string(),
@@ -2310,6 +2623,64 @@ fn normalize_optional_input(value: &str) -> Option<String> {
     }
 }
 
+fn branch_suggestions_for(form: &BranchFormState) -> Vec<&str> {
+    let query = form.branch_name.trim().to_ascii_lowercase();
+
+    let mut scored = form
+        .suggestions
+        .iter()
+        .map(String::as_str)
+        .filter_map(|value| fuzzy_branch_score(&query, value).map(|score| (value, score)))
+        .collect::<Vec<_>>();
+
+    scored.sort_by(|left, right| {
+        left.1.cmp(&right.1).then_with(|| {
+            left.0
+                .to_ascii_lowercase()
+                .cmp(&right.0.to_ascii_lowercase())
+        })
+    });
+
+    scored.into_iter().take(8).map(|entry| entry.0).collect()
+}
+
+fn fuzzy_branch_score(query: &str, candidate: &str) -> Option<(u8, usize)> {
+    if query.is_empty() {
+        return Some((0, 0));
+    }
+
+    let value = candidate.to_ascii_lowercase();
+    if value.starts_with(query) {
+        return Some((0, value.len().saturating_sub(query.len())));
+    }
+
+    if let Some(position) = value.find(query) {
+        return Some((1, position));
+    }
+
+    if is_subsequence(query, &value) {
+        return Some((2, value.len()));
+    }
+
+    None
+}
+
+fn is_subsequence(query: &str, candidate: &str) -> bool {
+    let mut query_chars = query.chars();
+    let mut current = query_chars.next();
+
+    for ch in candidate.chars() {
+        if Some(ch) == current {
+            current = query_chars.next();
+            if current.is_none() {
+                return true;
+            }
+        }
+    }
+
+    false
+}
+
 fn resolve_selected_option(
     options: &[String],
     current: Option<&str>,
@@ -2536,6 +2907,8 @@ mod tests {
             name: "default".to_string(),
             branch: "main".to_string(),
             git_state: "clean".to_string(),
+            clone_status: "-".to_string(),
+            clone_last_line: "-".to_string(),
             has_git: true,
             is_dirty: false,
             ahead: 0,

@@ -7,8 +7,8 @@ use ratatui::Frame;
 
 use dark_tui_components::{compact_text_normalized, PaneBlockComponent, StatusPill};
 
-use crate::app::{App, VizSelection};
-use crate::models::{compact_id, compact_locator};
+use crate::app::{App, VizDensity, VizSelection};
+use crate::models::compact_locator;
 use crate::theme::Theme;
 use crate::ui::render::components::{render_sub_agent_grid, sub_agent_grid_container_height};
 
@@ -21,12 +21,12 @@ const STATION_MIN_WIDTH: u16 = 72;
 const STATION_MIN_HEIGHT: u16 = 16;
 
 const PRODUCT_LEFT_MARGIN: i32 = 8;
-const PRODUCT_W: u16 = 48;
+const PRODUCT_W: u16 = 62;
 const PRODUCT_H: u16 = 10;
 
 const RAIL_DROP_ROWS: i32 = 1;
 
-const VARIANT_H: u16 = 4;
+const VARIANT_H: u16 = 5;
 
 const ACTOR_H: u16 = 7;
 const ACTOR_STACK_GAP: i32 = 2;
@@ -37,6 +37,9 @@ const STATION_MAX_ACTORS_PER_VARIANT: usize = 4;
 const MAX_SUB_AGENT_ROWS: usize = 12;
 
 const GROUP_GAP_Y: i32 = 2;
+const MIN_VISIBLE_PRODUCT_W: u16 = 40;
+const MIN_VISIBLE_VARIANT_W: u16 = 26;
+const MIN_VISIBLE_ACTOR_W: u16 = 28;
 
 pub(crate) struct UnifiedCatalogView;
 
@@ -46,6 +49,34 @@ struct WorldRect {
     y: i32,
     width: u16,
     height: u16,
+}
+
+fn variant_state_pill(state: &str, theme: &Theme) -> StatusPill {
+    match state {
+        "clean" => StatusPill::ok("clean", theme),
+        "dirty" => StatusPill::warn("dirty", theme),
+        "no-git" => StatusPill::muted("no-git", theme),
+        _ => StatusPill::muted(state, theme),
+    }
+}
+
+fn ahead_behind_pill(ahead: u64, behind: u64, theme: &Theme) -> StatusPill {
+    if behind > 0 {
+        StatusPill::warn(format!("+{ahead}/-{behind}"), theme)
+    } else if ahead > 0 {
+        StatusPill::ok(format!("+{ahead}/-0"), theme)
+    } else {
+        StatusPill::muted("+0/-0", theme)
+    }
+}
+
+fn actor_status_pill(status: &str, theme: &Theme) -> StatusPill {
+    match status {
+        "active" | "running" => StatusPill::ok(status, theme),
+        "error" | "failed" | "dead" => StatusPill::error(status, theme),
+        "idle" | "waiting" | "stopped" | "stop" => StatusPill::warn(status, theme),
+        _ => StatusPill::muted(status, theme),
+    }
 }
 
 impl WorldRect {
@@ -311,36 +342,82 @@ impl UnifiedCatalogView {
         let mut layouts = Vec::with_capacity(groups.len());
 
         for group in groups {
+            let density = app.viz_density();
+            let product_w = match density {
+                VizDensity::Compact => 44,
+                VizDensity::Normal => PRODUCT_W,
+                VizDensity::Wide => 72,
+                VizDensity::XWide => 82,
+            };
+
             let product_rect = WorldRect {
                 x: PRODUCT_LEFT_MARGIN,
                 y: cursor_y,
-                width: PRODUCT_W.min(inner_width.saturating_sub(4)),
+                width: product_w.min(inner_width.saturating_sub(4)),
                 height: PRODUCT_H,
             };
             let rail_y = product_rect.y + PRODUCT_H as i32 + RAIL_DROP_ROWS;
             let variant_count = group.variants.len();
             let compact_many = variant_count >= 4;
-            let col_start_x = product_rect.right() + if compact_many { 2 } else { 4 };
+            let column_gap = match density {
+                VizDensity::Compact => {
+                    if compact_many {
+                        2
+                    } else {
+                        3
+                    }
+                }
+                VizDensity::Normal => {
+                    if compact_many {
+                        4
+                    } else {
+                        6
+                    }
+                }
+                VizDensity::Wide => {
+                    if compact_many {
+                        6
+                    } else {
+                        8
+                    }
+                }
+                VizDensity::XWide => {
+                    if compact_many {
+                        8
+                    } else {
+                        10
+                    }
+                }
+            };
+            let col_start_x = product_rect.right() + column_gap;
 
             let mut variants = Vec::with_capacity(group.variants.len());
             let mut group_bottom = product_rect.bottom();
             let mut rail_end_x = product_rect.mid_x() + 10;
 
             let wide_columns = group.variants.len() <= 2;
-            let variant_w: u16 = if wide_columns {
-                34
+            let base_variant_w: i32 = if wide_columns {
+                46
             } else if compact_many {
-                22
+                30
             } else {
-                26
+                38
             };
-            let actor_w: u16 = if wide_columns {
-                34
+            let base_actor_w: i32 = if wide_columns {
+                46
             } else if compact_many {
-                20
+                28
             } else {
-                26
+                36
             };
+            let width_delta: i32 = match density {
+                VizDensity::Compact => -12,
+                VizDensity::Normal => 0,
+                VizDensity::Wide => 10,
+                VizDensity::XWide => 18,
+            };
+            let variant_w = (base_variant_w + width_delta).max(22) as u16;
+            let actor_w = (base_actor_w + width_delta).max(22) as u16;
             // Widen pitch when any variant has 2+ actors (wider cards need breathing room)
             let max_actors_in_group: usize = group
                 .variants
@@ -348,34 +425,36 @@ impl UnifiedCatalogView {
                 .map(|v| app.actors_for_variant(&v.id).len())
                 .max()
                 .unwrap_or(0);
-            let base_variant_pitch: i32 = if wide_columns {
+            let mut base_variant_pitch: i32 = if wide_columns {
                 if max_actors_in_group >= 2 {
-                    46
+                    62
                 } else {
-                    42
+                    58
                 }
             } else if compact_many {
                 if max_actors_in_group >= 2 {
-                    28
+                    40
                 } else {
-                    26
+                    36
                 }
             } else {
                 if max_actors_in_group >= 2 {
-                    38
+                    54
                 } else {
-                    34
+                    50
                 }
             };
-
-            // Aggressively spread for 2-variant layouts, but clamp so dense
-            // variant rows remain visible in the current viewport.
-            let variant_pitch = if variant_count > 1 {
-                let max_fit = (inner_width as i32 - col_start_x - 3) / (variant_count as i32 - 1);
-                base_variant_pitch.min(max_fit.max(24))
-            } else {
-                base_variant_pitch
+            base_variant_pitch += match density {
+                VizDensity::Compact => -18,
+                VizDensity::Normal => 0,
+                VizDensity::Wide => 12,
+                VizDensity::XWide => 22,
             };
+            base_variant_pitch = base_variant_pitch.max(24);
+
+            // Keep a fixed spatial pitch so toggling sidebar width does not
+            // reflow/overlap columns in-place; off-screen content is handled by pan.
+            let variant_pitch = base_variant_pitch;
 
             for (index, variant) in group.variants.iter().enumerate() {
                 let tick_x = col_start_x + (index as i32) * variant_pitch;
@@ -637,6 +716,9 @@ impl UnifiedCatalogView {
         let Some(area) = Self::to_screen(inner, offset_x, offset_y, group.product_rect) else {
             return;
         };
+        if area.width < MIN_VISIBLE_PRODUCT_W || area.height < PRODUCT_H.saturating_sub(2) {
+            return;
+        }
 
         let selected = matches!(
             app.viz_selection(),
@@ -651,50 +733,57 @@ impl UnifiedCatalogView {
             Style::default().fg(theme.entity_product)
         };
 
-        // Count actors for aggregate badge
-        let actor_count: usize = app
-            .variants()
-            .iter()
-            .filter(|v| v.product_id == product.id)
-            .map(|v| app.actors_for_variant(&v.id).len())
-            .sum();
-
-        // Row 0: PRODUCT {id}  [NV] [NA]
-        let id_label = compact_id(&product.id);
-        let v_badge = format!("[{}V]", product.variant_total);
-        let a_badge = format!("[{}A]", actor_count);
-        let agg = format!("{} {}", v_badge, a_badge);
-        let id_part_width = 8 + id_label.len(); // "PRODUCT " + id
         let inner_w = area.width.saturating_sub(2) as usize;
-        let pad = if inner_w > id_part_width + agg.len() {
-            inner_w - id_part_width - agg.len()
-        } else {
-            1
+
+        let display_name = {
+            let name = product.display_name.trim();
+            if name.is_empty() || name == "-" {
+                let repo_name = product.repo_name.trim();
+                if repo_name.is_empty() || repo_name == "-" {
+                    "-".to_string()
+                } else {
+                    repo_name.to_string()
+                }
+            } else {
+                name.to_string()
+            }
         };
 
-        let row0 = Line::from(vec![
-            Span::styled(
-                "PRODUCT",
-                Style::default()
-                    .fg(theme.text_primary)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" "),
-            Span::styled(id_label, Style::default().fg(theme.text_secondary)),
-            Span::raw(" ".repeat(pad)),
-            Span::styled(v_badge, Style::default().fg(Color::Rgb(0xa0, 0xa0, 0xa0))),
-            Span::raw(" "),
-            Span::styled(a_badge, Style::default().fg(Color::Rgb(0xa0, 0xa0, 0xa0))),
-        ]);
+        let type_label = {
+            let value = product.product_type.trim();
+            if value.is_empty() {
+                "-"
+            } else {
+                value
+            }
+        };
 
-        // Row 1: status | variant+actor counts (matches SVG "4v 3a")
+        let status_pill = match product.status.as_str() {
+            "ready" | "active" | "running" | "clean" => StatusPill::ok(&product.status, theme),
+            "dirty" | "warning" => StatusPill::warn(&product.status, theme),
+            "error" | "failed" => StatusPill::error(&product.status, theme),
+            _ => StatusPill::muted(&product.status, theme),
+        };
+        let type_pill = StatusPill::info(format!("󰏖 {type_label}"), theme);
+        let locator_mode_pill = if product.is_git_repo {
+            StatusPill::ok(" git", theme)
+        } else {
+            StatusPill::muted("󰉋 local", theme)
+        };
+
+        let row0 = Line::from(vec![Span::styled(
+            compact_text_normalized(&display_name, inner_w.max(8)),
+            Style::default()
+                .fg(theme.text_primary)
+                .add_modifier(Modifier::BOLD),
+        )]);
+
         let row1 = Line::from(vec![
-            StatusPill::muted(&product.status, theme).span(),
-            Span::styled(" \u{2502} ", Style::default().fg(theme.text_muted)),
-            Span::styled(
-                format!("{}v {}a", product.variant_total, actor_count),
-                Style::default().fg(theme.text_muted),
-            ),
+            status_pill.span(),
+            Span::raw(" "),
+            type_pill.span(),
+            Span::raw(" "),
+            locator_mode_pill.span(),
         ]);
 
         // Topology rows embedded inside product card (rows 2-7)
@@ -724,27 +813,24 @@ impl UnifiedCatalogView {
                 .filter(|v| actors.iter().any(|a| a.variant_id == v.id))
                 .count();
 
-        let fmt_leader = |label: &str, value: usize| -> Line {
-            let dots_len = 14usize.saturating_sub(label.len() + 1);
-            let dots: String = ".".repeat(dots_len);
-            Line::from(vec![
-                Span::styled(
-                    format!("{label} {dots}"),
-                    Style::default().fg(theme.text_muted),
-                ),
-                Span::styled(
-                    format!(" {value}"),
-                    Style::default().fg(theme.text_secondary),
-                ),
-            ])
-        };
-
-        let topo_divider = Line::from(vec![Span::styled(
-            "\u{2500}".repeat(inner_w.min(44)),
+        let topo_metrics = Line::from(vec![Span::styled(
+            format!(
+                "󰍹 {} variants  󰘧 {} actors  󱐌 {} sub-agents",
+                product.variant_total,
+                actors.len(),
+                sub_agent_count
+            ),
             Style::default().fg(theme.text_muted),
         )]);
+        let locator_line = Line::from(vec![Span::styled(
+            compact_text_normalized(
+                &format!("󰉋 {}", compact_locator(&product.locator, inner_w.max(8))),
+                inner_w.max(8),
+            ),
+            Style::default().fg(theme.text_secondary),
+        )]);
         let topo_status = Line::from(vec![Span::styled(
-            format!("run:{running} stop:{stopped} empty:{empty_v}"),
+            format!("󰐊 {running} running   󰓛 {stopped} stopped   󰜌 {empty_v} empty"),
             Style::default().fg(theme.text_muted),
         )]);
 
@@ -752,34 +838,27 @@ impl UnifiedCatalogView {
             Paragraph::new(vec![
                 row0,
                 row1,
-                topo_divider,
-                fmt_leader("variants", variants.len()),
-                fmt_leader("actors", actors.len()),
-                fmt_leader("sub-agents", sub_agent_count),
+                topo_metrics,
+                locator_line,
                 Line::from(""),
                 topo_status,
             ])
-            .block(Block::default().borders(Borders::ALL).border_style(border)),
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(border)
+                    .title(Line::from(vec![Span::styled(
+                        " 󰏖 PRODUCT ",
+                        Style::default()
+                            .fg(theme.text_primary)
+                            .add_modifier(Modifier::BOLD),
+                    )])),
+            ),
             area,
         );
 
         // Left accent bar
         Self::draw_accent_bar_left(frame.buffer_mut(), area, theme.entity_product);
-
-        // Locator below card
-        let locator_rect = WorldRect {
-            x: group.product_rect.x + 1,
-            y: group.product_rect.bottom(),
-            width: group.product_rect.width.saturating_sub(2),
-            height: 1,
-        };
-        if let Some(loc_area) = Self::to_screen(inner, offset_x, offset_y, locator_rect) {
-            frame.render_widget(
-                Paragraph::new(compact_locator(&product.locator, loc_area.width as usize))
-                    .style(Style::default().fg(theme.text_secondary)),
-                loc_area,
-            );
-        }
     }
 
     fn render_variant(
@@ -797,6 +876,9 @@ impl UnifiedCatalogView {
         let Some(area) = Self::to_screen(inner, offset_x, offset_y, layout.variant_rect) else {
             return;
         };
+        if area.width < MIN_VISIBLE_VARIANT_W || area.height < VARIANT_H.saturating_sub(1) {
+            return;
+        }
 
         let selected = matches!(
             app.viz_selection(),
@@ -814,34 +896,16 @@ impl UnifiedCatalogView {
             Style::default().fg(theme.entity_variant)
         };
 
-        // Row 0: variant name bold + [status] right-justified
-        // Compact status for tight columns: dirty→drt, clean→cln
-        let status_short = match variant.git_state.as_str() {
-            "dirty" => "dirty",
-            "clean" => "clean",
-            other => other,
-        };
-        let status_tag = format!("[{}]", status_short);
+        // Row 0: variant name
         let inner_w = area.width.saturating_sub(2) as usize;
-        let name_len = variant.name.chars().count();
-        let pad = if inner_w > name_len + status_tag.len() {
-            inner_w - name_len - status_tag.len()
-        } else {
-            1
-        };
+        let row0 = Line::from(vec![Span::styled(
+            variant.name.clone(),
+            Style::default()
+                .fg(theme.text_primary)
+                .add_modifier(Modifier::BOLD),
+        )]);
 
-        let row0 = Line::from(vec![
-            Span::styled(
-                variant.name.clone(),
-                Style::default()
-                    .fg(theme.text_primary)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" ".repeat(pad)),
-            Span::styled(status_tag, Style::default().fg(theme.text_muted)),
-        ]);
-
-        // Row 1: branch/worktree + ahead/behind
+        // Row 1: reusable status pills
         let branch = if variant.branch.trim().is_empty() {
             "-"
         } else {
@@ -852,24 +916,53 @@ impl UnifiedCatalogView {
         } else {
             variant.worktree.as_str()
         };
-        let branch_meta = compact_text_normalized(
-            &format!(
-                " {branch}  󰉋 {worktree}  +{} -{}",
-                variant.ahead, variant.behind
-            ),
-            inner_w.max(8),
-        );
-        let row1 = Line::from(vec![Span::styled(
-            branch_meta,
-            Style::default().fg(theme.text_secondary),
-        )]);
+        let clone_suffix = match variant.clone_status.as_str() {
+            "cloning" => "   cloning",
+            "failed" => "   clone-failed",
+            _ => "",
+        };
+
+        let mut row1_spans = vec![
+            variant_state_pill(&variant.git_state, theme).span(),
+            Span::raw(" "),
+            StatusPill::info(format!(" {branch}"), theme).span(),
+            Span::raw(" "),
+            StatusPill::muted(format!("󰉋 {worktree}"), theme).span(),
+            Span::raw(" "),
+            ahead_behind_pill(variant.ahead, variant.behind, theme).span(),
+        ];
+        if !clone_suffix.is_empty() {
+            row1_spans.push(Span::raw(" "));
+            row1_spans.push(StatusPill::warn(clone_suffix.trim(), theme).span());
+        }
+
+        let progress_line = if variant.clone_status == "cloning" && variant.clone_last_line != "-" {
+            let compact = compact_text_normalized(&variant.clone_last_line, inner_w.max(8));
+            Some(Line::from(vec![Span::styled(
+                compact,
+                Style::default().fg(theme.text_muted),
+            )]))
+        } else {
+            None
+        };
+        let row1 = Line::from(row1_spans);
 
         frame.render_widget(
-            Paragraph::new(vec![row0, row1]).block(
+            Paragraph::new(if let Some(progress) = progress_line {
+                vec![row0, row1, progress]
+            } else {
+                vec![row0, row1]
+            })
+            .block(
                 Block::default()
                     .borders(Borders::ALL)
                     .border_style(border)
-                    .title(" VARIANT "),
+                    .title(Line::from(vec![Span::styled(
+                        "  VARIANT ",
+                        Style::default()
+                            .fg(theme.text_primary)
+                            .add_modifier(Modifier::BOLD),
+                    )])),
             ),
             area,
         );
@@ -892,6 +985,9 @@ impl UnifiedCatalogView {
         let Some(area) = Self::to_screen(inner, offset_x, offset_y, layout.actor_rect) else {
             return;
         };
+        if area.width < MIN_VISIBLE_ACTOR_W || area.height < ACTOR_H.saturating_sub(1) {
+            return;
+        }
 
         let selected = matches!(
             app.viz_selection(),
@@ -905,38 +1001,26 @@ impl UnifiedCatalogView {
             Style::default().fg(theme.entity_actor)
         };
 
-        // Row 0: actor title + status (card title holds ACTOR label)
+        // Row 0: actor title
         let inner_w = area.width.saturating_sub(2) as usize;
         let title_label = compact_text_normalized(&actor.title, inner_w.saturating_sub(6).max(8));
-        let status_token = match actor.status.as_str() {
-            "running" | "active" => "run",
-            "stopped" => "stp",
-            "idle" => "idl",
-            "error" | "failed" => "err",
-            _ => "unk",
-        };
-        let status_badge = format!("[{status_token}]");
-        let label_len = title_label.chars().count();
-        let badge_len = status_badge.chars().count();
-        let pad = if inner_w > label_len + badge_len {
-            inner_w - label_len - badge_len
-        } else {
-            1
-        };
-
-        let row0 = Line::from(vec![
-            Span::styled(
-                title_label,
-                Style::default()
-                    .fg(theme.text_primary)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::raw(" ".repeat(pad)),
-            Span::styled(status_badge, Style::default().fg(theme.text_muted)),
-        ]);
+        let row0 = Line::from(vec![Span::styled(
+            title_label,
+            Style::default()
+                .fg(theme.text_primary)
+                .add_modifier(Modifier::BOLD),
+        )]);
 
         let actor_type_pill = StatusPill::muted(Self::actor_type_label(actor), theme);
-        let row1 = Line::from(vec![actor_type_pill.span()]);
+        let status_pill = actor_status_pill(&actor.status, theme);
+        let provider_pill = StatusPill::info(format!("󰘧 {}", actor.provider), theme);
+        let row1 = Line::from(vec![
+            status_pill.span(),
+            Span::raw(" "),
+            provider_pill.span(),
+            Span::raw(" "),
+            actor_type_pill.span(),
+        ]);
 
         // Row 2: last message preview when available
         let last_message = Self::actor_last_message_preview(app, &actor.id)
@@ -960,7 +1044,12 @@ impl UnifiedCatalogView {
                     Block::default()
                         .borders(Borders::ALL)
                         .border_style(border)
-                        .title(" ACTOR "),
+                        .title(Line::from(vec![Span::styled(
+                            " 󰘧 ACTOR ",
+                            Style::default()
+                                .fg(theme.text_primary)
+                                .add_modifier(Modifier::BOLD),
+                        )])),
                 )
                 .wrap(Wrap { trim: true }),
             area,
@@ -1002,20 +1091,34 @@ impl UnifiedCatalogView {
     fn to_screen(inner: Rect, offset_x: i32, offset_y: i32, rect: WorldRect) -> Option<Rect> {
         let sx = inner.x as i32 + rect.x + offset_x;
         let sy = inner.y as i32 + rect.y + offset_y;
+        let inner_right = (inner.x + inner.width) as i32;
+        let inner_bottom = (inner.y + inner.height) as i32;
 
-        if sx < inner.x as i32
-            || sy < inner.y as i32
-            || sx + rect.width as i32 > (inner.x + inner.width) as i32
-            || sy + rect.height as i32 > (inner.y + inner.height) as i32
-        {
+        if sx >= inner_right || sy >= inner_bottom {
+            return None;
+        }
+
+        // Keep cards visible when only their right/bottom edge crosses viewport bounds.
+        // We intentionally avoid left/top partial clipping for widget surfaces, because
+        // ratatui widgets render from the top-left origin and cannot offset content origin.
+        if sx < inner.x as i32 || sy < inner.y as i32 {
+            return None;
+        }
+
+        let available_w = (inner_right - sx).max(0) as u16;
+        let available_h = (inner_bottom - sy).max(0) as u16;
+        let clipped_w = rect.width.min(available_w);
+        let clipped_h = rect.height.min(available_h);
+
+        if clipped_w == 0 || clipped_h == 0 {
             return None;
         }
 
         Some(Rect {
             x: sx as u16,
             y: sy as u16,
-            width: rect.width,
-            height: rect.height,
+            width: clipped_w,
+            height: clipped_h,
         })
     }
 
@@ -1044,6 +1147,13 @@ impl UnifiedCatalogView {
     }
 
     fn actor_last_message_preview(app: &App, actor_id: &str) -> Option<String> {
+        if let Some(value) = app.actor_last_message_preview(actor_id) {
+            let text = value.trim();
+            if !text.is_empty() {
+                return Some(text.to_string());
+            }
+        }
+
         if !app.chat_actor().is_some_and(|actor| actor.id == actor_id) {
             return None;
         }

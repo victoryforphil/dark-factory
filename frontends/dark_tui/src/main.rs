@@ -30,6 +30,7 @@ async fn main() -> Result<()> {
         match launch_state {
             EnsureDarkCoreState::AlreadyRunning => "core:running".to_string(),
             EnsureDarkCoreState::LaunchedTmux => "core:tmux-launched".to_string(),
+            EnsureDarkCoreState::RestartedTmux => "core:tmux-restarted".to_string(),
             EnsureDarkCoreState::WaitingForTmuxSession => "core:tmux-existing".to_string(),
         }
     } else if !manage_local_dark_core {
@@ -43,6 +44,7 @@ async fn main() -> Result<()> {
 
 fn compiled_launch_config() -> DarkCoreLaunchConfig {
     let mut config = DarkCoreLaunchConfig::default();
+    config.restart_existing_session = false;
 
     if let Some(path) = option_env!("DARKFACTORY_DARK_CORE_EXECUTABLE") {
         config.executable_path = Some(PathBuf::from(path));

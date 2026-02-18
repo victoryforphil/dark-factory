@@ -35,6 +35,9 @@ async fn main() -> Result<()> {
             EnsureDarkCoreState::LaunchedTmux => {
                 info!("Dark CLI // Runtime // Started dark_core in tmux session");
             }
+            EnsureDarkCoreState::RestartedTmux => {
+                info!("Dark CLI // Runtime // Restarted dark_core tmux session");
+            }
             EnsureDarkCoreState::WaitingForTmuxSession => {
                 info!("Dark CLI // Runtime // Reused existing tmux dark_core session");
             }

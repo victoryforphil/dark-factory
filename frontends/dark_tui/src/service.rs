@@ -4,6 +4,7 @@ use anyhow::{Context, Result, anyhow};
 use dark_chat::providers::{ChatProvider, OpenCodeProvider};
 use dark_rust::{DarkCoreClient, LocatorId, LocatorKind, RawApiResponse};
 use serde_json::{Value, json};
+use tokio::task::JoinSet;
 
 use crate::models::{ActorChatMessageRow, ActorRow, DashboardSnapshot};
 use crate::service_convert::{
@@ -35,6 +36,7 @@ pub struct CloneVariantOptions {
     pub branch_name: Option<String>,
     pub clone_type: Option<String>,
     pub source_variant_id: Option<String>,
+    pub run_async: bool,
 }
 
 impl DashboardService {
@@ -123,6 +125,26 @@ impl DashboardService {
         let _ = ensure_success(response)?;
 
         Ok(format!("Variant polled: {variant_id}"))
+    }
+
+    pub async fn switch_variant_branch(
+        &self,
+        variant_id: &str,
+        branch_name: &str,
+    ) -> Result<String> {
+        let response = self
+            .request(
+                "POST",
+                &format!("/variants/{variant_id}/branch"),
+                None,
+                Some(json!({ "branchName": branch_name })),
+            )
+            .await?;
+        let _ = ensure_success(response)?;
+
+        Ok(format!(
+            "Variant branch switched: {variant_id} -> {branch_name}"
+        ))
     }
 
     pub async fn import_variant_actors(
@@ -275,6 +297,7 @@ impl DashboardService {
                 Value::String(source_variant_id),
             );
         }
+        payload.insert("runAsync".to_string(), Value::Bool(options.run_async));
 
         let response = self
             .request(
@@ -299,9 +322,22 @@ impl DashboardService {
             .and_then(Value::as_str)
             .unwrap_or("-");
 
-        Ok(format!(
-            "Cloned variant for {product_id}: {variant_id} ({variant_name}) -> {target_path}"
-        ))
+        let async_label = body
+            .get("data")
+            .and_then(|value| value.get("clone"))
+            .and_then(|value| value.get("isAsync"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+
+        if async_label {
+            Ok(format!(
+                "Clone queued for {product_id}: {variant_id} ({variant_name}) -> {target_path}"
+            ))
+        } else {
+            Ok(format!(
+                "Cloned variant for {product_id}: {variant_id} ({variant_name}) -> {target_path}"
+            ))
+        }
     }
 
     pub async fn delete_variant(&self, variant_id: &str, dry: bool) -> Result<String> {
@@ -330,10 +366,10 @@ impl DashboardService {
         }
     }
 
-    pub async fn init_product(&self) -> Result<String> {
-        let locator = LocatorId::from_host_path(Path::new(&self.directory), LocatorKind::Local)
+    pub async fn init_product(&self, directory: &str) -> Result<String> {
+        let locator = LocatorId::from_host_path(Path::new(directory), LocatorKind::Local)
             .map(|parsed| parsed.to_locator_id())?;
-        let display_name = Some(directory_name(&self.directory));
+        let display_name = Some(directory_name(directory));
 
         let response = self
             .request(
@@ -463,6 +499,45 @@ impl DashboardService {
                 created_at: message.created_at.unwrap_or_else(|| "-".to_string()),
             })
             .collect())
+    }
+
+    pub async fn fetch_actor_last_message_previews(
+        &self,
+        actors: &[ActorRow],
+        n_last_messages: u32,
+    ) -> Vec<(String, String)> {
+        let mut set = JoinSet::new();
+
+        for actor in actors {
+            let actor = actor.clone();
+            let service = self.clone();
+            set.spawn(async move {
+                let messages = service
+                    .fetch_actor_messages(&actor, Some(n_last_messages))
+                    .await
+                    .ok()?;
+
+                let last = messages.iter().rev().find_map(|message| {
+                    let text = message.text.trim();
+                    if text.is_empty() {
+                        None
+                    } else {
+                        Some(text.to_string())
+                    }
+                })?;
+
+                Some((actor.id, last))
+            });
+        }
+
+        let mut previews = Vec::new();
+        while let Some(joined) = set.join_next().await {
+            if let Ok(Some(item)) = joined {
+                previews.push(item);
+            }
+        }
+
+        previews
     }
 
     pub async fn send_actor_prompt(

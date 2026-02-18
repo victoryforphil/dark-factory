@@ -13,11 +13,13 @@ use crate::app::{App, ResizeTarget, ResultsViewMode};
 use crate::ui::command_palette::ContextMenuState;
 
 use panels::{
-    ChatPanel, CloneFormPanel, ContextMenuPanel, DeleteVariantFormPanel, DetailsPanel, FooterPanel,
-    HeaderPanel, KeyBarPanel, MoveActorFormPanel, SpawnFormPanel,
+    BranchFormPanel, ChatPanel, CloneFormPanel, ContextMenuPanel, CoreLogsPanel,
+    DeleteVariantFormPanel, DetailsPanel, FooterPanel, HeaderPanel, InitProductFormPanel,
+    KeyBarPanel, MoveActorFormPanel, SpawnFormPanel,
 };
 use views::{CatalogTreeView, UnifiedCatalogView};
 
+pub(crate) use panels::BranchFormHit;
 pub(crate) use panels::ChatPanelHit;
 pub(crate) use panels::ContextMenuHit;
 pub(crate) use panels::KeyHintAction;
@@ -40,6 +42,7 @@ pub fn render_dashboard(
     key_hover_hint: Option<&str>,
 ) {
     let root = frame.area();
+    let logs_height = if app.is_core_logs_visible() { 8 } else { 0 };
 
     let vertical = Layout::default()
         .direction(Direction::Vertical)
@@ -47,6 +50,7 @@ pub fn render_dashboard(
             Constraint::Length(2), // header (compact title)
             Constraint::Length(2), // key-hint bar
             Constraint::Min(10),   // body (catalog + sidebar)
+            Constraint::Length(logs_height),
             Constraint::Length(3), // footer/status
         ])
         .split(root);
@@ -54,7 +58,10 @@ pub fn render_dashboard(
     HeaderPanel::render(frame, vertical[0], app);
     KeyBarPanel::render(frame, vertical[1], app);
     render_body(frame, vertical[2], app);
-    FooterPanel::render(frame, vertical[3], app);
+    if app.is_core_logs_visible() {
+        CoreLogsPanel::render(frame, vertical[3], app);
+    }
+    FooterPanel::render(frame, vertical[4], app);
 
     if let Some(menu) = context_menu {
         ContextMenuPanel::render(frame, root, app, menu);
@@ -64,8 +71,16 @@ pub fn render_dashboard(
         SpawnFormPanel::render(frame, root, app);
     }
 
+    if app.is_init_product_form_open() {
+        InitProductFormPanel::render(frame, root, app);
+    }
+
     if app.is_clone_form_open() {
         CloneFormPanel::render(frame, root, app);
+    }
+
+    if app.is_branch_form_open() {
+        BranchFormPanel::render(frame, root, app);
     }
 
     if app.is_delete_variant_form_open() {
@@ -152,7 +167,7 @@ pub(crate) fn try_select_viz_node(root: Rect, app: &mut App, col: u16, row: u16)
         return false;
     }
 
-    let body = body_area(root);
+    let body = body_area(root, app);
     let columns = resolve_columns(body, app);
     let Some(main_area) = columns.first().copied() else {
         return false;
@@ -170,7 +185,7 @@ pub(crate) fn tree_hit_test(
     col: u16,
     row: u16,
 ) -> Option<crate::app::VizSelection> {
-    let body = body_area(root);
+    let body = body_area(root, app);
     let columns = resolve_columns(body, app);
     let main_area = columns.first().copied()?;
 
@@ -178,7 +193,7 @@ pub(crate) fn tree_hit_test(
 }
 
 pub(crate) fn tree_contains(root: Rect, app: &App, col: u16, row: u16) -> bool {
-    let body = body_area(root);
+    let body = body_area(root, app);
     let columns = resolve_columns(body, app);
     let Some(main_area) = columns.first().copied() else {
         return false;
@@ -200,7 +215,7 @@ pub(crate) fn viz_hit_test(
         return None;
     }
 
-    let body = body_area(root);
+    let body = body_area(root, app);
     let columns = resolve_columns(body, app);
     let main_area = columns.first().copied()?;
 
@@ -215,12 +230,12 @@ pub(crate) fn chat_area(root: Rect, app: &App) -> Option<Rect> {
         return None;
     }
 
-    let body = body_area(root);
+    let body = body_area(root, app);
     resolve_columns(body, app).get(1).copied()
 }
 
 pub(crate) fn divider_hit(root: Rect, app: &App, col: u16) -> Option<ResizeTarget> {
-    let body = body_area(root);
+    let body = body_area(root, app);
     if body.width < 20 {
         return None;
     }
@@ -244,7 +259,7 @@ pub(crate) fn divider_hit(root: Rect, app: &App, col: u16) -> Option<ResizeTarge
 }
 
 pub(crate) fn resize_divider(root: Rect, app: &mut App, target: ResizeTarget, col: u16) -> bool {
-    let body = body_area(root);
+    let body = body_area(root, app);
     if body.width < 20 {
         return false;
     }
@@ -277,13 +292,19 @@ pub(crate) fn chat_message_index_at_point(
     ChatPanel::message_index_at_point(chat, app, col, row)
 }
 
-fn body_area(root: Rect) -> Rect {
+pub(crate) fn branch_form_hit_test(root: Rect, app: &App, col: u16, row: u16) -> BranchFormHit {
+    BranchFormPanel::hit_test(root, app, col, row)
+}
+
+fn body_area(root: Rect, app: &App) -> Rect {
+    let logs_height = if app.is_core_logs_visible() { 8 } else { 0 };
     Layout::default()
         .direction(Direction::Vertical)
         .constraints([
             Constraint::Length(2),
             Constraint::Length(2),
             Constraint::Min(10),
+            Constraint::Length(logs_height),
             Constraint::Length(3),
         ])
         .split(root)[2]

@@ -67,6 +67,7 @@ Runtime behavior:
 - `i`: run product init for the configured directory
 - `n`: open spawn popup (provider + initial prompt)
 - `a`: build attach command for selected actor
+- `l`: toggle embedded `dark_core` tmux log panel
 - `t`: toggle chat panel visibility
 - `c`: start composing a chat prompt for selected actor
 
