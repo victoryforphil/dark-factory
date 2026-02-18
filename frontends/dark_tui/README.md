@@ -68,6 +68,7 @@ Runtime behavior:
 - `n`: open spawn popup (provider + initial prompt)
 - `a`: attach to the managed tmux OpenCode session for the selected actor
 - `l`: toggle embedded `dark_core` tmux log panel
+- `L`: open the latest `dark_tui` log file in your pager
 - `t`: toggle chat panel visibility
 - `c`: start composing a chat prompt for selected actor
 
