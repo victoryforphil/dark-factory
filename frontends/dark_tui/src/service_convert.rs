@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use dark_rust::{DarkRustError, RawApiResponse};
 use serde_json::Value;
 
-use crate::models::{compact_timestamp, ActorRow, ProductRow, SubAgentRow, VariantRow};
+use crate::models::{ActorRow, ProductRow, SubAgentRow, VariantRow, compact_timestamp};
 use crate::service_wire::{ActorRecord, ProductMetrics, ProductRecord, VariantRecord};
 
 pub(crate) fn collect_product_metrics(variants: &[VariantRow]) -> HashMap<String, ProductMetrics> {
@@ -351,11 +351,7 @@ pub(crate) fn required_actor_opencode_context(
 }
 
 pub(crate) fn query_slice_or_none(query: &[(String, String)]) -> Option<&[(String, String)]> {
-    if query.is_empty() {
-        None
-    } else {
-        Some(query)
-    }
+    if query.is_empty() { None } else { Some(query) }
 }
 
 pub(crate) fn ensure_success(response: RawApiResponse) -> Result<Value> {
@@ -507,6 +503,7 @@ mod tests {
                     ahead: Some(3),
                     behind: Some(1),
                 }),
+                clone: None,
             }),
         };
 

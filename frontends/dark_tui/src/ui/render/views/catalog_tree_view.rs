@@ -1,15 +1,15 @@
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem, ListState};
-use ratatui::Frame;
 
 use crate::app::{App, VizSelection};
 use crate::models::compact_id;
 use crate::theme::EntityKind;
 use crate::ui::render::components::{sub_agent_badge, sub_agent_tree_line};
 
-use dark_tui_components::{compact_text_normalized, PaneBlockComponent, StatusPill};
+use dark_tui_components::{PaneBlockComponent, StatusPill, compact_text_normalized};
 
 pub(crate) struct CatalogTreeView;
 const MAX_SUB_AGENT_ROWS: usize = 12;

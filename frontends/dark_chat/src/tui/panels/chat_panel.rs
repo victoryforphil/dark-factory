@@ -1,14 +1,14 @@
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::Color;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Clear, Paragraph, Wrap};
-use ratatui::Frame;
 
 use dark_tui_components::{
-    compact_text, rect_contains, ChatConversationHeaderComponent, ChatConversationHeaderProps,
-    ChatMessageListComponent, ChatMessageListProps, ChatPalette, ChatStatusTone,
-    ComponentThemeLike, KeyBind, PaneBlockComponent, PopupAnchor, PopupHit, PopupItem,
-    PopupOverlay, PopupOverlayProps, StatusPill,
+    ChatConversationHeaderComponent, ChatConversationHeaderProps, ChatMessageListComponent,
+    ChatMessageListProps, ChatPalette, ChatStatusTone, ComponentThemeLike, KeyBind,
+    PaneBlockComponent, PopupAnchor, PopupHit, PopupItem, PopupOverlay, PopupOverlayProps,
+    StatusPill, compact_text, rect_contains,
 };
 
 use crate::tui::app::{App, FocusPane};
@@ -705,9 +705,9 @@ fn status_tone(status: &str) -> ChatStatusTone {
 #[cfg(test)]
 mod tests {
     use insta::assert_snapshot;
+    use ratatui::Terminal;
     use ratatui::backend::TestBackend;
     use ratatui::layout::Rect;
-    use ratatui::Terminal;
 
     use super::ChatPanel;
     use crate::core::{ChatSession, ChatSnapshot, ProviderHealth, ProviderRuntimeStatus};

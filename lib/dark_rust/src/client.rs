@@ -7,8 +7,7 @@ use crate::types::{
     ActorMessageInput, ActorMessagesQuery, ActorUpdateInput, ProductCreateInput,
     ProductIncludeQuery, ProductListQuery, ProductUpdateInput, ProductVariantCloneInput,
     VariantBranchSwitchInput, VariantCreateInput, VariantDeleteQuery, VariantImportActorsInput,
-    VariantListQuery,
-    VariantUpdateInput,
+    VariantListQuery, VariantUpdateInput,
 };
 
 #[derive(Debug, Clone)]

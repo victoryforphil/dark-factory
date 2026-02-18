@@ -1,11 +1,11 @@
+use ratatui::Frame;
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Wrap};
-use ratatui::Frame;
 
-use dark_tui_components::{compact_text_normalized, PaneBlockComponent, StatusPill};
+use dark_tui_components::{PaneBlockComponent, StatusPill, compact_text_normalized};
 
 use crate::app::{App, VizDensity, VizSelection};
 use crate::models::compact_locator;
@@ -426,23 +426,11 @@ impl UnifiedCatalogView {
                 .max()
                 .unwrap_or(0);
             let mut base_variant_pitch: i32 = if wide_columns {
-                if max_actors_in_group >= 2 {
-                    62
-                } else {
-                    58
-                }
+                if max_actors_in_group >= 2 { 62 } else { 58 }
             } else if compact_many {
-                if max_actors_in_group >= 2 {
-                    40
-                } else {
-                    36
-                }
+                if max_actors_in_group >= 2 { 40 } else { 36 }
             } else {
-                if max_actors_in_group >= 2 {
-                    54
-                } else {
-                    50
-                }
+                if max_actors_in_group >= 2 { 54 } else { 50 }
             };
             base_variant_pitch += match density {
                 VizDensity::Compact => -18,
@@ -751,11 +739,7 @@ impl UnifiedCatalogView {
 
         let type_label = {
             let value = product.product_type.trim();
-            if value.is_empty() {
-                "-"
-            } else {
-                value
-            }
+            if value.is_empty() { "-" } else { value }
         };
 
         let status_pill = match product.status.as_str() {

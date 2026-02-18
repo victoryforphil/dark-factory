@@ -2,11 +2,12 @@ mod command_palette;
 mod render;
 
 use std::env;
+use std::fs;
 use std::future::Future;
 use std::io::{self, Stdout};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{Context, Result, anyhow};
 use arboard::Clipboard;
@@ -26,8 +27,8 @@ use tracing::{error, info, warn};
 use crate::app::{App, ResultsViewMode, VizSelection};
 use crate::cli::Cli;
 use crate::logging;
-use crate::models::{ActorChatMessageRow, DashboardSnapshot};
-use crate::service::{CloneVariantOptions, DashboardService, SpawnOptions};
+use crate::models::{ActorChatMessageRow, DashboardSnapshot, SshHostRow};
+use crate::service::{CloneVariantOptions, DashboardService, SpawnOptions, SshInfo};
 use crate::theme::Theme;
 
 use self::command_palette::{CommandId, ContextMenuState, resolve_key_command};
@@ -65,14 +66,22 @@ enum LoopAction {
     ImportVariantActors,
     InitProduct,
     OpenSpawnForm,
+    OpenSshPanel,
     OpenVariantInExplorer,
     OpenVariantInTerminal,
     SpawnSession,
+    StartSshPortForward,
+    CopySshAttachCommand,
+    RunSshAttach,
+    EnsureRemoteAgentTmux,
+    CopyRemoteAgentAttachCommand,
+    RunRemoteAgentAttach,
     BuildAttach,
     RunAttach,
     ToggleInspector,
     ToggleChat,
     ToggleCoreLogs,
+    OpenLastLogInPager,
     OpenChatCompose,
     SendChatMessage,
 }
@@ -88,6 +97,8 @@ enum BackgroundActionResult {
     InitProduct(Result<String>),
     SpawnOptions(Result<(SpawnOptions, String)>),
     SpawnSession(Result<String>),
+    SshInfo(Result<SshInfo>),
+    StartSshPortForward(Result<String>),
     BuildAttach(Result<String>),
     RunAttach(Result<String>),
 }
@@ -104,6 +115,8 @@ enum BackgroundActionKind {
     InitProduct,
     SpawnOptions,
     SpawnSession,
+    SshInfo,
+    StartSshPortForward,
     BuildAttach,
     RunAttach,
 }
@@ -509,6 +522,35 @@ async fn run_loop(
                         app.set_status(format!("Spawn failed: {error}"));
                     }
                 },
+                Ok(BackgroundActionResult::SshInfo(result)) => match result {
+                    Ok(info) => {
+                        let host_count = info.hosts.len();
+                        let preset_count = info.port_forwards.len();
+                        let forward_count = info.active_forwards.len();
+                        let tmux_count = info.tmux_sessions.len();
+                        app.set_ssh_info(
+                            info.hosts,
+                            info.port_forwards,
+                            info.active_forwards,
+                            info.tmux_sessions,
+                        );
+                        app.open_ssh_panel();
+                        app.set_status(format!(
+                            "SSH panel open. hosts={host_count} presets={preset_count} active={forward_count} tmux={tmux_count}"
+                        ));
+                    }
+                    Err(error) => {
+                        app.set_status(format!("SSH info failed: {error}"));
+                    }
+                },
+                Ok(BackgroundActionResult::StartSshPortForward(result)) => match result {
+                    Ok(message) => {
+                        app.set_status(message);
+                    }
+                    Err(error) => {
+                        app.set_status(format!("SSH forward failed: {error}"));
+                    }
+                },
                 Ok(BackgroundActionResult::BuildAttach(result)) => match result {
                     Ok(command) => {
                         info!(command = %command, "Dark TUI // Attach // Attach command built");
@@ -732,6 +774,7 @@ async fn run_loop(
                 }
                 process_loop_action(
                     action,
+                    terminal,
                     app,
                     service,
                     &mut action_tasks,
@@ -766,6 +809,56 @@ async fn run_loop(
                         if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
                             app.close_branch_form();
                             app.set_status("Branch switch form closed.");
+                        }
+                        continue;
+                    }
+                }
+            }
+
+            if app.is_clone_form_open() {
+                match render::clone_form_hit_test(root, app, mouse.column, mouse.row) {
+                    render::CloneFormHit::Field(index) => {
+                        if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
+                            app.clone_form_set_selected_field(index);
+                            if index == 2 {
+                                app.open_clone_host_picker();
+                                app.set_status(
+                                    "Host picker open. Type to filter, Enter/click to select.",
+                                );
+                            }
+                        }
+                        continue;
+                    }
+                    render::CloneFormHit::PickerItem(index) => {
+                        if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
+                            app.clone_host_picker_set_selected(index);
+                            if let Some(host) = app.apply_clone_host_picker_selection() {
+                                app.set_status(format!("Clone host selected: {host}"));
+                            }
+                        }
+                        continue;
+                    }
+                    render::CloneFormHit::PickerPopup => {
+                        match mouse.kind {
+                            MouseEventKind::ScrollUp => app.clone_host_picker_move_up(),
+                            MouseEventKind::ScrollDown => app.clone_host_picker_move_down(),
+                            MouseEventKind::Down(MouseButton::Left) => {}
+                            _ => {}
+                        }
+                        continue;
+                    }
+                    render::CloneFormHit::Popup => {
+                        continue;
+                    }
+                    render::CloneFormHit::Outside => {
+                        if let MouseEventKind::Down(MouseButton::Left) = mouse.kind {
+                            if app.clone_host_picker_open() {
+                                app.close_clone_host_picker();
+                                app.set_status("Host picker closed.");
+                            } else {
+                                app.close_clone_form();
+                                app.set_status("Clone form closed.");
+                            }
                         }
                         continue;
                     }
@@ -1148,6 +1241,7 @@ async fn run_loop(
                         }
                         process_loop_action(
                             action,
+                            terminal,
                             app,
                             service,
                             &mut action_tasks,
@@ -1178,6 +1272,7 @@ async fn run_loop(
 
         process_loop_action(
             action,
+            terminal,
             app,
             service,
             &mut action_tasks,
@@ -1364,12 +1459,7 @@ fn open_directory_in_terminal(path: &Path) -> Result<()> {
 
     if cfg!(target_os = "windows") {
         let mut command = Command::new("cmd");
-        command
-            .arg("/C")
-            .arg("start")
-            .arg("")
-            .arg("/D")
-            .arg(path);
+        command.arg("/C").arg("start").arg("").arg("/D").arg(path);
         return run_os_command(&mut command, "open terminal at variant path");
     }
 
@@ -1402,6 +1492,112 @@ fn open_directory_in_terminal(path: &Path) -> Result<()> {
     Err(anyhow!(
         "no supported terminal launcher found (tried x-terminal-emulator, gnome-terminal, xfce4-terminal, konsole, alacritty)"
     ))
+}
+
+fn resolve_latest_tui_log_path(directory: &str) -> Result<PathBuf> {
+    if let Ok(override_path) = env::var("DARK_TUI_LOG") {
+        let trimmed = override_path.trim();
+        if !trimmed.is_empty() {
+            let path = PathBuf::from(trimmed);
+            if path.is_file() {
+                return Ok(path);
+            }
+
+            return Err(anyhow!("DARK_TUI_LOG is not a file: {}", path.display()));
+        }
+    }
+
+    let log_dir = Path::new(directory).join(".darkfactory").join("logs");
+    let mut latest_log: Option<(SystemTime, PathBuf)> = None;
+
+    for entry_result in fs::read_dir(&log_dir).with_context(|| {
+        format!(
+            "failed to read dark_tui log directory ({})",
+            log_dir.display()
+        )
+    })? {
+        let Ok(entry) = entry_result else {
+            continue;
+        };
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+
+        let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if !file_name.starts_with("dark_tui-") || !file_name.ends_with(".log") {
+            continue;
+        }
+
+        let modified = entry
+            .metadata()
+            .ok()
+            .and_then(|metadata| metadata.modified().ok())
+            .unwrap_or(SystemTime::UNIX_EPOCH);
+
+        let should_replace = match latest_log.as_ref() {
+            Some((timestamp, _)) => modified > *timestamp,
+            None => true,
+        };
+        if should_replace {
+            latest_log = Some((modified, path));
+        }
+    }
+
+    latest_log
+        .map(|(_, path)| path)
+        .ok_or_else(|| anyhow!("no dark_tui log files found in {}", log_dir.display()))
+}
+
+fn open_log_in_pager(terminal: &mut TuiTerminal, log_path: &Path) -> Result<()> {
+    let pager = env::var("PAGER")
+        .ok()
+        .and_then(|value| {
+            value
+                .split_whitespace()
+                .next()
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(ToString::to_string)
+        })
+        .unwrap_or_else(|| "less".to_string());
+
+    let mut command = Command::new(&pager);
+    command.arg(log_path);
+    let status = run_command_with_terminal_handoff(terminal, &mut command)
+        .with_context(|| format!("failed to launch pager '{pager}'"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(anyhow!("pager exited with status {status}"))
+    }
+}
+
+fn run_command_with_terminal_handoff(
+    terminal: &mut TuiTerminal,
+    command: &mut Command,
+) -> Result<std::process::ExitStatus> {
+    disable_raw_mode().context("failed to disable raw mode for shell handoff")?;
+    execute!(
+        terminal.backend_mut(),
+        DisableMouseCapture,
+        LeaveAlternateScreen
+    )
+    .context("failed to leave alternate screen for shell handoff")?;
+
+    let status_result = command.status();
+
+    execute!(
+        terminal.backend_mut(),
+        EnterAlternateScreen,
+        EnableMouseCapture
+    )
+    .context("failed to restore alternate screen after shell handoff")?;
+    enable_raw_mode().context("failed to re-enable raw mode after shell handoff")?;
+
+    status_result.context("failed to run shell handoff command")
 }
 
 fn run_os_command(command: &mut Command, action: &str) -> Result<()> {
@@ -1438,10 +1634,74 @@ fn run_attach_command(command: &str) -> Result<std::process::ExitStatus> {
         .with_context(|| format!("failed to run tmux attach command for session: {session_name}"))
 }
 
+fn ssh_args_for_host(host: &SshHostRow) -> (Vec<String>, String) {
+    let mut args = Vec::<String>::new();
+    if let Ok(port) = host.port.parse::<u16>() {
+        args.push("-p".to_string());
+        args.push(port.to_string());
+    }
+
+    let destination = if host.user.trim().is_empty() || host.user == "-" || host.host.contains('@')
+    {
+        host.host.clone()
+    } else {
+        format!("{}@{}", host.user, host.host)
+    };
+
+    (args, destination)
+}
+
+fn ensure_remote_agent_tmux(host: &SshHostRow) -> Result<()> {
+    let (mut args, destination) = ssh_args_for_host(host);
+    let remote_bootstrap = "tmux has-session -t dark-agent 2>/dev/null || tmux new-session -d -s dark-agent 'opencode'";
+    args.push(destination);
+    args.push(remote_bootstrap.to_string());
+
+    let status = Command::new("ssh")
+        .args(args)
+        .status()
+        .context("failed to execute remote tmux bootstrap command")?;
+    if status.success() {
+        return Ok(());
+    }
+
+    Err(anyhow!(
+        "remote tmux bootstrap exited with status {}",
+        status
+            .code()
+            .map(|value| value.to_string())
+            .unwrap_or_else(|| "signal".to_string())
+    ))
+}
+
+fn remote_agent_attach_command(host: &SshHostRow) -> String {
+    let (args, destination) = ssh_args_for_host(host);
+    let mut command_parts = vec!["ssh".to_string()];
+    command_parts.extend(args);
+    command_parts.push("-t".to_string());
+    command_parts.push(destination);
+    command_parts.push("tmux attach-session -t dark-agent".to_string());
+    command_parts.join(" ")
+}
+
+fn run_remote_agent_attach(host: &SshHostRow) -> Result<std::process::ExitStatus> {
+    let (mut args, destination) = ssh_args_for_host(host);
+    args.push("-t".to_string());
+    args.push(destination);
+    args.push("tmux attach-session -t dark-agent".to_string());
+
+    Command::new("ssh")
+        .args(args)
+        .status()
+        .context("failed to run remote tmux attach command")
+}
+
 fn parse_tmux_attach_target(command: &str) -> Result<String> {
     let tokens: Vec<&str> = command.split_whitespace().collect();
     if tokens.len() < 4 || tokens[0] != "tmux" {
-        return Err(anyhow!("attach command is not a tmux attach command: {command}"));
+        return Err(anyhow!(
+            "attach command is not a tmux attach command: {command}"
+        ));
     }
 
     if tokens[1] != "attach-session" && tokens[1] != "switch-client" {
@@ -1460,7 +1720,9 @@ fn parse_tmux_attach_target(command: &str) -> Result<String> {
         }
     }
 
-    Err(anyhow!("tmux attach command missing -t <session>: {command}"))
+    Err(anyhow!(
+        "tmux attach command missing -t <session>: {command}"
+    ))
 }
 
 enum ContextMenuKeyOutcome {
@@ -1518,6 +1780,8 @@ fn key_event_from_key_hint(action: render::KeyHintAction) -> Option<KeyEvent> {
         render::KeyHintAction::Attach => KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE),
         render::KeyHintAction::Chat => KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE),
         render::KeyHintAction::CoreLogs => KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE),
+        render::KeyHintAction::LastLog => KeyEvent::new(KeyCode::Char('L'), KeyModifiers::SHIFT),
+        render::KeyHintAction::SshPanel => KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE),
         render::KeyHintAction::Compose => KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE),
         render::KeyHintAction::ResetPan => KeyEvent::new(KeyCode::Char('0'), KeyModifiers::NONE),
         render::KeyHintAction::Send => KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE),
@@ -1557,6 +1821,8 @@ fn command_key_event(command: CommandId) -> Option<KeyEvent> {
         CommandId::RunAttach => KeyEvent::new(KeyCode::Char('a'), KeyModifiers::NONE),
         CommandId::ToggleChat => KeyEvent::new(KeyCode::Char('t'), KeyModifiers::NONE),
         CommandId::ToggleCoreLogs => KeyEvent::new(KeyCode::Char('l'), KeyModifiers::NONE),
+        CommandId::OpenLastLogInPager => KeyEvent::new(KeyCode::Char('L'), KeyModifiers::SHIFT),
+        CommandId::OpenSshPanel => KeyEvent::new(KeyCode::Char('h'), KeyModifiers::NONE),
         CommandId::OpenChatCompose => KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE),
         CommandId::ResetPan => KeyEvent::new(KeyCode::Char('0'), KeyModifiers::NONE),
     };
@@ -1613,6 +1879,8 @@ fn apply_command(app: &mut App, command: CommandId) -> LoopAction {
         CommandId::RunAttach => LoopAction::RunAttach,
         CommandId::ToggleChat => LoopAction::ToggleChat,
         CommandId::ToggleCoreLogs => LoopAction::ToggleCoreLogs,
+        CommandId::OpenLastLogInPager => LoopAction::OpenLastLogInPager,
+        CommandId::OpenSshPanel => LoopAction::OpenSshPanel,
         CommandId::OpenChatCompose => LoopAction::OpenChatCompose,
         CommandId::ResetPan => {
             app.reset_viz_offset();
@@ -1625,15 +1893,19 @@ fn apply_command(app: &mut App, command: CommandId) -> LoopAction {
 fn context_menu_target_exists(app: &App, target: &VizSelection) -> bool {
     match target {
         VizSelection::Product { product_index } => app.products().get(*product_index).is_some(),
-        VizSelection::Variant { variant_id, .. } => {
-            app.variants().iter().any(|variant| &variant.id == variant_id)
+        VizSelection::Variant { variant_id, .. } => app
+            .variants()
+            .iter()
+            .any(|variant| &variant.id == variant_id),
+        VizSelection::Actor { actor_id, .. } => {
+            app.actors().iter().any(|actor| &actor.id == actor_id)
         }
-        VizSelection::Actor { actor_id, .. } => app.actors().iter().any(|actor| &actor.id == actor_id),
     }
 }
 
 fn process_loop_action(
     action: LoopAction,
+    terminal: &mut TuiTerminal,
     app: &mut App,
     service: &DashboardService,
     action_tasks: &mut Vec<ActionTask>,
@@ -1853,7 +2125,9 @@ fn process_loop_action(
             }
 
             app.open_clone_form();
-            app.set_status("Clone form open. Enter options or leave blank for defaults.");
+            app.set_status(
+                "Clone form open. On Remote host, press Enter for searchable host picker.",
+            );
         }
         LoopAction::ImportVariantActors => {
             let Some(variant_id) = app.selected_variant_id().map(ToString::to_string) else {
@@ -1890,7 +2164,10 @@ fn process_loop_action(
                 return;
             }
 
-            app.set_status(format!("Initializing product from {}...", request.directory));
+            app.set_status(format!(
+                "Initializing product from {}...",
+                request.directory
+            ));
             let service = service.clone();
             action_tasks.push(ActionTask {
                 kind: BackgroundActionKind::InitProduct,
@@ -1922,6 +2199,24 @@ fn process_loop_action(
                         run_with_api_timeout(service.fetch_spawn_options())
                             .await
                             .map(|options| (options, variant_id)),
+                    )
+                }),
+            });
+            app.set_action_requests_in_flight(action_tasks.len());
+        }
+        LoopAction::OpenSshPanel => {
+            if has_action_in_flight(action_tasks, BackgroundActionKind::SshInfo) {
+                app.set_status("SSH info request already in progress.");
+                return;
+            }
+
+            app.set_status("Loading SSH hosts + presets...");
+            let service = service.clone();
+            action_tasks.push(ActionTask {
+                kind: BackgroundActionKind::SshInfo,
+                handle: tokio::spawn(async move {
+                    BackgroundActionResult::SshInfo(
+                        run_with_api_timeout(service.fetch_ssh_info()).await,
                     )
                 }),
             });
@@ -1970,6 +2265,134 @@ fn process_loop_action(
                 }),
             });
             app.set_action_requests_in_flight(action_tasks.len());
+        }
+        LoopAction::StartSshPortForward => {
+            let Some(request) = app.take_start_ssh_port_forward_request() else {
+                app.set_status("SSH forward skipped: no preset selected.");
+                return;
+            };
+
+            if has_action_in_flight(action_tasks, BackgroundActionKind::StartSshPortForward) {
+                app.set_status("SSH forward already in progress.");
+                return;
+            }
+
+            app.set_status(format!(
+                "Starting SSH port forward preset {}...",
+                request.preset_name
+            ));
+            let service = service.clone();
+            action_tasks.push(ActionTask {
+                kind: BackgroundActionKind::StartSshPortForward,
+                handle: tokio::spawn(async move {
+                    BackgroundActionResult::StartSshPortForward(
+                        run_with_api_timeout(service.start_ssh_port_forward(&request.preset_name))
+                            .await,
+                    )
+                }),
+            });
+            app.set_action_requests_in_flight(action_tasks.len());
+        }
+        LoopAction::CopySshAttachCommand => {
+            let Some(command) = app.ssh_panel_attach_command() else {
+                app.set_status("SSH attach unavailable: no tmux session selected.");
+                return;
+            };
+
+            match copy_to_clipboard(&command) {
+                Ok(()) => {
+                    app.set_command_message(command.clone());
+                    app.set_status(format!("Copied SSH attach command: {command}"));
+                }
+                Err(error) => {
+                    app.set_command_message(command.clone());
+                    app.set_status(format!(
+                        "SSH attach command ready (clipboard failed: {error}): {command}"
+                    ));
+                }
+            }
+        }
+        LoopAction::RunSshAttach => {
+            let Some(command) = app.ssh_panel_attach_command() else {
+                app.set_status("SSH attach unavailable: no tmux session selected.");
+                return;
+            };
+
+            app.set_command_message(command.clone());
+            app.set_status("Running tmux attach...");
+            match run_attach_command(&command) {
+                Ok(exit_status) => {
+                    let code = exit_status
+                        .code()
+                        .map(|value| value.to_string())
+                        .unwrap_or_else(|| "signal".to_string());
+                    app.set_status(format!("SSH attach finished (exit={code})."));
+                }
+                Err(error) => {
+                    app.set_status(format!("SSH attach failed: {error}"));
+                }
+            }
+            *force_refresh = true;
+        }
+        LoopAction::EnsureRemoteAgentTmux => {
+            let Some(host) = app.ssh_panel_selected_host().cloned() else {
+                app.set_status("Remote agent bootstrap unavailable: no host selected.");
+                return;
+            };
+
+            app.set_status(format!("Ensuring remote tmux agent on {}...", host.key));
+            match ensure_remote_agent_tmux(&host) {
+                Ok(()) => {
+                    app.set_status(format!(
+                        "Remote tmux session ready on {} (session=dark-agent).",
+                        host.key
+                    ));
+                }
+                Err(error) => {
+                    app.set_status(format!("Remote tmux bootstrap failed: {error}"));
+                }
+            }
+        }
+        LoopAction::CopyRemoteAgentAttachCommand => {
+            let Some(host) = app.ssh_panel_selected_host().cloned() else {
+                app.set_status("Remote attach unavailable: no host selected.");
+                return;
+            };
+
+            let command = remote_agent_attach_command(&host);
+            match copy_to_clipboard(&command) {
+                Ok(()) => {
+                    app.set_command_message(command.clone());
+                    app.set_status(format!("Copied remote attach command: {command}"));
+                }
+                Err(error) => {
+                    app.set_command_message(command.clone());
+                    app.set_status(format!(
+                        "Remote attach command ready (clipboard failed: {error}): {command}"
+                    ));
+                }
+            }
+        }
+        LoopAction::RunRemoteAgentAttach => {
+            let Some(host) = app.ssh_panel_selected_host().cloned() else {
+                app.set_status("Remote attach unavailable: no host selected.");
+                return;
+            };
+
+            app.set_status(format!("Attaching to remote tmux on {}...", host.key));
+            match run_remote_agent_attach(&host) {
+                Ok(exit_status) => {
+                    let code = exit_status
+                        .code()
+                        .map(|value| value.to_string())
+                        .unwrap_or_else(|| "signal".to_string());
+                    app.set_status(format!("Remote attach finished (exit={code})."));
+                }
+                Err(error) => {
+                    app.set_status(format!("Remote attach failed: {error}"));
+                }
+            }
+            *force_refresh = true;
         }
         LoopAction::BuildAttach => {
             let Some(actor_id) = app.selected_actor_id().map(ToString::to_string) else {
@@ -2051,6 +2474,16 @@ fn process_loop_action(
                 "Core logs hidden."
             };
             app.set_status(status);
+        }
+        LoopAction::OpenLastLogInPager => {
+            match resolve_latest_tui_log_path(service.directory()).and_then(|path| {
+                let display = path.display().to_string();
+                open_log_in_pager(terminal, path.as_path())?;
+                Ok(display)
+            }) {
+                Ok(path) => app.set_status(format!("Opened log in pager: {path}")),
+                Err(error) => app.set_status(format!("Open log pager failed: {error}")),
+            }
         }
         LoopAction::ToggleInspector => {
             app.toggle_inspector_visibility();
@@ -2138,6 +2571,10 @@ fn handle_key(app: &mut App, key: KeyEvent) -> LoopAction {
 
     if app.is_delete_variant_form_open() {
         return handle_delete_variant_form_key(app, key);
+    }
+
+    if app.is_ssh_panel_open() {
+        return handle_ssh_panel_key(app, key);
     }
 
     if app.is_clone_form_open() {
@@ -2230,20 +2667,81 @@ fn handle_init_product_form_key(app: &mut App, key: KeyEvent) -> LoopAction {
     }
 }
 
+fn handle_ssh_panel_key(app: &mut App, key: KeyEvent) -> LoopAction {
+    match key.code {
+        KeyCode::Esc => {
+            app.close_ssh_panel();
+            app.set_status("SSH panel closed.");
+            LoopAction::None
+        }
+        KeyCode::Enter => {
+            if app.ssh_panel_focus_is_hosts() {
+                LoopAction::EnsureRemoteAgentTmux
+            } else if app.ssh_panel_focus_is_tmux() {
+                LoopAction::RunSshAttach
+            } else {
+                LoopAction::StartSshPortForward
+            }
+        }
+        KeyCode::Tab => {
+            app.ssh_panel_toggle_focus();
+            LoopAction::None
+        }
+        KeyCode::Up => {
+            app.ssh_panel_move_up();
+            LoopAction::None
+        }
+        KeyCode::Down => {
+            app.ssh_panel_move_down();
+            LoopAction::None
+        }
+        KeyCode::Char('c') => LoopAction::CopySshAttachCommand,
+        KeyCode::Char('a') => LoopAction::RunSshAttach,
+        KeyCode::Char('g') => LoopAction::EnsureRemoteAgentTmux,
+        KeyCode::Char('o') => LoopAction::CopyRemoteAgentAttachCommand,
+        KeyCode::Char('A') => LoopAction::RunRemoteAgentAttach,
+        _ => LoopAction::None,
+    }
+}
+
 fn handle_clone_form_key(app: &mut App, key: KeyEvent) -> LoopAction {
+    if app.clone_host_picker_open() {
+        return handle_clone_host_picker_key(app, key);
+    }
+
     match key.code {
         KeyCode::Esc => {
             app.close_clone_form();
             app.set_status("Clone form closed.");
             LoopAction::None
         }
-        KeyCode::Enter => LoopAction::CloneVariant,
+        KeyCode::Enter => {
+            if app.clone_form_selected_field() == Some(2) {
+                app.open_clone_host_picker();
+                app.set_status("Host picker open. Type to filter, Enter to select.");
+                LoopAction::None
+            } else {
+                LoopAction::CloneVariant
+            }
+        }
         KeyCode::Up | KeyCode::BackTab => {
             app.clone_form_move_up();
             LoopAction::None
         }
         KeyCode::Down | KeyCode::Tab => {
             app.clone_form_move_down();
+            LoopAction::None
+        }
+        KeyCode::Left => {
+            if app.clone_form_selected_field() == Some(2) {
+                app.clone_form_select_previous_remote_host();
+            }
+            LoopAction::None
+        }
+        KeyCode::Right => {
+            if app.clone_form_selected_field() == Some(2) {
+                app.clone_form_select_next_remote_host();
+            }
             LoopAction::None
         }
         KeyCode::Backspace => {
@@ -2255,6 +2753,44 @@ fn handle_clone_form_key(app: &mut App, key: KeyEvent) -> LoopAction {
                 && !key.modifiers.contains(KeyModifiers::ALT) =>
         {
             app.clone_form_insert_char(value);
+            LoopAction::None
+        }
+        _ => LoopAction::None,
+    }
+}
+
+fn handle_clone_host_picker_key(app: &mut App, key: KeyEvent) -> LoopAction {
+    match key.code {
+        KeyCode::Esc => {
+            app.close_clone_host_picker();
+            app.set_status("Host picker closed.");
+            LoopAction::None
+        }
+        KeyCode::Enter => {
+            if let Some(host) = app.apply_clone_host_picker_selection() {
+                app.set_status(format!("Clone host selected: {host}"));
+            } else {
+                app.set_status("No host selected.");
+            }
+            LoopAction::None
+        }
+        KeyCode::Up => {
+            app.clone_host_picker_move_up();
+            LoopAction::None
+        }
+        KeyCode::Down => {
+            app.clone_host_picker_move_down();
+            LoopAction::None
+        }
+        KeyCode::Backspace => {
+            app.clone_host_picker_backspace();
+            LoopAction::None
+        }
+        KeyCode::Char(value)
+            if !key.modifiers.contains(KeyModifiers::CONTROL)
+                && !key.modifiers.contains(KeyModifiers::ALT) =>
+        {
+            app.clone_host_picker_insert_char(value);
             LoopAction::None
         }
         _ => LoopAction::None,

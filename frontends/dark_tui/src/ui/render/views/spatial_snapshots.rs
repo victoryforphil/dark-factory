@@ -1,7 +1,7 @@
 use insta::assert_snapshot;
+use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
-use ratatui::Terminal;
 use serde_json::json;
 
 use crate::app::App;

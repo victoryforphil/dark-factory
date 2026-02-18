@@ -28,6 +28,8 @@ pub(crate) enum CommandId {
     RunAttach,
     ToggleChat,
     ToggleCoreLogs,
+    OpenLastLogInPager,
+    OpenSshPanel,
     OpenChatCompose,
     ResetPan,
 }
@@ -99,6 +101,16 @@ const TOOLBAR_COMMON_COMMANDS: &[CommandBinding] = &[
         id: CommandId::ToggleCoreLogs,
         key: "l",
         label: "Core logs",
+    },
+    CommandBinding {
+        id: CommandId::OpenLastLogInPager,
+        key: "L",
+        label: "Last log",
+    },
+    CommandBinding {
+        id: CommandId::OpenSshPanel,
+        key: "h",
+        label: "SSH panel",
     },
 ];
 
@@ -239,6 +251,8 @@ pub(crate) fn resolve_key_command(app: &App, key: KeyEvent) -> Option<CommandId>
         KeyCode::Char('A') => CommandId::BuildAttach,
         KeyCode::Char('t') => CommandId::ToggleChat,
         KeyCode::Char('l') => CommandId::ToggleCoreLogs,
+        KeyCode::Char('L') => CommandId::OpenLastLogInPager,
+        KeyCode::Char('h') => CommandId::OpenSshPanel,
         KeyCode::Char('c') => CommandId::OpenChatCompose,
         KeyCode::Char('0') => CommandId::ResetPan,
         _ => return None,
@@ -263,7 +277,9 @@ pub(crate) fn is_command_enabled(app: &App, command: CommandId) -> bool {
         | CommandId::ToggleView
         | CommandId::InitProduct
         | CommandId::ToggleChat
-        | CommandId::ToggleCoreLogs => true,
+        | CommandId::ToggleCoreLogs
+        | CommandId::OpenLastLogInPager
+        | CommandId::OpenSshPanel => true,
         CommandId::CycleVizDensity => app.results_view_mode().is_spatial(),
         CommandId::ResetPan => app.results_view_mode().is_spatial(),
         CommandId::PollVariant

@@ -5,11 +5,11 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use dark_tui_components::{next_index, previous_index, HorizontalSplit};
+use dark_tui_components::{HorizontalSplit, next_index, previous_index};
 
 use crate::models::{
-    compact_id, compact_locator, compact_timestamp, ActorChatMessageRow, ActorRow,
-    DashboardSnapshot, ProductRow, VariantRow,
+    ActorChatMessageRow, ActorRow, DashboardSnapshot, ProductRow, SshHostRow, SshPortForwardRow,
+    TmuxSessionRow, VariantRow, compact_id, compact_locator, compact_timestamp,
 };
 use crate::theme::Theme;
 
@@ -92,6 +92,11 @@ pub struct InitProductRequest {
 }
 
 #[derive(Debug, Clone)]
+pub struct StartSshPortForwardRequest {
+    pub preset_name: String,
+}
+
+#[derive(Debug, Clone)]
 struct SpawnFormState {
     variant_id: String,
     providers: Vec<String>,
@@ -104,6 +109,11 @@ struct CloneFormState {
     selected_field: usize,
     name: String,
     target_path: String,
+    remote_host: String,
+    selected_remote_host: usize,
+    host_picker_open: bool,
+    host_picker_query: String,
+    host_picker_selected: usize,
     branch_name: String,
     clone_type: String,
     source_variant_id: String,
@@ -143,6 +153,21 @@ struct MoveActorFormState {
 #[derive(Debug, Clone)]
 struct InitProductFormState {
     directory: String,
+}
+
+#[derive(Debug, Clone)]
+struct SshPanelState {
+    selected_host: usize,
+    selected_forward: usize,
+    selected_tmux_session: usize,
+    focus: SshPanelFocus,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SshPanelFocus {
+    Hosts,
+    Presets,
+    TmuxSessions,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -281,6 +306,7 @@ pub struct App {
     theme: Theme,
     spawn_form: Option<SpawnFormState>,
     init_product_form: Option<InitProductFormState>,
+    ssh_panel: Option<SshPanelState>,
     clone_form: Option<CloneFormState>,
     branch_form: Option<BranchFormState>,
     delete_variant_form: Option<DeleteVariantFormState>,
@@ -315,6 +341,10 @@ pub struct App {
     chat_detail_popup_message_index: Option<usize>,
     chat_workspace_file_cache: Vec<String>,
     chat_workspace_file_cache_loaded: bool,
+    ssh_hosts: Vec<SshHostRow>,
+    ssh_port_forwards: Vec<SshPortForwardRow>,
+    ssh_active_forwards: Vec<TmuxSessionRow>,
+    tmux_sessions: Vec<TmuxSessionRow>,
     chat_needs_refresh: bool,
     snapshot_refresh_in_flight: bool,
     chat_refresh_in_flight: bool,
@@ -362,6 +392,7 @@ impl App {
             theme,
             spawn_form: None,
             init_product_form: None,
+            ssh_panel: None,
             clone_form: None,
             branch_form: None,
             delete_variant_form: None,
@@ -396,6 +427,10 @@ impl App {
             chat_detail_popup_message_index: None,
             chat_workspace_file_cache: Vec::new(),
             chat_workspace_file_cache_loaded: false,
+            ssh_hosts: Vec::new(),
+            ssh_port_forwards: Vec::new(),
+            ssh_active_forwards: Vec::new(),
+            tmux_sessions: Vec::new(),
             chat_needs_refresh: false,
             snapshot_refresh_in_flight: false,
             chat_refresh_in_flight: false,
@@ -578,6 +613,10 @@ impl App {
         self.init_product_form.is_some()
     }
 
+    pub fn is_ssh_panel_open(&self) -> bool {
+        self.ssh_panel.is_some()
+    }
+
     pub fn open_init_product_form(&mut self) {
         self.init_product_form = Some(InitProductFormState {
             directory: self.directory.clone(),
@@ -586,6 +625,157 @@ impl App {
 
     pub fn close_init_product_form(&mut self) {
         self.init_product_form = None;
+    }
+
+    pub fn open_ssh_panel(&mut self) {
+        self.ssh_panel = Some(SshPanelState {
+            selected_host: 0,
+            selected_forward: 0,
+            selected_tmux_session: 0,
+            focus: SshPanelFocus::Hosts,
+        });
+    }
+
+    pub fn close_ssh_panel(&mut self) {
+        self.ssh_panel = None;
+    }
+
+    pub fn set_ssh_info(
+        &mut self,
+        hosts: Vec<SshHostRow>,
+        port_forwards: Vec<SshPortForwardRow>,
+        active_forwards: Vec<TmuxSessionRow>,
+        tmux_sessions: Vec<TmuxSessionRow>,
+    ) {
+        self.ssh_hosts = hosts;
+        self.ssh_port_forwards = port_forwards;
+        self.ssh_active_forwards = active_forwards;
+        self.tmux_sessions = tmux_sessions;
+        if let Some(panel) = self.ssh_panel.as_mut() {
+            panel.selected_host = panel
+                .selected_host
+                .min(self.ssh_hosts.len().saturating_sub(1));
+            let len = self.ssh_port_forwards.len();
+            panel.selected_forward = panel.selected_forward.min(len.saturating_sub(1));
+            panel.selected_tmux_session = panel
+                .selected_tmux_session
+                .min(self.tmux_sessions.len().saturating_sub(1));
+        }
+    }
+
+    pub fn ssh_hosts(&self) -> &[SshHostRow] {
+        &self.ssh_hosts
+    }
+
+    pub fn ssh_port_forwards(&self) -> &[SshPortForwardRow] {
+        &self.ssh_port_forwards
+    }
+
+    pub fn ssh_active_forwards(&self) -> &[TmuxSessionRow] {
+        &self.ssh_active_forwards
+    }
+
+    pub fn tmux_sessions(&self) -> &[TmuxSessionRow] {
+        &self.tmux_sessions
+    }
+
+    pub fn ssh_panel_selected_forward_index(&self) -> Option<usize> {
+        self.ssh_panel.as_ref().map(|panel| panel.selected_forward)
+    }
+
+    pub fn ssh_panel_selected_tmux_index(&self) -> Option<usize> {
+        self.ssh_panel
+            .as_ref()
+            .map(|panel| panel.selected_tmux_session)
+    }
+
+    pub fn ssh_panel_selected_host_index(&self) -> Option<usize> {
+        self.ssh_panel.as_ref().map(|panel| panel.selected_host)
+    }
+
+    pub fn ssh_panel_focus_is_tmux(&self) -> bool {
+        self.ssh_panel
+            .as_ref()
+            .map(|panel| panel.focus == SshPanelFocus::TmuxSessions)
+            .unwrap_or(false)
+    }
+
+    pub fn ssh_panel_focus_is_hosts(&self) -> bool {
+        self.ssh_panel
+            .as_ref()
+            .map(|panel| panel.focus == SshPanelFocus::Hosts)
+            .unwrap_or(false)
+    }
+
+    pub fn ssh_panel_toggle_focus(&mut self) {
+        let Some(panel) = self.ssh_panel.as_mut() else {
+            return;
+        };
+
+        panel.focus = match panel.focus {
+            SshPanelFocus::Hosts => SshPanelFocus::Presets,
+            SshPanelFocus::Presets => SshPanelFocus::TmuxSessions,
+            SshPanelFocus::TmuxSessions => SshPanelFocus::Hosts,
+        };
+    }
+
+    pub fn ssh_panel_move_up(&mut self) {
+        let Some(panel) = self.ssh_panel.as_mut() else {
+            return;
+        };
+
+        match panel.focus {
+            SshPanelFocus::Hosts => {
+                panel.selected_host = previous_index(panel.selected_host, self.ssh_hosts.len());
+            }
+            SshPanelFocus::Presets => {
+                panel.selected_forward =
+                    previous_index(panel.selected_forward, self.ssh_port_forwards.len());
+            }
+            SshPanelFocus::TmuxSessions => {
+                panel.selected_tmux_session =
+                    previous_index(panel.selected_tmux_session, self.tmux_sessions.len());
+            }
+        }
+    }
+
+    pub fn ssh_panel_move_down(&mut self) {
+        let Some(panel) = self.ssh_panel.as_mut() else {
+            return;
+        };
+
+        match panel.focus {
+            SshPanelFocus::Hosts => {
+                panel.selected_host = next_index(panel.selected_host, self.ssh_hosts.len());
+            }
+            SshPanelFocus::Presets => {
+                panel.selected_forward =
+                    next_index(panel.selected_forward, self.ssh_port_forwards.len());
+            }
+            SshPanelFocus::TmuxSessions => {
+                panel.selected_tmux_session =
+                    next_index(panel.selected_tmux_session, self.tmux_sessions.len());
+            }
+        }
+    }
+
+    pub fn take_start_ssh_port_forward_request(&self) -> Option<StartSshPortForwardRequest> {
+        let panel = self.ssh_panel.as_ref()?;
+        let preset = self.ssh_port_forwards.get(panel.selected_forward)?;
+        Some(StartSshPortForwardRequest {
+            preset_name: preset.name.clone(),
+        })
+    }
+
+    pub fn ssh_panel_attach_command(&self) -> Option<String> {
+        let panel = self.ssh_panel.as_ref()?;
+        let session = self.tmux_sessions.get(panel.selected_tmux_session)?;
+        Some(format!("tmux attach-session -t {}", session.name))
+    }
+
+    pub fn ssh_panel_selected_host(&self) -> Option<&SshHostRow> {
+        let panel = self.ssh_panel.as_ref()?;
+        self.ssh_hosts.get(panel.selected_host)
     }
 
     pub fn init_product_form_directory(&self) -> Option<&str> {
@@ -665,14 +855,26 @@ impl App {
     }
 
     pub fn open_clone_form(&mut self) {
+        let default_remote_host = self
+            .ssh_hosts
+            .first()
+            .map(|host| host.key.clone())
+            .unwrap_or_default();
         self.clone_form = Some(CloneFormState {
             selected_field: 0,
             name: String::new(),
             target_path: String::new(),
+            remote_host: default_remote_host,
+            selected_remote_host: 0,
+            host_picker_open: false,
+            host_picker_query: String::new(),
+            host_picker_selected: 0,
             branch_name: String::new(),
             clone_type: String::new(),
             source_variant_id: String::new(),
         });
+
+        self.clone_form_apply_remote_host_template(false);
     }
 
     pub fn open_branch_form(&mut self) -> bool {
@@ -1012,6 +1214,202 @@ impl App {
             .map(|form| form.target_path.as_str())
     }
 
+    pub fn clone_form_remote_host(&self) -> Option<&str> {
+        self.clone_form
+            .as_ref()
+            .map(|form| form.remote_host.as_str())
+    }
+
+    pub fn clone_host_picker_open(&self) -> bool {
+        self.clone_form
+            .as_ref()
+            .map(|form| form.host_picker_open)
+            .unwrap_or(false)
+    }
+
+    pub fn clone_host_picker_query(&self) -> &str {
+        self.clone_form
+            .as_ref()
+            .map(|form| form.host_picker_query.as_str())
+            .unwrap_or("")
+    }
+
+    pub fn clone_host_picker_selected(&self) -> usize {
+        self.clone_form
+            .as_ref()
+            .map(|form| form.host_picker_selected)
+            .unwrap_or(0)
+    }
+
+    pub fn clone_host_picker_items(&self) -> Vec<String> {
+        let Some(form) = self.clone_form.as_ref() else {
+            return Vec::new();
+        };
+
+        let query = form.host_picker_query.trim().to_ascii_lowercase();
+
+        self.ssh_hosts
+            .iter()
+            .filter(|host| {
+                if query.is_empty() {
+                    return true;
+                }
+
+                host.key.to_ascii_lowercase().contains(&query)
+                    || host.label.to_ascii_lowercase().contains(&query)
+                    || host.host.to_ascii_lowercase().contains(&query)
+                    || host.default_path.to_ascii_lowercase().contains(&query)
+            })
+            .map(|host| {
+                if host.default_path == "-" {
+                    format!("{}  [{}]", host.key, host.source)
+                } else {
+                    format!(
+                        "{}  [{}]  path:{}",
+                        host.key, host.source, host.default_path
+                    )
+                }
+            })
+            .collect::<Vec<_>>()
+    }
+
+    pub fn open_clone_host_picker(&mut self) {
+        let Some(form) = self.clone_form.as_mut() else {
+            return;
+        };
+
+        if self.ssh_hosts.is_empty() {
+            return;
+        }
+
+        form.host_picker_open = true;
+        form.host_picker_query.clear();
+        form.host_picker_selected = form.selected_remote_host;
+        self.clamp_clone_host_picker_selection();
+    }
+
+    pub fn close_clone_host_picker(&mut self) {
+        let Some(form) = self.clone_form.as_mut() else {
+            return;
+        };
+
+        form.host_picker_open = false;
+        form.host_picker_query.clear();
+        form.host_picker_selected = 0;
+    }
+
+    pub fn clone_host_picker_insert_char(&mut self, value: char) {
+        let Some(form) = self.clone_form.as_mut() else {
+            return;
+        };
+        if !form.host_picker_open {
+            return;
+        }
+
+        form.host_picker_query.push(value);
+        self.clamp_clone_host_picker_selection();
+    }
+
+    pub fn clone_host_picker_backspace(&mut self) {
+        let Some(form) = self.clone_form.as_mut() else {
+            return;
+        };
+        if !form.host_picker_open {
+            return;
+        }
+
+        form.host_picker_query.pop();
+        self.clamp_clone_host_picker_selection();
+    }
+
+    pub fn clone_host_picker_move_up(&mut self) {
+        if !self.clone_host_picker_open() {
+            return;
+        }
+
+        let len = self.clone_host_picker_items().len();
+        let Some(form) = self.clone_form.as_mut() else {
+            return;
+        };
+        if len == 0 {
+            form.host_picker_selected = 0;
+            return;
+        }
+
+        form.host_picker_selected = previous_index(form.host_picker_selected, len);
+    }
+
+    pub fn clone_host_picker_move_down(&mut self) {
+        if !self.clone_host_picker_open() {
+            return;
+        }
+
+        let len = self.clone_host_picker_items().len();
+        let Some(form) = self.clone_form.as_mut() else {
+            return;
+        };
+        if len == 0 {
+            form.host_picker_selected = 0;
+            return;
+        }
+
+        form.host_picker_selected = next_index(form.host_picker_selected, len);
+    }
+
+    pub fn clone_host_picker_set_selected(&mut self, index: usize) {
+        if !self.clone_host_picker_open() {
+            return;
+        }
+
+        let len = self.clone_host_picker_items().len();
+        let Some(form) = self.clone_form.as_mut() else {
+            return;
+        };
+
+        if len == 0 {
+            form.host_picker_selected = 0;
+            return;
+        }
+
+        form.host_picker_selected = index.min(len.saturating_sub(1));
+    }
+
+    pub fn apply_clone_host_picker_selection(&mut self) -> Option<String> {
+        let selected_index = {
+            let form = self.clone_form.as_ref()?;
+            if !form.host_picker_open {
+                return None;
+            }
+            form.host_picker_selected
+        };
+
+        let selected_entry = self
+            .clone_host_picker_items()
+            .get(selected_index)?
+            .to_string();
+        let host = selected_entry
+            .split_whitespace()
+            .next()
+            .map(ToString::to_string)?;
+
+        if let Some(form) = self.clone_form.as_mut() {
+            form.remote_host = host.clone();
+            if let Some(position) = self
+                .ssh_hosts
+                .iter()
+                .position(|candidate| candidate.key == host)
+            {
+                form.selected_remote_host = position;
+            }
+            form.host_picker_open = false;
+            form.host_picker_query.clear();
+            form.host_picker_selected = 0;
+        }
+
+        self.clone_form_apply_remote_host_template(true);
+        Some(host)
+    }
+
     pub fn clone_form_branch_name(&self) -> Option<&str> {
         self.clone_form
             .as_ref()
@@ -1035,7 +1433,15 @@ impl App {
             return;
         };
 
-        form.selected_field = previous_index(form.selected_field, 5);
+        form.selected_field = previous_index(form.selected_field, 6);
+    }
+
+    pub fn clone_form_set_selected_field(&mut self, field_index: usize) {
+        let Some(form) = self.clone_form.as_mut() else {
+            return;
+        };
+
+        form.selected_field = field_index.min(5);
     }
 
     pub fn clone_form_move_down(&mut self) {
@@ -1043,7 +1449,7 @@ impl App {
             return;
         };
 
-        form.selected_field = next_index(form.selected_field, 5);
+        form.selected_field = next_index(form.selected_field, 6);
     }
 
     pub fn clone_form_insert_char(&mut self, value: char) {
@@ -1054,9 +1460,14 @@ impl App {
         match form.selected_field {
             0 => form.name.push(value),
             1 => form.target_path.push(value),
-            2 => form.branch_name.push(value),
-            3 => form.clone_type.push(value),
+            2 => form.remote_host.push(value),
+            3 => form.branch_name.push(value),
+            4 => form.clone_type.push(value),
             _ => form.source_variant_id.push(value),
+        }
+
+        if matches!(form.selected_field, 0 | 2) {
+            self.clone_form_apply_remote_host_template(true);
         }
     }
 
@@ -1073,14 +1484,53 @@ impl App {
                 form.target_path.pop();
             }
             2 => {
-                form.branch_name.pop();
+                form.remote_host.pop();
             }
             3 => {
+                form.branch_name.pop();
+            }
+            4 => {
                 form.clone_type.pop();
             }
             _ => {
                 form.source_variant_id.pop();
             }
+        }
+
+        if matches!(form.selected_field, 0 | 2) {
+            self.clone_form_apply_remote_host_template(true);
+        }
+    }
+
+    pub fn clone_form_select_previous_remote_host(&mut self) {
+        let Some(form) = self.clone_form.as_mut() else {
+            return;
+        };
+
+        if self.ssh_hosts.is_empty() {
+            return;
+        }
+
+        form.selected_remote_host = previous_index(form.selected_remote_host, self.ssh_hosts.len());
+        if let Some(host) = self.ssh_hosts.get(form.selected_remote_host) {
+            form.remote_host = host.key.clone();
+            self.clone_form_apply_remote_host_template(true);
+        }
+    }
+
+    pub fn clone_form_select_next_remote_host(&mut self) {
+        let Some(form) = self.clone_form.as_mut() else {
+            return;
+        };
+
+        if self.ssh_hosts.is_empty() {
+            return;
+        }
+
+        form.selected_remote_host = next_index(form.selected_remote_host, self.ssh_hosts.len());
+        if let Some(host) = self.ssh_hosts.get(form.selected_remote_host) {
+            form.remote_host = host.key.clone();
+            self.clone_form_apply_remote_host_template(true);
         }
     }
 
@@ -1094,6 +1544,79 @@ impl App {
             clone_type: normalize_optional_input(&form.clone_type),
             source_variant_id: normalize_optional_input(&form.source_variant_id),
         })
+    }
+
+    fn clone_form_apply_remote_host_template(&mut self, preserve_local_custom_path: bool) {
+        let fallback_repo_slug = self
+            .selected_product()
+            .map(|product| clone_name_slug(&product.display_name))
+            .unwrap_or_else(|| "clone".to_string());
+
+        let Some(form) = self.clone_form.as_ref() else {
+            return;
+        };
+
+        let host = form.remote_host.trim().to_string();
+        if host.is_empty() {
+            return;
+        }
+
+        if preserve_local_custom_path {
+            let current = form.target_path.trim();
+            if !current.is_empty() && !current.starts_with("@ssh://") {
+                return;
+            }
+        }
+
+        let clone_slug = if form.name.trim().is_empty() {
+            fallback_repo_slug
+        } else {
+            clone_name_slug(&form.name)
+        };
+
+        let host_row = self
+            .ssh_hosts
+            .iter()
+            .find(|candidate| candidate.key == host)
+            .cloned();
+
+        let default_path = if let Some(path) = host_row
+            .as_ref()
+            .map(|candidate| candidate.default_path.as_str())
+            .filter(|value| !value.is_empty() && *value != "-")
+        {
+            let base = path.trim_end_matches('/');
+            format!("{base}/{clone_slug}")
+        } else if let Some(user) = host_row
+            .as_ref()
+            .map(|candidate| candidate.user.as_str())
+            .filter(|value| !value.is_empty() && *value != "-")
+        {
+            format!("/home/{user}/github/{clone_slug}")
+        } else {
+            format!("/tmp/df-{clone_slug}")
+        };
+
+        if let Some(form) = self.clone_form.as_mut() {
+            form.target_path = format!("@ssh://{host}{default_path}");
+        }
+    }
+
+    fn clamp_clone_host_picker_selection(&mut self) {
+        if !self.clone_host_picker_open() {
+            return;
+        }
+
+        let len = self.clone_host_picker_items().len();
+        let Some(form) = self.clone_form.as_mut() else {
+            return;
+        };
+        if len == 0 {
+            form.host_picker_selected = 0;
+            return;
+        }
+
+        form.host_picker_selected = form.host_picker_selected.min(len.saturating_sub(1));
     }
 
     pub fn spawn_form_move_provider_up(&mut self) {
@@ -2623,6 +3146,26 @@ fn normalize_optional_input(value: &str) -> Option<String> {
     }
 }
 
+fn clone_name_slug(value: &str) -> String {
+    let normalized = value
+        .trim()
+        .to_ascii_lowercase()
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '-' })
+        .collect::<String>();
+    let compact = normalized
+        .split('-')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+
+    if compact.is_empty() {
+        "clone".to_string()
+    } else {
+        compact
+    }
+}
+
 fn branch_suggestions_for(form: &BranchFormState) -> Vec<&str> {
     let query = form.branch_name.trim().to_ascii_lowercase();
 
@@ -2868,6 +3411,159 @@ mod tests {
         assert_eq!(request.variant_id, "var_2");
         assert_eq!(request.provider, "mock");
         assert_eq!(request.initial_prompt.as_deref(), Some("hi"));
+    }
+
+    #[test]
+    fn ssh_port_forward_request_uses_selected_preset() {
+        let mut app = App::new(".".to_string(), 5, Theme::default());
+        app.set_ssh_info(
+            vec![SshHostRow {
+                key: "devbox".to_string(),
+                host: "devbox".to_string(),
+                source: "config".to_string(),
+                label: "Dev Box".to_string(),
+                user: "alice".to_string(),
+                port: "22".to_string(),
+                default_path: "/srv/work".to_string(),
+            }],
+            vec![
+                SshPortForwardRow {
+                    name: "grafana".to_string(),
+                    host: "devbox".to_string(),
+                    local_port: 3300,
+                    remote_port: 3000,
+                    remote_host: "127.0.0.1".to_string(),
+                    description: "Grafana".to_string(),
+                },
+                SshPortForwardRow {
+                    name: "api".to_string(),
+                    host: "devbox".to_string(),
+                    local_port: 8080,
+                    remote_port: 8080,
+                    remote_host: "127.0.0.1".to_string(),
+                    description: "API".to_string(),
+                },
+            ],
+            vec![],
+            vec![],
+        );
+        app.open_ssh_panel();
+        app.ssh_panel_move_down();
+
+        let request = app
+            .take_start_ssh_port_forward_request()
+            .expect("ssh forward request should exist");
+        assert_eq!(request.preset_name, "api");
+    }
+
+    #[test]
+    fn clone_form_can_autofill_remote_target_from_host() {
+        let mut app = App::new(".".to_string(), 5, Theme::default());
+        app.set_ssh_info(
+            vec![
+                SshHostRow {
+                    key: "devbox".to_string(),
+                    host: "devbox".to_string(),
+                    source: "config".to_string(),
+                    label: "Dev Box".to_string(),
+                    user: "alice".to_string(),
+                    port: "22".to_string(),
+                    default_path: "/srv/work".to_string(),
+                },
+                SshHostRow {
+                    key: "staging".to_string(),
+                    host: "staging".to_string(),
+                    source: "ssh_config".to_string(),
+                    label: "staging".to_string(),
+                    user: "-".to_string(),
+                    port: "-".to_string(),
+                    default_path: "/tmp".to_string(),
+                },
+            ],
+            vec![],
+            vec![],
+            vec![],
+        );
+
+        app.open_clone_form();
+        app.clone_form_select_next_remote_host();
+
+        let target = app
+            .clone_form_target_path()
+            .expect("clone target should be populated")
+            .to_string();
+        assert!(target.starts_with("@ssh://staging/"));
+    }
+
+    #[test]
+    fn clone_host_picker_filters_and_applies_selection() {
+        let mut app = App::new(".".to_string(), 5, Theme::default());
+        app.set_ssh_info(
+            vec![
+                SshHostRow {
+                    key: "devbox".to_string(),
+                    host: "devbox".to_string(),
+                    source: "ssh_config".to_string(),
+                    label: "devbox".to_string(),
+                    user: "-".to_string(),
+                    port: "-".to_string(),
+                    default_path: "/srv/work".to_string(),
+                },
+                SshHostRow {
+                    key: "staging".to_string(),
+                    host: "staging".to_string(),
+                    source: "ssh_config".to_string(),
+                    label: "staging".to_string(),
+                    user: "-".to_string(),
+                    port: "-".to_string(),
+                    default_path: "/tmp".to_string(),
+                },
+            ],
+            vec![],
+            vec![],
+            vec![],
+        );
+
+        app.open_clone_form();
+        app.open_clone_host_picker();
+        app.clone_host_picker_insert_char('s');
+        app.clone_host_picker_insert_char('t');
+        app.clone_host_picker_insert_char('a');
+        app.clone_host_picker_insert_char('g');
+
+        let selected = app
+            .apply_clone_host_picker_selection()
+            .expect("picker selection should exist");
+        assert_eq!(selected, "staging");
+        assert_eq!(app.clone_form_remote_host(), Some("staging"));
+        assert_eq!(app.clone_host_picker_open(), false);
+    }
+
+    #[test]
+    fn clone_form_defaults_to_user_github_when_host_has_user() {
+        let mut app = App::new(".".to_string(), 5, Theme::default());
+        app.set_ssh_info(
+            vec![SshHostRow {
+                key: "devbox".to_string(),
+                host: "devbox".to_string(),
+                source: "ssh_config".to_string(),
+                label: "devbox".to_string(),
+                user: "alex".to_string(),
+                port: "22".to_string(),
+                default_path: "-".to_string(),
+            }],
+            vec![],
+            vec![],
+            vec![],
+        );
+
+        app.open_clone_form();
+
+        let target = app
+            .clone_form_target_path()
+            .expect("clone target should be populated")
+            .to_string();
+        assert_eq!(target, "@ssh://devbox/home/alex/github/clone");
     }
 
     fn snapshot() -> DashboardSnapshot {

@@ -2,12 +2,12 @@ mod components;
 mod panels;
 mod views;
 
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
-use ratatui::Frame;
 
 use crate::app::{App, ResizeTarget, ResultsViewMode};
 use crate::ui::command_palette::ContextMenuState;
@@ -15,12 +15,13 @@ use crate::ui::command_palette::ContextMenuState;
 use panels::{
     BranchFormPanel, ChatPanel, CloneFormPanel, ContextMenuPanel, CoreLogsPanel,
     DeleteVariantFormPanel, DetailsPanel, FooterPanel, HeaderPanel, InitProductFormPanel,
-    KeyBarPanel, MoveActorFormPanel, SpawnFormPanel,
+    KeyBarPanel, MoveActorFormPanel, SpawnFormPanel, SshPanel,
 };
 use views::{CatalogTreeView, UnifiedCatalogView};
 
 pub(crate) use panels::BranchFormHit;
 pub(crate) use panels::ChatPanelHit;
+pub(crate) use panels::CloneFormHit;
 pub(crate) use panels::ContextMenuHit;
 pub(crate) use panels::KeyHintAction;
 pub(crate) use panels::KeyHoverToken;
@@ -69,6 +70,10 @@ pub fn render_dashboard(
 
     if app.is_spawn_form_open() {
         SpawnFormPanel::render(frame, root, app);
+    }
+
+    if app.is_ssh_panel_open() {
+        SshPanel::render(frame, root, app);
     }
 
     if app.is_init_product_form_open() {
@@ -294,6 +299,10 @@ pub(crate) fn chat_message_index_at_point(
 
 pub(crate) fn branch_form_hit_test(root: Rect, app: &App, col: u16, row: u16) -> BranchFormHit {
     BranchFormPanel::hit_test(root, app, col, row)
+}
+
+pub(crate) fn clone_form_hit_test(root: Rect, app: &App, col: u16, row: u16) -> CloneFormHit {
+    CloneFormPanel::hit_test(root, app, col, row)
 }
 
 fn body_area(root: Rect, app: &App) -> Rect {

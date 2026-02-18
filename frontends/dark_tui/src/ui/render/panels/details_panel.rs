@@ -1,15 +1,15 @@
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 
 use crate::app::{App, VizSelection};
-use crate::models::{compact_timestamp, ActorRow, ProductRow, SubAgentRow, VariantRow};
+use crate::models::{ActorRow, ProductRow, SubAgentRow, VariantRow, compact_timestamp};
 use crate::theme::{EntityKind, Theme};
 use crate::ui::render::components::sub_agent_badge;
 
-use dark_tui_components::{compact_text_normalized, SectionHeader, StatusPill};
+use dark_tui_components::{SectionHeader, StatusPill, compact_text_normalized};
 
 pub(crate) struct DetailsPanel;
 const MAX_SUB_AGENT_ROWS: usize = 12;

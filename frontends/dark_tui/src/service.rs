@@ -6,13 +6,17 @@ use dark_rust::{DarkCoreClient, LocatorId, LocatorKind, RawApiResponse};
 use serde_json::{Value, json};
 use tokio::task::JoinSet;
 
-use crate::models::{ActorChatMessageRow, ActorRow, DashboardSnapshot};
+use crate::models::{
+    ActorChatMessageRow, ActorRow, DashboardSnapshot, SshHostRow, SshPortForwardRow, TmuxSessionRow,
+};
 use crate::service_convert::{
     actor_opencode_context, collect_product_metrics, directory_name, ensure_success, now_label,
     query_slice_or_none, required_actor_opencode_context, summarize_error, to_actor_row,
     to_product_row, to_variant_row,
 };
-use crate::service_wire::{ActorRecord, ApiListEnvelope, ProductRecord, VariantRecord};
+use crate::service_wire::{
+    ActorRecord, ApiListEnvelope, ProductRecord, SshInfoEnvelope, VariantRecord,
+};
 
 const PAGE_LIMIT: u32 = 100;
 
@@ -37,6 +41,14 @@ pub struct CloneVariantOptions {
     pub clone_type: Option<String>,
     pub source_variant_id: Option<String>,
     pub run_async: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct SshInfo {
+    pub hosts: Vec<SshHostRow>,
+    pub port_forwards: Vec<SshPortForwardRow>,
+    pub active_forwards: Vec<TmuxSessionRow>,
+    pub tmux_sessions: Vec<TmuxSessionRow>,
 }
 
 impl DashboardService {
@@ -477,6 +489,111 @@ impl DashboardService {
         }
 
         Ok(actor_id)
+    }
+
+    pub async fn fetch_ssh_info(&self) -> Result<SshInfo> {
+        let response = self.request("GET", "/system/ssh", None, None).await?;
+        let body = ensure_success(response)?;
+        let payload: SshInfoEnvelope =
+            serde_json::from_value(body).context("Dark TUI // SSH // Unable to decode SSH info")?;
+        let data = payload
+            .data
+            .context("Dark TUI // SSH // Missing SSH info data")?;
+
+        let hosts = data
+            .hosts
+            .into_iter()
+            .map(|host| SshHostRow {
+                key: host.key,
+                host: host.host,
+                source: host.source,
+                label: host.label,
+                user: host.user.unwrap_or_else(|| "-".to_string()),
+                port: host
+                    .port
+                    .map(|value| value.to_string())
+                    .unwrap_or_else(|| "-".to_string()),
+                default_path: host.default_path.unwrap_or_else(|| "-".to_string()),
+            })
+            .collect::<Vec<_>>();
+
+        let port_forwards = data
+            .port_forwards
+            .into_iter()
+            .map(|forward| SshPortForwardRow {
+                name: forward.name,
+                host: forward.host.unwrap_or_else(|| "-".to_string()),
+                local_port: forward.local_port,
+                remote_port: forward.remote_port,
+                remote_host: forward.remote_host,
+                description: forward.description.unwrap_or_else(|| "-".to_string()),
+            })
+            .collect::<Vec<_>>();
+
+        let active_forwards = data
+            .active_forwards
+            .into_iter()
+            .map(|session| TmuxSessionRow {
+                name: session.name,
+                attached: session.attached,
+                windows: session.windows,
+                current_command: session.current_command,
+            })
+            .collect::<Vec<_>>();
+
+        let tmux_sessions = data
+            .tmux_sessions
+            .into_iter()
+            .map(|session| TmuxSessionRow {
+                name: session.name,
+                attached: session.attached,
+                windows: session.windows,
+                current_command: session.current_command,
+            })
+            .collect::<Vec<_>>();
+
+        Ok(SshInfo {
+            hosts,
+            port_forwards,
+            active_forwards,
+            tmux_sessions,
+        })
+    }
+
+    pub async fn start_ssh_port_forward(&self, preset_name: &str) -> Result<String> {
+        let response = self
+            .request(
+                "POST",
+                "/system/ssh/port-forward",
+                None,
+                Some(json!({
+                    "presetName": preset_name,
+                })),
+            )
+            .await?;
+        let body = ensure_success(response)?;
+        let data = body
+            .get("data")
+            .context("Dark TUI // SSH // Missing port-forward data")?;
+        let session_name = data
+            .get("sessionName")
+            .and_then(Value::as_str)
+            .unwrap_or("-");
+        let host = data.get("host").and_then(Value::as_str).unwrap_or("-");
+        let already_running = data
+            .get("alreadyRunning")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+
+        if already_running {
+            Ok(format!(
+                "SSH forward already running: {preset_name} on {host} ({session_name})"
+            ))
+        } else {
+            Ok(format!(
+                "SSH forward started: {preset_name} on {host} ({session_name})"
+            ))
+        }
     }
 
     pub async fn fetch_actor_messages(

@@ -113,3 +113,59 @@ pub(crate) struct ActorRecord {
     pub(crate) created_at: String,
     pub(crate) updated_at: String,
 }
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SshInfoEnvelope {
+    pub(crate) data: Option<SshInfoRecord>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SshInfoRecord {
+    #[serde(default)]
+    pub(crate) hosts: Vec<SshHostRecord>,
+    #[serde(default)]
+    pub(crate) port_forwards: Vec<SshPortForwardRecord>,
+    #[serde(default)]
+    pub(crate) active_forwards: Vec<TmuxSessionRecord>,
+    #[serde(default)]
+    pub(crate) tmux_sessions: Vec<TmuxSessionRecord>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SshHostRecord {
+    pub(crate) key: String,
+    pub(crate) host: String,
+    pub(crate) source: String,
+    pub(crate) label: String,
+    #[serde(default)]
+    pub(crate) user: Option<String>,
+    #[serde(default)]
+    pub(crate) port: Option<u16>,
+    #[serde(default)]
+    pub(crate) default_path: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct SshPortForwardRecord {
+    pub(crate) name: String,
+    #[serde(default)]
+    pub(crate) host: Option<String>,
+    pub(crate) local_port: u16,
+    pub(crate) remote_port: u16,
+    pub(crate) remote_host: String,
+    #[serde(default)]
+    pub(crate) description: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct TmuxSessionRecord {
+    pub(crate) name: String,
+    pub(crate) attached: bool,
+    pub(crate) windows: usize,
+    pub(crate) current_command: String,
+}

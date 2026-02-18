@@ -11,10 +11,11 @@ mod init_product_form_panel;
 mod key_bar_panel;
 mod move_actor_form_panel;
 mod spawn_form_panel;
+mod ssh_panel;
 
 pub(crate) use branch_form_panel::{BranchFormHit, BranchFormPanel};
 pub(crate) use chat_panel::{ChatPanel, ChatPanelHit};
-pub(crate) use clone_form_panel::CloneFormPanel;
+pub(crate) use clone_form_panel::{CloneFormHit, CloneFormPanel};
 pub(crate) use context_menu_panel::{ContextMenuHit, ContextMenuPanel};
 pub(crate) use core_logs_panel::CoreLogsPanel;
 pub(crate) use delete_variant_form_panel::DeleteVariantFormPanel;
@@ -25,3 +26,4 @@ pub(crate) use init_product_form_panel::InitProductFormPanel;
 pub(crate) use key_bar_panel::{KeyBarPanel, KeyHintAction, KeyHoverToken};
 pub(crate) use move_actor_form_panel::MoveActorFormPanel;
 pub(crate) use spawn_form_panel::SpawnFormPanel;
+pub(crate) use ssh_panel::SshPanel;

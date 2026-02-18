@@ -1,19 +1,20 @@
 use dark_chat::framework::{
-    render_conversation_panel, status_tone_for_status, ConversationComposer, ConversationHeader,
-    ConversationMessage, ConversationPalette, ConversationPanelProps, ConversationStatusTone,
+    ConversationComposer, ConversationHeader, ConversationMessage, ConversationPalette,
+    ConversationPanelProps, ConversationStatusTone, render_conversation_panel,
+    status_tone_for_status,
 };
 use dark_tui_components::{
-    compact_session_id, compact_text, inner_rect, rect_contains, ChatMessageEntry,
-    ChatMessageListComponent, ChatMessageListProps, ChatMessageRole, ChatPalette, LoadingSpinner,
-    PopupAnchor, PopupHit, PopupItem, PopupOverlay, PopupOverlayProps, StatusPill,
+    ChatMessageEntry, ChatMessageListComponent, ChatMessageListProps, ChatMessageRole, ChatPalette,
+    LoadingSpinner, PopupAnchor, PopupHit, PopupItem, PopupOverlay, PopupOverlayProps, StatusPill,
+    compact_session_id, compact_text, inner_rect, rect_contains,
 };
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{
     Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState,
 };
-use ratatui::Frame;
 use serde_json::Value;
 use std::borrow::Cow;
 

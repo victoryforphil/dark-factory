@@ -92,4 +92,33 @@ pub struct ActorChatMessageRow {
     pub created_at: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct SshHostRow {
+    pub key: String,
+    pub host: String,
+    pub source: String,
+    pub label: String,
+    pub user: String,
+    pub port: String,
+    pub default_path: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SshPortForwardRow {
+    pub name: String,
+    pub host: String,
+    pub local_port: u16,
+    pub remote_port: u16,
+    pub remote_host: String,
+    pub description: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct TmuxSessionRow {
+    pub name: String,
+    pub attached: bool,
+    pub windows: usize,
+    pub current_command: String,
+}
+
 pub use dark_tui_components::{compact_id, compact_locator, compact_timestamp};

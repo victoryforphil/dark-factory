@@ -1,10 +1,10 @@
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::Span;
-use ratatui::Frame;
 
 use dark_tui_components::{
-    compact_text, FooterBar, FooterBarProps, PaneBlockComponent, StatusPill,
+    FooterBar, FooterBarProps, PaneBlockComponent, StatusPill, compact_text,
 };
 
 use crate::tui::app::App;

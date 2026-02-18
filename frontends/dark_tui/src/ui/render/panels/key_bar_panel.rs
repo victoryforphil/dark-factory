@@ -1,7 +1,7 @@
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 
 use crate::app::App;
 use crate::ui::command_palette::toolbar_bindings;
@@ -59,6 +59,8 @@ pub enum KeyHintAction {
     Attach,
     Chat,
     CoreLogs,
+    LastLog,
+    SshPanel,
     Compose,
     ResetPan,
     Send,
@@ -109,6 +111,8 @@ impl KeyHintAction {
             "a" => Some(Self::Attach),
             "t" => Some(Self::Chat),
             "l" => Some(Self::CoreLogs),
+            "L" => Some(Self::LastLog),
+            "h" => Some(Self::SshPanel),
             "c" => Some(Self::Compose),
             "0" => Some(Self::ResetPan),
             "Enter" => Some(Self::Send),

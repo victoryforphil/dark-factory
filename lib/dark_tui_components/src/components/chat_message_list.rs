@@ -1,10 +1,10 @@
 use crate::compact_text;
 use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 
 use crate::components::chat_types::{ChatMessageEntry, ChatMessageRole};
 use crate::theme::ComponentThemeLike;
@@ -1472,15 +1472,21 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        assert!(rendered_lines
-            .iter()
-            .any(|line| line.contains("- first line")));
-        assert!(rendered_lines
-            .iter()
-            .any(|line| line.contains("  continuation line")));
-        assert!(!rendered_lines
-            .iter()
-            .any(|line| line.contains("- continuation line")));
+        assert!(
+            rendered_lines
+                .iter()
+                .any(|line| line.contains("- first line"))
+        );
+        assert!(
+            rendered_lines
+                .iter()
+                .any(|line| line.contains("  continuation line"))
+        );
+        assert!(
+            !rendered_lines
+                .iter()
+                .any(|line| line.contains("- continuation line"))
+        );
     }
 
     #[test]

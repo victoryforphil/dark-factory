@@ -73,7 +73,8 @@ pub async fn ensure_dark_core_in_tmux_if_needed(
         launch_config.workdir,
         launch_config.executable_path.as_ref(),
     )?;
-    let executable_path = resolve_or_build_executable_path(launch_config.executable_path, &workdir)?;
+    let executable_path =
+        resolve_or_build_executable_path(launch_config.executable_path, &workdir)?;
 
     if session_exists {
         // Prefer a clean restart when a managed session already exists so each
@@ -100,9 +101,8 @@ pub async fn ensure_dark_core_in_tmux_if_needed(
             "tmux attach -t {}",
             shell_escape_single_quotes(&launch_config.tmux_session_name)
         );
-        let tmux_tail = capture_tmux_tail(&launch_config.tmux_session_name, 40).unwrap_or_else(|_| {
-            "<unable to capture tmux output>".to_string()
-        });
+        let tmux_tail = capture_tmux_tail(&launch_config.tmux_session_name, 40)
+            .unwrap_or_else(|_| "<unable to capture tmux output>".to_string());
         return Err(DarkRustError::Runtime {
             message: format!(
                 "dark_core did not become healthy in {:?} (baseUrl={base_url}, session={}). Inspect with: {attach_command}. Recent tmux output: {tmux_tail}",
@@ -141,12 +141,13 @@ async fn check_dark_core_health(base_url: &str) -> bool {
 }
 
 fn ensure_tmux_available() -> Result<(), DarkRustError> {
-    let output = Command::new("tmux")
-        .arg("-V")
-        .output()
-        .map_err(|error| DarkRustError::Runtime {
-            message: format!("tmux is required but unavailable (error={error})"),
-        })?;
+    let output =
+        Command::new("tmux")
+            .arg("-V")
+            .output()
+            .map_err(|error| DarkRustError::Runtime {
+                message: format!("tmux is required but unavailable (error={error})"),
+            })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
@@ -234,13 +235,17 @@ fn capture_tmux_tail(session_name: &str, lines: usize) -> Result<String, DarkRus
         .args(["capture-pane", "-pt", session_name, "-S", &start])
         .output()
         .map_err(|error| DarkRustError::Runtime {
-            message: format!("failed to capture tmux pane output (session={session_name},error={error})"),
+            message: format!(
+                "failed to capture tmux pane output (session={session_name},error={error})"
+            ),
         })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
         return Err(DarkRustError::Runtime {
-            message: format!("failed to capture tmux pane output (session={session_name},stderr={stderr})"),
+            message: format!(
+                "failed to capture tmux pane output (session={session_name},stderr={stderr})"
+            ),
         });
     }
 
@@ -347,8 +352,16 @@ fn run_dark_core_build_exec(workdir: &PathBuf) -> Result<(), DarkRustError> {
         message: format!(
             "auto-build failed for dark_core executable (workdir={},stdout={},stderr={})",
             workdir.display(),
-            if stdout.is_empty() { "<empty>" } else { &stdout },
-            if stderr.is_empty() { "<empty>" } else { &stderr }
+            if stdout.is_empty() {
+                "<empty>"
+            } else {
+                &stdout
+            },
+            if stderr.is_empty() {
+                "<empty>"
+            } else {
+                &stderr
+            }
         ),
     })
 }

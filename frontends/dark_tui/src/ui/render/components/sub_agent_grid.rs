@@ -1,8 +1,8 @@
+use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use throbber_widgets_tui::BLACK_CIRCLE;
 
@@ -102,7 +102,7 @@ fn compact_cell_text(value: &str, max_len: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{sub_agent_marker, BLACK_CIRCLE};
+    use super::{BLACK_CIRCLE, sub_agent_marker};
 
     #[test]
     fn marker_uses_solid_dot_for_active_rows() {
