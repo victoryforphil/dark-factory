@@ -160,3 +160,4 @@ target/
 *.db-wal
 # Generated OpenCode chat exports
 docs/chats/
+dark_core/darkcore
