@@ -17,6 +17,9 @@
     "summary": {
       "model": "openrouter/x-ai/grok-4.1-fast",
     },
+    "gitter": {
+      "model": "openrouter/x-ai/grok-code-fast-1",
+    },
   },
   "mcp": {
     "websearch": {

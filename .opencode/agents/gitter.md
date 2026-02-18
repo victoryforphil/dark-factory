@@ -1,6 +1,7 @@
 ---
 description: Handles git status, diffs, and commits for the repo
 mode: subagent
+model: openrouter/google/gemini-2.0-flash-001
 
 tools:
   bash: true
