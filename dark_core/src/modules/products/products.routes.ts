@@ -87,6 +87,9 @@ const productVariantCloneResponse = t.Object({
       branchName: t.Nullable(t.String()),
       generatedTargetPath: t.Boolean(),
       generatedBranchName: t.Boolean(),
+      attemptedCommand: t.Nullable(t.String()),
+      usedNoLocalRetry: t.Boolean(),
+      isAsync: t.Boolean(),
     }),
   }),
 });
@@ -97,6 +100,7 @@ const productVariantCloneInput = t.Object({
   cloneType: t.Optional(t.String()),
   branchName: t.Optional(t.String()),
   sourceVariantId: t.Optional(t.String()),
+  runAsync: t.Optional(t.Boolean()),
 });
 
 const productVariantCreateInput = t.Object({
@@ -459,14 +463,16 @@ export const createProductsRoutes = (
             name: body.name,
             sourceVariantId: body.sourceVariantId,
             targetPath: body.targetPath,
+            runAsync: body.runAsync,
           });
 
-          set.status = 201;
+          set.status = cloned.clone.isAsync ? 202 : 201;
           logInfoDuration('Core // Products Route // Clone variant succeeded', startedAt, {
             cloneType: cloned.clone.cloneType,
             generatedBranchName: cloned.clone.generatedBranchName,
             generatedTargetPath: cloned.clone.generatedTargetPath,
             id: params.id,
+            isAsync: cloned.clone.isAsync,
             variantId: cloned.variant.id,
           });
           return success(cloned);
@@ -507,6 +513,7 @@ export const createProductsRoutes = (
         body: productVariantCloneInput,
         response: {
           201: productVariantCloneResponse,
+          202: productVariantCloneResponse,
           400: apiFailureResponse,
           404: notFoundResponse,
           500: apiFailureResponse,

@@ -1,4 +1,4 @@
-import { cp, mkdir, stat } from 'node:fs/promises';
+import { cp, mkdir, rm, stat } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 
 import type { Product, Variant } from '../../../../generated/prisma/client';
@@ -20,6 +20,7 @@ export interface CloneVariantForProductInput {
   cloneType?: VariantCloneType;
   branchName?: string;
   sourceVariantId?: string;
+  runAsync?: boolean;
 }
 
 export interface VariantCloneResult {
@@ -33,6 +34,9 @@ export interface VariantCloneResult {
     branchName: string | null;
     generatedTargetPath: boolean;
     generatedBranchName: boolean;
+    attemptedCommand: string | null;
+    usedNoLocalRetry: boolean;
+    isAsync: boolean;
   };
 }
 
@@ -46,10 +50,28 @@ interface GitCommandResult {
   stdout: string;
   stderr: string;
   exitCode: number;
+  command: string;
+}
+
+interface RunGitOptions {
+  timeoutMs?: number;
+  nonInteractive?: boolean;
+  logOutput?: boolean;
+  onOutputLine?: (line: string, level: 'info' | 'warn') => void;
+}
+
+interface CloneExecutionMetadata {
+  attemptedCommand: string;
+  usedNoLocalRetry: boolean;
 }
 
 const DEFAULT_VARIANT_NAME_PREFIX = 'clone';
 const DEFAULT_CLONE_DIR_SUFFIX_WIDTH = 2;
+const GIT_SHALLOW_CLONE_DEPTH = 32;
+const GIT_CLONE_TIMEOUT_MS = 15 * 60_000;
+const GIT_CLONE_TRANSIENT_RETRY_MAX = 2;
+const GIT_OUTPUT_LOG_RATE_MS = 1_000;
+const GIT_OUTPUT_METADATA_RATE_MS = 1_000;
 
 const trimToNull = (value: string | null | undefined): string | null => {
   if (!value) {
@@ -79,25 +101,265 @@ const pathExists = async (path: string): Promise<boolean> => {
   return Boolean(info);
 };
 
-const runGit = async (args: string[], cwd?: string): Promise<GitCommandResult> => {
+const shellQuote = (value: string): string => {
+  if (value.length === 0) {
+    return "''";
+  }
+
+  if (/^[A-Za-z0-9_./:@%+,-]+$/.test(value)) {
+    return value;
+  }
+
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+};
+
+const formatGitCommand = (args: string[], nonInteractive: boolean): string => {
+  const envPrefix = nonInteractive
+    ? "GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=echo GIT_SSH_COMMAND='ssh -oBatchMode=yes' "
+    : '';
+
+  return `${envPrefix}git ${args.map(shellQuote).join(' ')}`;
+};
+
+const runGit = async (
+  args: string[],
+  cwd?: string,
+  options: RunGitOptions = {},
+): Promise<GitCommandResult> => {
+  const nonInteractive = options.nonInteractive ?? false;
+  const command = formatGitCommand(args, nonInteractive);
+  const commandCwd = cwd ?? process.cwd();
+  const timeoutMs = options.timeoutMs ?? 0;
+
+  Log.info(
+    `Core // Variant Clones Controller // Git command executing ${formatLogMetadata({
+      command,
+      cwd: commandCwd,
+      timeoutMs: timeoutMs > 0 ? timeoutMs : null,
+    })}`,
+  );
+
+  const env = {
+    ...process.env,
+    ...(nonInteractive
+      ? {
+          GIT_TERMINAL_PROMPT: '0',
+          GIT_ASKPASS: 'echo',
+          // Fail fast for SSH remotes when auth is unavailable.
+          GIT_SSH_COMMAND: 'ssh -oBatchMode=yes',
+        }
+      : {}),
+  };
+
   const child = Bun.spawn(['git', ...args], {
-    ...(cwd ? { cwd } : {}),
+    cwd: commandCwd,
+    env,
     stdout: 'pipe',
     stderr: 'pipe',
     stdin: 'ignore',
   });
 
+  let timedOut = false;
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  if (timeoutMs > 0) {
+    timeoutHandle = setTimeout(() => {
+      timedOut = true;
+      child.kill();
+    }, timeoutMs);
+  }
+
+  const readStreamWithOptionalLiveLogs = async (
+    stream: ReadableStream<Uint8Array> | null,
+    level: 'info' | 'warn',
+  ): Promise<string> => {
+    if (!stream) {
+      return '';
+    }
+
+    if (!options.logOutput) {
+      return new Response(stream).text();
+    }
+
+    const reader = stream.getReader();
+    const decoder = new TextDecoder();
+    let captured = '';
+    let buffered = '';
+    let lastLoggedAtMs = 0;
+    let lastMetadataAtMs = 0;
+    let hasLoggedAnyLine = false;
+    let lastLoggedLine: string | null = null;
+
+    const processLine = (line: string): void => {
+      const trimmed = line.trimEnd();
+      if (trimmed.length === 0) {
+        return;
+      }
+
+      const nowMs = Date.now();
+      const highPriority = isGitStartLine(trimmed) || isGitCompletionLine(trimmed) || isFatalGitLine(trimmed);
+
+      const canLog =
+        highPriority ||
+        !hasLoggedAnyLine ||
+        (nowMs - lastLoggedAtMs >= GIT_OUTPUT_LOG_RATE_MS && lastLoggedLine !== trimmed);
+      if (canLog) {
+        const message = `Core // Variant Clones Controller // Git ${level} ${formatLogMetadata({ command, line: trimmed })}`;
+        if (level === 'warn') {
+          Log.warn(message);
+        } else {
+          Log.info(message);
+        }
+
+        hasLoggedAnyLine = true;
+        lastLoggedAtMs = nowMs;
+        lastLoggedLine = trimmed;
+      }
+
+      const canUpdateMetadata =
+        highPriority ||
+        !hasLoggedAnyLine ||
+        nowMs - lastMetadataAtMs >= GIT_OUTPUT_METADATA_RATE_MS;
+      if (canUpdateMetadata) {
+        options.onOutputLine?.(trimmed, level);
+        lastMetadataAtMs = nowMs;
+      }
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      const chunk = decoder.decode(value, { stream: true });
+      captured += chunk;
+      buffered += chunk;
+
+      let splitIndex = buffered.search(/[\r\n]/);
+      while (splitIndex >= 0) {
+        const line = buffered.slice(0, splitIndex);
+        buffered = buffered.slice(splitIndex + 1);
+        processLine(line);
+        splitIndex = buffered.search(/[\r\n]/);
+      }
+    }
+
+    const tail = decoder.decode();
+    if (tail.length > 0) {
+      captured += tail;
+      buffered += tail;
+    }
+
+    processLine(buffered);
+
+    return captured;
+  };
+
   const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(child.stdout).text(),
-    new Response(child.stderr).text(),
+    readStreamWithOptionalLiveLogs(child.stdout, 'info'),
+    readStreamWithOptionalLiveLogs(child.stderr, 'warn'),
     child.exited,
   ]);
+
+  if (timeoutHandle) {
+    clearTimeout(timeoutHandle);
+  }
+
+  if (timedOut) {
+    return {
+      ok: false,
+      stdout,
+      stderr: `${stderr}\nGit command timed out after ${timeoutMs}ms: ${command}`,
+      exitCode: -1,
+      command,
+    };
+  }
 
   return {
     ok: exitCode === 0,
     stdout,
     stderr,
     exitCode,
+    command,
+  };
+};
+
+const shouldRetryGitCloneAsNoLocal = (stderr: string): boolean => {
+  const normalized = stderr.toLowerCase();
+  return (
+    normalized.includes('invalid index-pack output') ||
+    normalized.includes('tmp_pack') ||
+    normalized.includes('could not open')
+  );
+};
+
+const shouldRetryGitCloneTransient = (stderr: string): boolean => {
+  const normalized = stderr.toLowerCase();
+  return (
+    normalized.includes('early eof') ||
+    normalized.includes('fetch-pack') ||
+    normalized.includes('index-pack failed') ||
+    normalized.includes('connection reset') ||
+    normalized.includes('remote end hung up unexpectedly') ||
+    normalized.includes('unexpected disconnect')
+  );
+};
+
+const shouldRetryGitCloneWithoutFilter = (stderr: string): boolean => {
+  const normalized = stderr.toLowerCase();
+  return (
+    normalized.includes('filtering not recognized by server') ||
+    normalized.includes('does not support filter') ||
+    normalized.includes('server does not support')
+  );
+};
+
+const isFatalGitLine = (line: string): boolean => {
+  const normalized = line.toLowerCase();
+  return normalized.includes('fatal:') || normalized.includes('error:');
+};
+
+const isGitCompletionLine = (line: string): boolean => {
+  const normalized = line.toLowerCase();
+  return (
+    normalized.includes(' 100% ') ||
+    normalized.includes('100% (') ||
+    normalized.endsWith(', done.') ||
+    normalized.includes('updating files: 100%')
+  );
+};
+
+const isGitStartLine = (line: string): boolean => {
+  return line.startsWith('Cloning into ');
+};
+
+const isJsonRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+};
+
+const withCloneMetadata = (
+  existingGitInfo: Variant['gitInfo'],
+  metadata: Record<string, unknown>,
+): Variant['gitInfo'] => {
+  const base = isJsonRecord(existingGitInfo) ? { ...existingGitInfo } : {};
+  return {
+    ...base,
+    _clone: metadata,
+  };
+};
+
+const withMergedCloneMetadata = (
+  existingGitInfo: Variant['gitInfo'],
+  patch: Record<string, unknown>,
+): Variant['gitInfo'] => {
+  const base = isJsonRecord(existingGitInfo) ? { ...existingGitInfo } : {};
+  const existingClone = isJsonRecord(base._clone) ? base._clone : {};
+  return {
+    ...base,
+    _clone: {
+      ...existingClone,
+      ...patch,
+    },
   };
 };
 
@@ -330,11 +592,97 @@ const cloneFromLocalSource = async (sourceLocator: string, targetPath: string): 
   });
 };
 
+const doesRemoteBranchExist = async (remote: string, branchName: string): Promise<boolean> => {
+  const branchRef = trimToNull(branchName);
+  if (!branchRef) {
+    return false;
+  }
+
+  const result = await runGit(['ls-remote', '--heads', remote, branchRef], process.cwd(), {
+    nonInteractive: true,
+    timeoutMs: 30_000,
+  });
+  if (!result.ok) {
+    throw new Error(
+      `Variants // Clone // Git branch discovery failed ${formatLogMetadata({
+        branchName: branchRef,
+        command: result.command,
+        exitCode: result.exitCode,
+        remote,
+        stderr: trimToNull(result.stderr),
+      })}`,
+    );
+  }
+
+  return result.stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .some((line) => line.endsWith(`/heads/${branchRef}`));
+};
+
+const checkoutOrCreateBranch = async (
+  targetPath: string,
+  branchName: string,
+  branchExistsOnRemote: boolean,
+  onOutputLine?: (line: string, level: 'info' | 'warn') => void,
+): Promise<void> => {
+  if (branchExistsOnRemote) {
+    const checkoutResult = await runGit(['checkout', branchName], targetPath, {
+      logOutput: true,
+      onOutputLine,
+    });
+    if (!checkoutResult.ok) {
+      throw new Error(
+        `Variants // Clone // Git checkout existing branch failed ${formatLogMetadata({
+          branchName,
+          command: checkoutResult.command,
+          exitCode: checkoutResult.exitCode,
+          stderr: trimToNull(checkoutResult.stderr),
+        })}`,
+      );
+    }
+
+    const pullResult = await runGit(['pull', '--ff-only', 'origin', branchName], targetPath, {
+      logOutput: true,
+      onOutputLine,
+    });
+    if (!pullResult.ok) {
+      throw new Error(
+        `Variants // Clone // Git pull existing branch failed ${formatLogMetadata({
+          branchName,
+          command: pullResult.command,
+          exitCode: pullResult.exitCode,
+          stderr: trimToNull(pullResult.stderr),
+        })}`,
+      );
+    }
+
+    return;
+  }
+
+  const checkoutResult = await runGit(['checkout', '-b', branchName], targetPath, {
+    logOutput: true,
+    onOutputLine,
+  });
+  if (!checkoutResult.ok) {
+    throw new Error(
+      `Variants // Clone // Git branch create failed ${formatLogMetadata({
+        branchName,
+        command: checkoutResult.command,
+        exitCode: checkoutResult.exitCode,
+        stderr: trimToNull(checkoutResult.stderr),
+      })}`,
+    );
+  }
+};
+
 const cloneFromGitRemote = async (
   productLocator: string,
   targetPath: string,
   branchName: string,
-): Promise<void> => {
+  branchProvided: boolean,
+  onOutputLine?: (line: string, level: 'info' | 'warn') => void,
+): Promise<CloneExecutionMetadata> => {
   const parsed = parseLocatorId(productLocator);
   if (parsed.type !== 'git') {
     throw new Error(
@@ -344,29 +692,122 @@ const cloneFromGitRemote = async (
     );
   }
 
-  const cloneResult = await runGit(
-    ['clone', '--branch', parsed.ref, '--single-branch', parsed.remote, targetPath],
-    process.cwd(),
-  );
+  const branchExistsOnRemote = branchProvided
+    ? await doesRemoteBranchExist(parsed.remote, branchName)
+    : false;
+  const cloneSourceBranch = branchExistsOnRemote ? branchName : parsed.ref;
+
+  const cloneArgs = [
+    'clone',
+    '--progress',
+    '--filter=blob:none',
+    '--branch',
+    cloneSourceBranch,
+    '--single-branch',
+    parsed.remote,
+    targetPath,
+  ];
+  if (!branchExistsOnRemote) {
+    cloneArgs.splice(2, 0, '--depth', String(GIT_SHALLOW_CLONE_DEPTH));
+  }
+  let cloneCommandArgs = cloneArgs;
+  let cloneResult = await runGit(cloneCommandArgs, process.cwd(), {
+    nonInteractive: true,
+    timeoutMs: GIT_CLONE_TIMEOUT_MS,
+    logOutput: true,
+    onOutputLine,
+  });
+  let usedNoLocalRetry = false;
+  let usedFilterFallback = false;
+  let transientRetries = 0;
+  while (!cloneResult.ok) {
+    if (!usedFilterFallback && shouldRetryGitCloneWithoutFilter(cloneResult.stderr)) {
+      usedFilterFallback = true;
+      cloneCommandArgs = cloneCommandArgs.filter((part) => part !== '--filter=blob:none');
+      Log.warn(
+        `Core // Variant Clones Controller // Clone retry without --filter ${formatLogMetadata({
+          branchName: cloneSourceBranch,
+          stderr: trimToNull(cloneResult.stderr),
+          targetPath,
+        })}`,
+      );
+      await rm(targetPath, { recursive: true, force: true });
+      cloneResult = await runGit(cloneCommandArgs, process.cwd(), {
+        nonInteractive: true,
+        timeoutMs: GIT_CLONE_TIMEOUT_MS,
+        logOutput: true,
+        onOutputLine,
+      });
+      continue;
+    }
+
+    if (!usedNoLocalRetry && shouldRetryGitCloneAsNoLocal(cloneResult.stderr)) {
+      Log.warn(
+        `Core // Variant Clones Controller // Clone retry with --no-local ${formatLogMetadata({
+          branchName: cloneSourceBranch,
+          stderr: trimToNull(cloneResult.stderr),
+          targetPath,
+        })}`,
+      );
+
+      await rm(targetPath, { recursive: true, force: true });
+      cloneCommandArgs = ['clone', '--no-local', ...cloneArgs.slice(1)];
+      cloneResult = await runGit(cloneCommandArgs, process.cwd(), {
+        nonInteractive: true,
+        timeoutMs: GIT_CLONE_TIMEOUT_MS,
+        logOutput: true,
+        onOutputLine,
+      });
+      usedNoLocalRetry = true;
+      continue;
+    }
+
+    if (
+      shouldRetryGitCloneTransient(cloneResult.stderr) &&
+      transientRetries < GIT_CLONE_TRANSIENT_RETRY_MAX
+    ) {
+      transientRetries += 1;
+      Log.warn(
+        `Core // Variant Clones Controller // Clone transient retry ${formatLogMetadata({
+          attempt: transientRetries,
+          branchName: cloneSourceBranch,
+          maxRetries: GIT_CLONE_TRANSIENT_RETRY_MAX,
+          stderr: trimToNull(cloneResult.stderr),
+          targetPath,
+        })}`,
+      );
+
+      await rm(targetPath, { recursive: true, force: true });
+      cloneResult = await runGit(cloneCommandArgs, process.cwd(), {
+        nonInteractive: true,
+        timeoutMs: GIT_CLONE_TIMEOUT_MS,
+        logOutput: true,
+        onOutputLine,
+      });
+      continue;
+    }
+
+    break;
+  }
+
   if (!cloneResult.ok) {
     throw new Error(
       `Variants // Clone // Git clone failed ${formatLogMetadata({
+        branchName: cloneSourceBranch,
+        command: cloneResult.command,
         exitCode: cloneResult.exitCode,
+        transientRetries,
         stderr: trimToNull(cloneResult.stderr),
       })}`,
     );
   }
 
-  const checkoutResult = await runGit(['checkout', '-b', branchName], targetPath);
-  if (!checkoutResult.ok) {
-    throw new Error(
-      `Variants // Clone // Git branch create failed ${formatLogMetadata({
-        branchName,
-        exitCode: checkoutResult.exitCode,
-        stderr: trimToNull(checkoutResult.stderr),
-      })}`,
-    );
-  }
+  await checkoutOrCreateBranch(targetPath, branchName, branchExistsOnRemote, onOutputLine);
+
+  return {
+    attemptedCommand: cloneResult.command,
+    usedNoLocalRetry: usedNoLocalRetry || usedFilterFallback,
+  };
 };
 
 export const cloneVariantForProduct = async (
@@ -398,6 +839,11 @@ export const cloneVariantForProduct = async (
     input.targetPath,
   );
   const branch = buildBranchName(product, input.branchName);
+  const branchProvided = Boolean(trimToNull(input.branchName));
+  const targetLocator = hostAbsolutePathToLocatorId(targetPath);
+  const variantName = await buildVariantName(product.id, input.name);
+  const variantId = buildRandomVariantId();
+  const startedAt = new Date();
 
   Log.info(
     `Core // Variant Clones Controller // Clone plan resolved ${formatLogMetadata({
@@ -419,54 +865,213 @@ export const cloneVariantForProduct = async (
     })}`,
   );
 
-  if (resolvedCloneType === 'local.copy') {
-    Log.info(
-      `Core // Variant Clones Controller // Clone execution local copy ${formatLogMetadata({
-        productId: product.id,
-        sourceLocator,
-        targetPath,
-      })}`,
-    );
-    await cloneFromLocalSource(sourceLocator, targetPath);
-  } else {
-    Log.info(
-      `Core // Variant Clones Controller // Clone execution git clone+branch ${formatLogMetadata({
-        branchName: branch.value,
-        productId: product.id,
-        productLocator: product.locator,
-        targetPath,
-      })}`,
-    );
-    await cloneFromGitRemote(product.locator, targetPath, branch.value);
-  }
-
-  const targetLocator = hostAbsolutePathToLocatorId(targetPath);
-  const variantName = await buildVariantName(product.id, input.name);
-
-  const createdVariant = await prisma.variant.create({
+  const seededVariant = await prisma.variant.create({
     data: {
-      id: buildRandomVariantId(),
+      id: variantId,
       productId: product.id,
       name: variantName,
       locator: targetLocator,
+      gitInfo: withCloneMetadata(null, {
+        status: 'cloning',
+        phase: 'clone.pending',
+        startedAt: startedAt.toISOString(),
+        sourceLocator,
+        targetPath,
+        branchName: resolvedCloneType === 'git.clone_branch' ? branch.value : null,
+      }),
+      gitInfoUpdatedAt: startedAt,
     },
   });
-  const variant = await syncVariantGitInfo(createdVariant.id);
 
-  Log.info(
-    `Core // Variant Clones Controller // Clone created ${formatLogMetadata({
-      branchName: resolvedCloneType === 'git.clone_branch' ? branch.value : null,
-      cloneType: resolvedCloneType,
-      generatedBranchName: resolvedCloneType === 'git.clone_branch' ? branch.generated : false,
-      generatedTargetPath,
-      productId: product.id,
-      sourceLocator,
-      targetLocator,
-      targetPath,
-      variantId: variant.id,
-      variantName: variant.name,
-    })}`,
-  );
+  let attemptedCommand: string | null = null;
+  let usedNoLocalRetry = false;
+  let lastCloneLine: string | null = null;
+  let lastProgressUpdateMs = 0;
+
+  const updateCloneProgress = async (line: string): Promise<void> => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    const nowMs = Date.now();
+    if (trimmed === lastCloneLine && nowMs - lastProgressUpdateMs < 1_000) {
+      return;
+    }
+
+    if (nowMs - lastProgressUpdateMs < 1_000) {
+      return;
+    }
+
+    lastCloneLine = trimmed;
+    lastProgressUpdateMs = nowMs;
+
+    const current = await prisma.variant.findUnique({ where: { id: seededVariant.id } });
+    if (!current) {
+      return;
+    }
+
+    await prisma.variant
+      .update({
+        where: { id: seededVariant.id },
+        data: {
+          gitInfo: withMergedCloneMetadata(current.gitInfo, {
+            status: 'cloning',
+            phase: 'clone.pending',
+            lastLine: trimmed,
+            startedAt: startedAt.toISOString(),
+            sourceLocator,
+            targetPath,
+            branchName: resolvedCloneType === 'git.clone_branch' ? branch.value : null,
+          }),
+          gitInfoUpdatedAt: new Date(),
+        },
+      })
+      .catch(() => null);
+  };
+
+  const executeCloneLifecycle = async (): Promise<Variant> => {
+    try {
+      if (resolvedCloneType === 'local.copy') {
+        Log.info(
+          `Core // Variant Clones Controller // Clone execution local copy ${formatLogMetadata({
+            productId: product.id,
+            sourceLocator,
+            targetPath,
+            variantId,
+          })}`,
+        );
+        await cloneFromLocalSource(sourceLocator, targetPath);
+        attemptedCommand = `cp -R ${sourceLocator} ${targetPath}`;
+      } else {
+        Log.info(
+          `Core // Variant Clones Controller // Clone execution git clone+branch ${formatLogMetadata({
+            branchName: branch.value,
+            productId: product.id,
+            productLocator: product.locator,
+            targetPath,
+            variantId,
+          })}`,
+        );
+        const execution = await cloneFromGitRemote(
+          product.locator,
+          targetPath,
+          branch.value,
+          branchProvided,
+          (line) => {
+            void updateCloneProgress(line);
+          },
+        );
+        attemptedCommand = execution.attemptedCommand;
+        usedNoLocalRetry = execution.usedNoLocalRetry;
+        Log.info(
+          `Core // Variant Clones Controller // Clone command attempted ${formatLogMetadata({
+            command: attemptedCommand,
+            usedNoLocalRetry,
+            variantId,
+          })}`,
+        );
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const failedAt = new Date();
+      const current = await prisma.variant.findUnique({ where: { id: seededVariant.id } });
+      await prisma.variant
+        .update({
+          where: { id: seededVariant.id },
+          data: {
+            gitInfo: withMergedCloneMetadata(current?.gitInfo ?? seededVariant.gitInfo, {
+              status: 'failed',
+              phase: 'clone.failed',
+              startedAt: startedAt.toISOString(),
+              failedAt: failedAt.toISOString(),
+              sourceLocator,
+              targetPath,
+              branchName: resolvedCloneType === 'git.clone_branch' ? branch.value : null,
+              attemptedCommand,
+              usedNoLocalRetry,
+              lastLine: lastCloneLine,
+              error: message,
+            }),
+            gitInfoUpdatedAt: failedAt,
+          },
+        })
+        .catch(() => null);
+
+      throw error;
+    }
+
+    const syncedVariant = await syncVariantGitInfo(seededVariant.id);
+    const finishedAt = new Date();
+    const variant = await prisma.variant.update({
+      where: { id: seededVariant.id },
+      data: {
+        gitInfo: withMergedCloneMetadata(syncedVariant.gitInfo, {
+          status: 'ready',
+          phase: 'clone.ready',
+          startedAt: startedAt.toISOString(),
+          finishedAt: finishedAt.toISOString(),
+          sourceLocator,
+          targetPath,
+          branchName: resolvedCloneType === 'git.clone_branch' ? branch.value : null,
+          attemptedCommand,
+          usedNoLocalRetry,
+          lastLine: lastCloneLine,
+        }),
+        gitInfoUpdatedAt: finishedAt,
+      },
+    });
+
+    Log.info(
+      `Core // Variant Clones Controller // Clone created ${formatLogMetadata({
+        branchName: resolvedCloneType === 'git.clone_branch' ? branch.value : null,
+        cloneType: resolvedCloneType,
+        generatedBranchName: resolvedCloneType === 'git.clone_branch' ? branch.generated : false,
+        generatedTargetPath,
+        productId: product.id,
+        sourceLocator,
+        targetLocator,
+        targetPath,
+        variantId: variant.id,
+        variantName: variant.name,
+      })}`,
+    );
+
+    return variant;
+  };
+
+  const runAsync = input.runAsync === true;
+  if (runAsync) {
+    void executeCloneLifecycle().catch((error) => {
+      Log.error(
+        `Core // Variant Clones Controller // Async clone failed ${formatLogMetadata({
+          error: error instanceof Error ? error.message : String(error),
+          productId: product.id,
+          targetPath,
+          variantId,
+        })}`,
+      );
+    });
+
+    return {
+      variant: seededVariant,
+      clone: {
+        cloneType: resolvedCloneType,
+        sourceLocator,
+        sourceLocatorKind: parseLocatorId(sourceLocator).type === 'git' ? 'git' : 'local',
+        targetPath,
+        targetLocator,
+        branchName: resolvedCloneType === 'git.clone_branch' ? branch.value : null,
+        generatedTargetPath,
+        generatedBranchName: resolvedCloneType === 'git.clone_branch' ? branch.generated : false,
+        attemptedCommand,
+        usedNoLocalRetry,
+        isAsync: true,
+      },
+    };
+  }
+
+  const variant = await executeCloneLifecycle();
 
   return {
     variant,
@@ -479,6 +1084,9 @@ export const cloneVariantForProduct = async (
       branchName: resolvedCloneType === 'git.clone_branch' ? branch.value : null,
       generatedTargetPath,
       generatedBranchName: resolvedCloneType === 'git.clone_branch' ? branch.generated : false,
+      attemptedCommand,
+      usedNoLocalRetry,
+      isAsync: false,
     },
   };
 };

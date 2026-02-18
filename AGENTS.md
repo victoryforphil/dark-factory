@@ -140,6 +140,7 @@ It reflects only what is currently true in this repository.
 - Current REST coverage includes CRUD handlers for `/products`, `/variants`, and `/actors`, plus:
   - product-scoped variant routes: `GET /products/:id/variants`, `POST /products/:id/variants`, and `POST /products/:id/variants/clone`.
   - `POST /variants/:id/poll` for on-demand variant git metadata refresh.
+  - `POST /variants/:id/branch` to switch a local git variant worktree branch (checkout+pull when branch exists, otherwise create+checkout).
   - `POST /variants/:id/actors/import` for opt-in import of provider-managed active sessions into actor rows.
     - OpenCode provider imports treat root sessions as actors and attach nested child sessions as `subAgents` snapshots on the parent actor.
   - actor lifecycle/interaction endpoints: `POST /actors/:id/poll`, `GET /actors/:id/attach`, `POST /actors/:id/messages`, `GET /actors/:id/messages`, `POST /actors/:id/commands`.

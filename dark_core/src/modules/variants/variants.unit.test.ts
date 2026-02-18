@@ -5,6 +5,9 @@ import { NotFoundError } from '../common/controller.errors';
 import { createVariantsRoutes } from './variants.routes';
 
 const dependenciesBase = {
+  checkoutVariantBranchById: async () => {
+    throw new Error('not used in this test');
+  },
   createVariant: async () => {
     throw new Error('not used in this test');
   },
@@ -191,6 +194,57 @@ describe('variants module unit', () => {
         discovered: 2,
         created: 1,
         updated: 1,
+      },
+    });
+  });
+
+  it('switches variant branch through branch route dependency', async () => {
+    let received: { variantId: string; branchName: string } | undefined;
+
+    const app = new Elysia().use(
+      createVariantsRoutes({
+        ...dependenciesBase,
+        checkoutVariantBranchById: async (variantId, input) => {
+          received = {
+            variantId,
+            branchName: input.branchName,
+          };
+          return {
+            id: variantId,
+            productId: 'p_1',
+            name: 'default',
+            locator: '@local:///tmp/demo',
+            gitInfo: null,
+            gitInfoUpdatedAt: null,
+            gitInfoLastPolledAt: null,
+            createdAt: new Date('2026-01-01T00:00:00.000Z'),
+            updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+          };
+        },
+      }),
+    );
+
+    const response = await app.handle(
+      new Request('http://localhost/variants/v_1/branch', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          branchName: 'feature/demo',
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(received).toEqual({
+      variantId: 'v_1',
+      branchName: 'feature/demo',
+    });
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      data: {
+        id: 'v_1',
       },
     });
   });

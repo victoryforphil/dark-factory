@@ -43,6 +43,10 @@ export interface DeleteVariantOptions {
   dry?: boolean;
 }
 
+export interface CheckoutVariantBranchInput {
+  branchName: string;
+}
+
 const normalizeLimit = (value?: number): number => {
   if (typeof value !== 'number' || Number.isNaN(value)) {
     return DEFAULT_LIST_LIMIT;
@@ -57,6 +61,26 @@ const toPrismaJson = (value: Variant['gitInfo']): Prisma.InputJsonValue | Prisma
   }
 
   return value as Prisma.InputJsonValue;
+};
+
+const isJsonRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+};
+
+const mergeCloneMetadata = (
+  gitInfo: Variant['gitInfo'],
+  previousGitInfo: Variant['gitInfo'],
+): Variant['gitInfo'] => {
+  const previousClone = isJsonRecord(previousGitInfo) ? previousGitInfo._clone : undefined;
+  if (previousClone === undefined) {
+    return gitInfo;
+  }
+
+  const nextBase = isJsonRecord(gitInfo) ? { ...gitInfo } : {};
+  return {
+    ...nextBase,
+    _clone: previousClone,
+  };
 };
 
 export const listVariants = async (query: ListVariantsQuery = {}): Promise<Variant[]> => {
@@ -166,14 +190,15 @@ export const syncVariantGitInfo = async (id: string): Promise<Variant> => {
   }
 
   const gitInfo = await scanVariantGitInfo(existingVariant.locator);
+  const mergedGitInfo = mergeCloneMetadata(gitInfo, existingVariant.gitInfo);
   const now = new Date();
 
   const updatedVariant = await prisma.variant.update({
     where: { id },
     data: {
-      gitInfo: toPrismaJson(gitInfo),
+      gitInfo: toPrismaJson(mergedGitInfo),
       gitInfoLastPolledAt: now,
-      gitInfoUpdatedAt: gitInfo ? now : null,
+      gitInfoUpdatedAt: mergedGitInfo ? now : null,
     },
   });
 
@@ -299,6 +324,148 @@ const runGit = async (args: string[], cwd: string): Promise<GitCommandResult> =>
   };
 };
 
+const ensureLocalGitVariantPath = async (id: string): Promise<string> => {
+  const variant = await getVariantById(id, { poll: false });
+  if (!isLocalLocator(variant.locator)) {
+    throw new Error(
+      `Variants // Branch // Variant locator must be local ${formatLogMetadata({
+        id,
+        locator: variant.locator,
+      })}`,
+    );
+  }
+
+  const path = locatorIdToHostPath(variant.locator);
+  const existing = await stat(path).catch(() => null);
+  if (!existing || !existing.isDirectory()) {
+    throw new Error(
+      `Variants // Branch // Variant path missing ${formatLogMetadata({
+        id,
+        path,
+      })}`,
+    );
+  }
+
+  const insideWorkTree = await runGit(['rev-parse', '--is-inside-work-tree'], path);
+  if (!insideWorkTree.ok || !insideWorkTree.stdout.trim().includes('true')) {
+    throw new Error(
+      `Variants // Branch // Variant path is not a git worktree ${formatLogMetadata({
+        id,
+        path,
+      })}`,
+    );
+  }
+
+  return path;
+};
+
+const hasLocalBranch = async (path: string, branchName: string): Promise<boolean> => {
+  const result = await runGit(['show-ref', '--verify', '--quiet', `refs/heads/${branchName}`], path);
+  return result.ok;
+};
+
+const hasRemoteBranch = async (path: string, branchName: string): Promise<boolean> => {
+  const remoteResult = await runGit(['remote', 'get-url', 'origin'], path);
+  if (!remoteResult.ok) {
+    return false;
+  }
+
+  const remoteBranchResult = await runGit(['ls-remote', '--heads', 'origin', branchName], path);
+  if (!remoteBranchResult.ok) {
+    throw new Error(
+      `Variants // Branch // Git remote branch lookup failed ${formatLogMetadata({
+        branchName,
+        exitCode: remoteBranchResult.exitCode,
+        path,
+        stderr: trimToNull(remoteBranchResult.stderr),
+      })}`,
+    );
+  }
+
+  const exists = remoteBranchResult.stdout
+    .split('\n')
+    .map((line) => line.trim())
+    .some((line) => line.endsWith(`/heads/${branchName}`));
+  return exists;
+};
+
+export const checkoutVariantBranchById = async (
+  id: string,
+  input: CheckoutVariantBranchInput,
+): Promise<Variant> => {
+  const branchName = input.branchName.trim();
+  if (!branchName) {
+    throw new Error('Variants // Branch // Branch name is required');
+  }
+
+  const path = await ensureLocalGitVariantPath(id);
+  const localExists = await hasLocalBranch(path, branchName);
+  const remoteExists = await hasRemoteBranch(path, branchName);
+
+  if (localExists) {
+    const checkoutResult = await runGit(['checkout', branchName], path);
+    if (!checkoutResult.ok) {
+      throw new Error(
+        `Variants // Branch // Git checkout failed ${formatLogMetadata({
+          branchName,
+          exitCode: checkoutResult.exitCode,
+          path,
+          stderr: trimToNull(checkoutResult.stderr),
+        })}`,
+      );
+    }
+  } else if (remoteExists) {
+    const checkoutResult = await runGit(['checkout', '-b', branchName], path);
+    if (!checkoutResult.ok) {
+      throw new Error(
+        `Variants // Branch // Git checkout create failed ${formatLogMetadata({
+          branchName,
+          exitCode: checkoutResult.exitCode,
+          path,
+          stderr: trimToNull(checkoutResult.stderr),
+        })}`,
+      );
+    }
+  } else {
+    const checkoutResult = await runGit(['checkout', '-b', branchName], path);
+    if (!checkoutResult.ok) {
+      throw new Error(
+        `Variants // Branch // Git branch create failed ${formatLogMetadata({
+          branchName,
+          exitCode: checkoutResult.exitCode,
+          path,
+          stderr: trimToNull(checkoutResult.stderr),
+        })}`,
+      );
+    }
+  }
+
+  if (localExists || remoteExists) {
+    const pullResult = await runGit(['pull', '--ff-only', 'origin', branchName], path);
+    if (!pullResult.ok) {
+      throw new Error(
+        `Variants // Branch // Git pull failed ${formatLogMetadata({
+          branchName,
+          exitCode: pullResult.exitCode,
+          path,
+          stderr: trimToNull(pullResult.stderr),
+        })}`,
+      );
+    }
+  }
+
+  Log.info(
+    `Core // Variants Controller // Branch switched ${formatLogMetadata({
+      branchName,
+      id,
+      localExists,
+      remoteExists,
+    })}`,
+  );
+
+  return syncVariantGitInfo(id);
+};
+
 const ensureGitCloneSafeToDelete = async (path: string): Promise<void> => {
   Log.debug(
     `Core // Variants Controller // Undo git checks started ${formatLogMetadata({ path })}`,
@@ -356,6 +523,18 @@ const ensureGitCloneSafeToDelete = async (path: string): Promise<void> => {
     })}`,
   );
   if (!branchResult.ok || !branch || branch === 'HEAD') {
+    if (branch === 'HEAD') {
+      const headResult = await runGit(['rev-parse', '--verify', 'HEAD'], path);
+      if (!headResult.ok) {
+        Log.warn(
+          `Core // Variants Controller // Undo git checks downgraded for incomplete clone ${formatLogMetadata({
+            path,
+          })}`,
+        );
+        return;
+      }
+    }
+
     throw new Error(
       `Variants // Delete // Undo blocked: expected active branch ${formatLogMetadata({
         path,

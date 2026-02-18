@@ -25,6 +25,18 @@ const runGit = (args: string[], cwd: string): void => {
   }
 };
 
+const runGitOutput = (args: string[], cwd: string): string => {
+  const result = Bun.spawnSync(['git', ...args], { cwd, stdout: 'pipe', stderr: 'pipe' });
+
+  if (result.exitCode !== 0) {
+    throw new Error(
+      `git ${args.join(' ')} failed (code=${result.exitCode}): ${result.stderr.toString()}`,
+    );
+  }
+
+  return result.stdout.toString().trim();
+};
+
 describe('products module integration', () => {
   let testDatabase: SqliteTestDatabase;
 
@@ -366,6 +378,124 @@ describe('products module integration', () => {
 
       const copiedReadme = await readFile(join(cloned.data.clone.targetPath, 'README.md'), 'utf8');
       expect(copiedReadme).toContain('# source');
+    } finally {
+      await rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('reuses an existing remote branch when cloning a git product variant', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'dark-factory-products-clone-remote-'));
+    const remotePath = join(workspace, 'remote.git');
+    const seedPath = join(workspace, 'seed');
+
+    try {
+      runGit(['init', '--bare', remotePath], workspace);
+      runGit(['clone', remotePath, seedPath], workspace);
+      runGit(['config', 'user.name', 'Dark Factory Test'], seedPath);
+      runGit(['config', 'user.email', 'test@example.com'], seedPath);
+
+      runGit(['checkout', '-b', 'main'], seedPath);
+      await writeFile(join(seedPath, 'README.md'), '# main branch\n', 'utf8');
+      runGit(['add', '.'], seedPath);
+      runGit(['commit', '-m', 'main init'], seedPath);
+      runGit(['push', '-u', 'origin', 'main'], seedPath);
+
+      runGit(['checkout', '-b', 'feature/existing'], seedPath);
+      await writeFile(join(seedPath, 'FEATURE.md'), 'existing branch marker\n', 'utf8');
+      runGit(['add', '.'], seedPath);
+      runGit(['commit', '-m', 'feature init'], seedPath);
+      runGit(['push', '-u', 'origin', 'feature/existing'], seedPath);
+
+      const product = await createProduct({
+        locator: `@git://${remotePath}#main`,
+      });
+      const app = buildApp();
+
+      const cloneResponse = await app.handle(
+        new Request(`http://localhost/products/${product.id}/variants/clone`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: 'existing-branch-clone',
+            branchName: 'feature/existing',
+            targetPath: join(workspace, 'clone-existing-branch'),
+          }),
+        }),
+      );
+
+      expect(cloneResponse.status).toBe(201);
+      const cloned = (await cloneResponse.json()) as {
+        ok: true;
+        data: {
+          clone: { targetPath: string; branchName: string | null };
+        };
+      };
+
+      expect(cloned.data.clone.branchName).toBe('feature/existing');
+      expect(runGitOutput(['rev-parse', '--abbrev-ref', 'HEAD'], cloned.data.clone.targetPath)).toBe(
+        'feature/existing',
+      );
+
+      const featureMarker = await readFile(join(cloned.data.clone.targetPath, 'FEATURE.md'), 'utf8');
+      expect(featureMarker).toContain('existing branch marker');
+    } finally {
+      await rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('creates a new branch when requested branch is not on remote', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'dark-factory-products-clone-new-branch-'));
+    const remotePath = join(workspace, 'remote.git');
+    const seedPath = join(workspace, 'seed');
+
+    try {
+      runGit(['init', '--bare', remotePath], workspace);
+      runGit(['clone', remotePath, seedPath], workspace);
+      runGit(['config', 'user.name', 'Dark Factory Test'], seedPath);
+      runGit(['config', 'user.email', 'test@example.com'], seedPath);
+
+      runGit(['checkout', '-b', 'main'], seedPath);
+      await writeFile(join(seedPath, 'README.md'), '# main branch\n', 'utf8');
+      runGit(['add', '.'], seedPath);
+      runGit(['commit', '-m', 'main init'], seedPath);
+      runGit(['push', '-u', 'origin', 'main'], seedPath);
+
+      const product = await createProduct({
+        locator: `@git://${remotePath}#main`,
+      });
+      const app = buildApp();
+
+      const cloneResponse = await app.handle(
+        new Request(`http://localhost/products/${product.id}/variants/clone`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: 'new-branch-clone',
+            branchName: 'feature/new-branch',
+            targetPath: join(workspace, 'clone-new-branch'),
+          }),
+        }),
+      );
+
+      expect(cloneResponse.status).toBe(201);
+      const cloned = (await cloneResponse.json()) as {
+        ok: true;
+        data: {
+          clone: { targetPath: string; branchName: string | null };
+        };
+      };
+
+      expect(cloned.data.clone.branchName).toBe('feature/new-branch');
+      expect(runGitOutput(['rev-parse', '--abbrev-ref', 'HEAD'], cloned.data.clone.targetPath)).toBe(
+        'feature/new-branch',
+      );
+      expect(
+        runGitOutput(['show-ref', '--verify', '--quiet', 'refs/heads/feature/new-branch'], cloned.data.clone.targetPath),
+      ).toBe('');
     } finally {
       await rm(workspace, { recursive: true, force: true });
     }

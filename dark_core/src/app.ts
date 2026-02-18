@@ -1,6 +1,5 @@
 import { Elysia } from 'elysia';
 import { openapi } from '@elysiajs/openapi';
-import { logger } from '@grotto/logysia';
 import { llms } from '@opuu/elysia-llms-txt';
 
 import {
@@ -47,16 +46,6 @@ export const buildApp = (): Elysia => {
         source: {
           type: 'url',
           url: '/openapi/json',
-        },
-      }),
-    )
-    .use(
-      logger({
-        logIP: false,
-        writer: {
-          write(message: string) {
-            Log.info(`Core // HTTP // ${message.trim()}`);
-          },
         },
       }),
     )

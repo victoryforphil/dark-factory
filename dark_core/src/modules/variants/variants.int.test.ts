@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { access, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -36,6 +36,28 @@ describe('variants module integration', () => {
   afterEach(async () => {
     await testDatabase.teardown();
   });
+
+  const runGit = (args: string[], cwd: string): void => {
+    const result = Bun.spawnSync(['git', ...args], { cwd, stdout: 'pipe', stderr: 'pipe' });
+
+    if (result.exitCode !== 0) {
+      throw new Error(
+        `git ${args.join(' ')} failed (code=${result.exitCode}): ${result.stderr.toString()}`,
+      );
+    }
+  };
+
+  const runGitOutput = (args: string[], cwd: string): string => {
+    const result = Bun.spawnSync(['git', ...args], { cwd, stdout: 'pipe', stderr: 'pipe' });
+
+    if (result.exitCode !== 0) {
+      throw new Error(
+        `git ${args.join(' ')} failed (code=${result.exitCode}): ${result.stderr.toString()}`,
+      );
+    }
+
+    return result.stdout.toString().trim();
+  };
 
   it('creates, lists, updates, fetches, and deletes variants through http handlers', async () => {
     const app = buildApp();
@@ -380,5 +402,117 @@ describe('variants module integration', () => {
         typeof actor.description === 'string' && actor.description.trim().length > 0,
       ),
     ).toBeTrue();
+  });
+
+  it('switches to an existing remote branch for a local git variant', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'dark-factory-variants-branch-existing-'));
+    const remotePath = join(workspace, 'remote.git');
+    const seedPath = join(workspace, 'seed');
+    const clonePath = join(workspace, 'variant-clone');
+
+    try {
+      runGit(['init', '--bare', remotePath], workspace);
+      runGit(['clone', remotePath, seedPath], workspace);
+      runGit(['config', 'user.name', 'Dark Factory Test'], seedPath);
+      runGit(['config', 'user.email', 'test@example.com'], seedPath);
+
+      runGit(['checkout', '-b', 'main'], seedPath);
+      await writeFile(join(seedPath, 'README.md'), '# main\n', 'utf8');
+      runGit(['add', '.'], seedPath);
+      runGit(['commit', '-m', 'main init'], seedPath);
+      runGit(['push', '-u', 'origin', 'main'], seedPath);
+
+      runGit(['checkout', '-b', 'feature/existing'], seedPath);
+      await writeFile(join(seedPath, 'FEATURE.md'), 'existing branch\n', 'utf8');
+      runGit(['add', '.'], seedPath);
+      runGit(['commit', '-m', 'feature init'], seedPath);
+      runGit(['push', '-u', 'origin', 'feature/existing'], seedPath);
+
+      runGit(['clone', '--branch', 'main', '--single-branch', remotePath, clonePath], workspace);
+
+      const product = await createProduct({ locator: `@local://${workspace}` });
+      const variant = await createVariant({
+        product: {
+          connect: {
+            id: product.id,
+          },
+        },
+        name: 'git-variant',
+        locator: `@local://${clonePath}`,
+      });
+
+      const app = buildApp();
+      const response = await app.handle(
+        new Request(`http://localhost/variants/${variant.id}/branch`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            branchName: 'feature/existing',
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(runGitOutput(['rev-parse', '--abbrev-ref', 'HEAD'], clonePath)).toBe('feature/existing');
+      expect(runGitOutput(['show-ref', '--verify', '--quiet', 'refs/heads/feature/existing'], clonePath)).toBe('');
+      const featureMarker = await readFile(join(clonePath, 'FEATURE.md'), 'utf8');
+      expect(featureMarker).toContain('existing branch');
+    } finally {
+      await rm(workspace, { recursive: true, force: true });
+    }
+  });
+
+  it('creates and switches to a new branch when remote branch is absent', async () => {
+    const workspace = await mkdtemp(join(tmpdir(), 'dark-factory-variants-branch-new-'));
+    const remotePath = join(workspace, 'remote.git');
+    const seedPath = join(workspace, 'seed');
+    const clonePath = join(workspace, 'variant-clone');
+
+    try {
+      runGit(['init', '--bare', remotePath], workspace);
+      runGit(['clone', remotePath, seedPath], workspace);
+      runGit(['config', 'user.name', 'Dark Factory Test'], seedPath);
+      runGit(['config', 'user.email', 'test@example.com'], seedPath);
+
+      runGit(['checkout', '-b', 'main'], seedPath);
+      await writeFile(join(seedPath, 'README.md'), '# main\n', 'utf8');
+      runGit(['add', '.'], seedPath);
+      runGit(['commit', '-m', 'main init'], seedPath);
+      runGit(['push', '-u', 'origin', 'main'], seedPath);
+
+      runGit(['clone', '--branch', 'main', '--single-branch', remotePath, clonePath], workspace);
+
+      const product = await createProduct({ locator: `@local://${workspace}` });
+      const variant = await createVariant({
+        product: {
+          connect: {
+            id: product.id,
+          },
+        },
+        name: 'git-variant-new',
+        locator: `@local://${clonePath}`,
+      });
+
+      const app = buildApp();
+      const response = await app.handle(
+        new Request(`http://localhost/variants/${variant.id}/branch`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            branchName: 'feature/new-branch',
+          }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(runGitOutput(['rev-parse', '--abbrev-ref', 'HEAD'], clonePath)).toBe('feature/new-branch');
+      expect(runGitOutput(['show-ref', '--verify', '--quiet', 'refs/heads/feature/new-branch'], clonePath)).toBe('');
+    } finally {
+      await rm(workspace, { recursive: true, force: true });
+    }
   });
 });

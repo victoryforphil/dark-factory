@@ -10,6 +10,7 @@ import {
 import { importVariantActors } from '../actors/actors.controller';
 
 import {
+  checkoutVariantBranchById,
   createVariant,
   deleteVariantById,
   getVariantById,
@@ -22,6 +23,7 @@ import { failure, success, toErrorMessage } from '../../utils/api-response';
 import Log, { formatLogMetadata, logRouteStart, logRouteSuccess } from '../../utils/logging';
 
 export interface VariantsRoutesDependencies {
+  checkoutVariantBranchById: typeof checkoutVariantBranchById;
   createVariant: typeof createVariant;
   deleteVariantById: typeof deleteVariantById;
   getVariantById: typeof getVariantById;
@@ -57,6 +59,11 @@ const variantDeleteResponse = t.Object({
 });
 
 const variantPollResponse = t.Object({
+  ok: t.Literal(true),
+  data: VariantPlain,
+});
+
+const variantBranchResponse = t.Object({
   ok: t.Literal(true),
   data: VariantPlain,
 });
@@ -119,6 +126,7 @@ const parseDryQuery = (dry?: string): boolean => {
 
 export const createVariantsRoutes = (
   dependencies: VariantsRoutesDependencies = {
+    checkoutVariantBranchById,
     createVariant,
     deleteVariantById,
     getVariantById,
@@ -297,6 +305,68 @@ export const createVariantsRoutes = (
         }),
         response: {
           200: variantPollResponse,
+          404: notFoundResponse,
+          500: apiFailureResponse,
+        },
+      },
+    )
+    .post(
+      '/:id/branch',
+      async ({ params, body, set }) => {
+        try {
+          return success(
+            await dependencies.checkoutVariantBranchById(params.id, {
+              branchName: body.branchName,
+            }),
+          );
+        } catch (error) {
+          if (isNotFoundError(error)) {
+            set.status = 404;
+            Log.warn(
+              `Core // Variants Route // Branch switch variant not found ${formatLogMetadata({ id: params.id })}`,
+            );
+            return failure('VARIANTS_NOT_FOUND', error.message);
+          }
+
+          const message = toErrorMessage(error);
+          if (message.includes('Branch name is required')) {
+            set.status = 400;
+            return failure('VARIANTS_BRANCH_INVALID', message);
+          }
+
+          if (message.includes('Variant locator must be local')) {
+            set.status = 400;
+            return failure('VARIANTS_BRANCH_UNSUPPORTED', message);
+          }
+
+          if (message.includes('Variant path missing')) {
+            set.status = 400;
+            return failure('VARIANTS_BRANCH_PATH_MISSING', message);
+          }
+
+          if (message.includes('not a git worktree')) {
+            set.status = 400;
+            return failure('VARIANTS_BRANCH_NOT_GIT', message);
+          }
+
+          Log.error(
+            `Core // Variants Route // Branch switch failed ${formatLogMetadata({
+              error: message,
+              id: params.id,
+            })}`,
+          );
+          set.status = 500;
+          return failure('VARIANTS_BRANCH_FAILED', message);
+        }
+      },
+      {
+        params: t.Object({ id: t.String() }),
+        body: t.Object({
+          branchName: t.String(),
+        }),
+        response: {
+          200: variantBranchResponse,
+          400: apiFailureResponse,
           404: notFoundResponse,
           500: apiFailureResponse,
         },
